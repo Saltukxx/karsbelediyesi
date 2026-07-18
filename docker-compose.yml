@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kars-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kars
+      POSTGRES_PASSWORD: kars_dev_sifre
+      POSTGRES_DB: kars_belediyesi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kars -d kars_belediyesi"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: kars-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: kars-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://kars:kars_dev_sifre@postgres:5432/kars_belediyesi
+      REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:-degistir-uzun-rastgele-bir-anahtar}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      JWT_SECRET: ${JWT_SECRET:-degistir-mobil-jwt-anahtari}
+      UPLOAD_DIR: /app/uploads
+      WHATSAPP_BOT_MEDIA_PATH: /app/whatsapp-data/media
+    volumes:
+      - uploads-data:/app/uploads
+      - whatsapp-data:/app/whatsapp-data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    profiles: ["full"]
+
+  whatsapp-bot:
+    build:
+      context: .
+      dockerfile: apps/whatsapp-bot/Dockerfile
+    container_name: kars-whatsapp-bot
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://kars:kars_dev_sifre@postgres:5432/kars_belediyesi
+      REDIS_URL: redis://redis:6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_TUNED_MODEL: ${GEMINI_TUNED_MODEL:-}
+      WHATSAPP_AUTO_CONFIDENCE_THRESHOLD: ${WHATSAPP_AUTO_CONFIDENCE_THRESHOLD:-0.75}
+    volumes:
+      - whatsapp-data:/app/apps/whatsapp-bot/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    profiles: ["full"]
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads-data:
+  whatsapp-data:

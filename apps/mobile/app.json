@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Kars Saha",
+    "slug": "kars-saha",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "karssaha",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "tr.gov.kars.saha"
+    },
+    "android": {
+      "package": "tr.gov.kars.saha",
+      "adaptiveIcon": {
+        "backgroundColor": "#1e3a5f"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#1e3a5f"
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": "http://localhost:3000",
+      "eas": {
+        "projectId": "kars-saha-local"
+      }
+    }
+  }
+}

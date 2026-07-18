@@ -1,0 +1,33 @@
+{
+  "name": "whatsapp-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "export:training": "tsx scripts/export-training-data.ts",
+    "tune": "tsx scripts/tune-gemini.ts",
+    "eval:ai": "tsx scripts/eval-classify.ts"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "@hapi/boom": "^10.0.1",
+    "@kars/db": "*",
+    "@kars/shared": "*",
+    "@whiskeysockets/baileys": "^6.7.16",
+    "bullmq": "^5.34.0",
+    "dotenv": "^16.4.7",
+    "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/qrcode-terminal": "^0.12.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5",
+    "vitest": "^3.0.0"
+  }
+}

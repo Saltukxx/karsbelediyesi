@@ -1,0 +1,26 @@
+node_modules/
+.next/
+.expo/
+dist/
+build/
+*.log
+.env
+.env.local
+.env*.local
+.DS_Store
+coverage/
+whatsapp-session/
+uploads/
+.turbo/
+.claude/
+
+# WhatsApp bot runtime / generated (keep gold.jsonl + README)
+apps/whatsapp-bot/data/auth/
+apps/whatsapp-bot/data/media/
+apps/whatsapp-bot/data/status.json
+apps/whatsapp-bot/data/training/from-db.jsonl
+apps/whatsapp-bot/data/training/train.jsonl
+apps/whatsapp-bot/data/training/val.jsonl
+apps/whatsapp-bot/data/training/last-tune-job.json
+apps/whatsapp-bot/data/training/last-eval.json
+apps/whatsapp-bot/data/training/smoke-*

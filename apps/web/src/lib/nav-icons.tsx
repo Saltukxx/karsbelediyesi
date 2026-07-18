@@ -1,0 +1,41 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  PhoneCall,
+  MessageCircle,
+  Truck,
+  Wrench,
+  Fuel,
+  LineChart,
+  Package,
+  BrickWall,
+  Mountain,
+  Droplets,
+  ClipboardList,
+  CheckSquare,
+  Users,
+  Clock3,
+  BarChart3,
+  Settings,
+} from "lucide-react";
+import type { NavIconName } from "@/lib/nav";
+
+export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
+  LayoutDashboard,
+  PhoneCall,
+  MessageCircle,
+  Truck,
+  Wrench,
+  Fuel,
+  LineChart,
+  Package,
+  BrickWall,
+  Mountain,
+  Droplets,
+  ClipboardList,
+  CheckSquare,
+  Users,
+  Clock3,
+  BarChart3,
+  Settings,
+};

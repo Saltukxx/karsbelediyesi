@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/auth/
+data/media/
+data/status.json
+data/training/from-db.jsonl
+data/training/train.jsonl
+data/training/val.jsonl
+data/training/last-tune-job.json
+data/training/last-eval.json
+.env
+*.log

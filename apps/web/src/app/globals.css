@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+:root {
+  --kb-navy: #1e3a5f;
+  --kb-navy-deep: #152a45;
+  --kb-navy-soft: #2a4a73;
+  --kb-accent: #c45c26;
+  --kb-surface: #f4f6f8;
+  --kb-surface-raised: #ffffff;
+  --kb-border: #d8dee6;
+  --kb-muted: #5c6b7a;
+  --kb-ink: #1a2332;
+  --kb-success: #1f6b4a;
+  --kb-success-bg: #e8f5ef;
+  --kb-warning: #9a6700;
+  --kb-warning-bg: #fff6e0;
+  --kb-danger: #b42318;
+  --kb-danger-bg: #fef3f2;
+  --kb-info: #175cd3;
+  --kb-info-bg: #eff4ff;
+  --background: var(--kb-surface);
+  --foreground: var(--kb-ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-kb-navy: var(--kb-navy);
+  --color-kb-navy-deep: var(--kb-navy-deep);
+  --color-kb-navy-soft: var(--kb-navy-soft);
+  --color-kb-accent: var(--kb-accent);
+  --color-kb-surface: var(--kb-surface);
+  --color-kb-surface-raised: var(--kb-surface-raised);
+  --color-kb-border: var(--kb-border);
+  --color-kb-muted: var(--kb-muted);
+  --color-kb-ink: var(--kb-ink);
+  --color-kb-success: var(--kb-success);
+  --color-kb-success-bg: var(--kb-success-bg);
+  --color-kb-warning: var(--kb-warning);
+  --color-kb-warning-bg: var(--kb-warning-bg);
+  --color-kb-danger: var(--kb-danger);
+  --color-kb-danger-bg: var(--kb-danger-bg);
+  --color-kb-info: var(--kb-info);
+  --color-kb-info-bg: var(--kb-info-bg);
+  --font-sans: var(--font-source-sans);
+  --font-serif: var(--font-source-serif);
+}
+
+body {
+  background: var(--kb-surface);
+  color: var(--kb-ink);
+  font-family: var(--font-source-sans), "Source Sans 3", system-ui, sans-serif;
+}
+
+h1,
+h2,
+.font-brand {
+  font-family: var(--font-source-serif), "Source Serif 4", Georgia, serif;
+}
+
+/* Data tables — shared institutional look */
+.kb-table {
+  width: 100%;
+  font-size: 0.875rem;
+  border-collapse: collapse;
+}
+
+.kb-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eef2f6;
+  color: var(--kb-muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--kb-border);
+}
+
+.kb-table tbody td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e8edf2;
+  color: var(--kb-ink);
+  vertical-align: middle;
+}
+
+.kb-table tbody tr:hover td {
+  background: #f7f9fb;
+}
+
+.kb-table tfoot td,
+.kb-table tbody tr.kb-total td {
+  background: #eef2f6;
+  font-weight: 600;
+}
