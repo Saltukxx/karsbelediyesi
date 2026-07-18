@@ -95,14 +95,24 @@ Kurallar:
 - Bilgi soruları → bilgi_talebi; takip/numara/aşama → durum_sorgu.`;
 }
 
-function userPromptText(text: string, media?: ClassifyMedia | null): string {
+function priorDraftHint(prior?: Classification | null): string {
+  if (!prior) return "";
+  return `\nÖnceki taslak (eksik alanları doldur, sıfırlama): tür=${prior.sikayet_turu ?? "null"}, mahalle=${prior.mahalle ?? "null"}, adres=${prior.adres ?? "null"}, özet=${prior.aciklama_ozeti ?? "null"}`;
+}
+
+function userPromptText(
+  text: string,
+  media?: ClassifyMedia | null,
+  prior?: Classification | null,
+): string {
+  const hint = priorDraftHint(prior);
   if (!media) {
-    return `Vatandaş mesajı:\n${text}`;
+    return `Vatandaş mesajı:\n${text}${hint}`;
   }
   if (media.mimeType.startsWith("audio/")) {
-    return `Vatandaş sesli mesajı (ekli sesi dinle)${text && !isPlaceholderIcerik(text) ? ` ve metin/altyazı:\n${text}` : ":\n(metin yok, yalnızca ses)"}`;
+    return `Vatandaş sesli mesajı (ekli sesi dinle)${text && !isPlaceholderIcerik(text) ? ` ve metin/altyazı:\n${text}` : ":\n(metin yok, yalnızca ses)"}${hint}`;
   }
-  return `Vatandaş mesajı (fotoğraflı)${text && !isPlaceholderIcerik(text) ? `:\n${text}` : ":\n(metin yok, görsel içerik)"}`;
+  return `Vatandaş mesajı (fotoğraflı)${text && !isPlaceholderIcerik(text) ? `:\n${text}` : ":\n(metin yok, görsel içerik)"}${hint}`;
 }
 
 export function asciiFold(s: string): string {
@@ -308,10 +318,28 @@ export function normalizeClassification(raw: Partial<Classification> | null | un
 export async function classifyMessage(
   text: string,
   media?: ClassifyMedia | null,
+  priorDraft?: Classification | null,
 ): Promise<Classification> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return heuristicClassify(text, Boolean(media));
+    const h = heuristicClassify(text, Boolean(media));
+    if (!priorDraft) return h;
+    // Merge light: keep prior tür/mahalle if this turn is a short slot fill
+    return {
+      ...h,
+      intent: h.intent === "diger" && priorDraft.intent === "sikayet" ? "sikayet" : h.intent,
+      sikayet_turu: h.sikayet_turu ?? priorDraft.sikayet_turu,
+      mahalle: h.mahalle ?? priorDraft.mahalle,
+      adres: h.adres ?? priorDraft.adres,
+      aciklama_ozeti: h.aciklama_ozeti ?? priorDraft.aciklama_ozeti,
+      oncelik:
+        h.oncelik === "COK_ACIL" || priorDraft.oncelik === "COK_ACIL"
+          ? "COK_ACIL"
+          : h.oncelik === "ACIL" || priorDraft.oncelik === "ACIL"
+            ? "ACIL"
+            : h.oncelik,
+      guven: Math.max(h.guven, priorDraft.guven * 0.85),
+    };
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -335,7 +363,7 @@ export async function classifyMessage(
     });
   }
 
-  const userParts: Part[] = [{ text: userPromptText(text, media) }];
+  const userParts: Part[] = [{ text: userPromptText(text, media, priorDraft) }];
   if (media) {
     try {
       const buf = await readFile(media.filePath);
@@ -368,7 +396,7 @@ export async function classifyMessage(
     try {
       const fallbackParts: Part[] = [
         {
-          text: `${systemInstruction()}\n\nMesaj: ${text}\n\nSadece geçerli JSON döndür.`,
+          text: `${systemInstruction()}\n\nMesaj: ${text}${priorDraftHint(priorDraft)}\n\nSadece geçerli JSON döndür.`,
         },
       ];
       if (media) {

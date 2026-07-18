@@ -154,6 +154,13 @@ enum WhatsAppYon {
   GIDEN
 }
 
+/// WhatsApp çok turlu diyalogda beklenen vatandaş yanıtı
+enum WhatsAppAwaiting {
+  ACIKLAMA
+  MAHALLE
+  ADRES
+}
+
 /// Akaryakıt Excel: Kilometre (km) / Çalışma Saati (saat)
 enum SayacTipi {
   KM
@@ -451,6 +458,20 @@ model WhatsAppMessage {
 
   @@index([telefon])
   @@index([onayDurumu])
+}
+
+/// Telefon bazlı WhatsApp diyalog oturumu (mahalle/adres/açıklama toplama)
+model WhatsAppSession {
+  id        String            @id @default(cuid())
+  telefon   String            @unique
+  awaiting  WhatsAppAwaiting?
+  /// { classification, askedAdres, sourceMessageIds? }
+  draft     Json
+  expiresAt DateTime
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([expiresAt])
 }
 
 // ═══════════════════════ GÖREVLENDİRME (ARAÇ HAVUZU) ═══════════════════════

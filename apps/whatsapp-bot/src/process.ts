@@ -1,6 +1,18 @@
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
 import { classifyMessage, type Classification } from "./classify.js";
 import type { MediaErrorCode } from "./media.js";
+import {
+  clearSession,
+  emptyDraft,
+  getSession,
+  isAdresSkip,
+  looksLikeSlotFill,
+  mergeDraft,
+  nextAwaiting,
+  replyForAwaiting,
+  upsertSession,
+  type SessionDraft,
+} from "./session.js";
 
 const THRESHOLD = Number(process.env.WHATSAPP_AUTO_CONFIDENCE_THRESHOLD ?? "0.75");
 
@@ -26,6 +38,15 @@ function mediaErrorReply(code?: MediaErrorCode): string {
     return "Gönderdiğiniz dosya çok büyük (en fazla 8 MB). Lütfen daha küçük bir fotoğraf/ses gönderin veya şikayetinizi yazın.";
   }
   return "Medya alınamadı. Lütfen fotoğraf veya sesli mesajı tekrar gönderin ya da şikayetinizi yazın.";
+}
+
+function isFullNewComplaint(c: Classification): boolean {
+  return (
+    c.intent === "sikayet" &&
+    Boolean(c.sikayet_turu) &&
+    Boolean(c.mahalle) &&
+    (c.guven >= 0.7 || Boolean(c.adres))
+  );
 }
 
 export async function processInbound(job: InboundJob): Promise<ProcessResult> {
@@ -82,33 +103,31 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
     };
   }
 
-  const classification = await classifyMessage(
+  const session = await getSession(job.telefon);
+  const prior = session?.draft.classification ?? null;
+
+  const turn = await classifyMessage(
     job.icerik,
     job.medyaUrl && job.mimeType
       ? { filePath: job.medyaUrl, mimeType: job.mimeType }
       : null,
+    prior,
   );
 
-  const msg = await prisma.whatsAppMessage.create({
-    data: {
-      telefon: job.telefon,
-      yon: "GELEN",
-      icerik: job.icerik,
-      medyaUrl: job.medyaUrl,
-      medyaTipi: job.medyaTipi,
-      waMessageId: job.waMessageId,
-      aiSonuc: classification,
-      guven: classification.guven,
-      onayDurumu:
-        classification.intent === "sikayet" && classification.guven >= THRESHOLD
-          ? "OTOMATIK"
-          : classification.intent === "sikayet"
-            ? "ONAY_BEKLIYOR"
-            : undefined,
-    },
-  });
-
-  if (classification.intent === "durum_sorgu") {
+  // Interrupt intents — do not consume draft
+  if (turn.intent === "durum_sorgu") {
+    await prisma.whatsAppMessage.create({
+      data: {
+        telefon: job.telefon,
+        yon: "GELEN",
+        icerik: job.icerik,
+        medyaUrl: job.medyaUrl,
+        medyaTipi: job.medyaTipi,
+        waMessageId: job.waMessageId,
+        aiSonuc: turn,
+        guven: turn.guven,
+      },
+    });
     const open = await prisma.complaint.findFirst({
       where: {
         telefon: { contains: job.telefon.replace(/\D/g, "").slice(-10) },
@@ -120,44 +139,148 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
     if (!open) {
       return {
         reply: "Açık şikayet kaydınız bulunamadı. Yeni bir talep iletebilirsiniz.",
-        classification,
+        classification: turn,
       };
     }
     return {
       reply: `Şikayetiniz ${open.sikayetNo}: durum ${open.durum}${open.department ? `, ${open.department.name}` : ""}.`,
       complaintId: open.id,
-      classification,
+      classification: turn,
     };
   }
 
-  if (classification.intent === "tesekkur") {
-    return { reply: "Rica ederiz. İyi günler dileriz.", classification };
+  if (turn.intent === "tesekkur") {
+    await prisma.whatsAppMessage.create({
+      data: {
+        telefon: job.telefon,
+        yon: "GELEN",
+        icerik: job.icerik,
+        medyaUrl: job.medyaUrl,
+        medyaTipi: job.medyaTipi,
+        waMessageId: job.waMessageId,
+        aiSonuc: turn,
+        guven: turn.guven,
+      },
+    });
+    return { reply: "Rica ederiz. İyi günler dileriz.", classification: turn };
   }
 
-  if (classification.intent !== "sikayet") {
+  // Build / update draft
+  let draft: SessionDraft;
+  if (session && looksLikeSlotFill(job.icerik, session.awaiting, turn)) {
+    draft = {
+      ...session.draft,
+      classification: mergeDraft(session.draft.classification, turn, job.icerik),
+      sourceMessageIds: [
+        ...(session.draft.sourceMessageIds ?? []),
+        ...(job.waMessageId ? [job.waMessageId] : []),
+      ],
+    };
+    if (session.awaiting === "ADRES") {
+      draft.askedAdres = true;
+      if (isAdresSkip(job.icerik)) {
+        // keep adres null
+      } else if (!draft.classification.adres && job.icerik.trim().length >= 3) {
+        draft.classification = {
+          ...draft.classification,
+          adres: job.icerik.trim().slice(0, 160),
+        };
+      }
+    }
+  } else if (turn.intent === "sikayet" || session) {
+    if (session && !isFullNewComplaint(turn)) {
+      draft = {
+        ...session.draft,
+        classification: mergeDraft(session.draft.classification, turn, job.icerik),
+        sourceMessageIds: [
+          ...(session.draft.sourceMessageIds ?? []),
+          ...(job.waMessageId ? [job.waMessageId] : []),
+        ],
+      };
+    } else if (turn.intent === "sikayet") {
+      draft = emptyDraft(turn);
+      draft.sourceMessageIds = job.waMessageId ? [job.waMessageId] : [];
+    } else {
+      // Non-complaint outside active fill
+      await prisma.whatsAppMessage.create({
+        data: {
+          telefon: job.telefon,
+          yon: "GELEN",
+          icerik: job.icerik,
+          medyaUrl: job.medyaUrl,
+          medyaTipi: job.medyaTipi,
+          waMessageId: job.waMessageId,
+          aiSonuc: turn,
+          guven: turn.guven,
+        },
+      });
+      return {
+        reply:
+          "Kars Belediyesi WhatsApp hattına hoş geldiniz. Şikayet veya talebinizi mahalle ve adres bilgisiyle yazabilirsiniz; fotoğraf veya sesli mesaj da gönderebilirsiniz. Açık şikayet durumu için 'durum' yazın.",
+        classification: turn,
+      };
+    }
+  } else {
+    await prisma.whatsAppMessage.create({
+      data: {
+        telefon: job.telefon,
+        yon: "GELEN",
+        icerik: job.icerik,
+        medyaUrl: job.medyaUrl,
+        medyaTipi: job.medyaTipi,
+        waMessageId: job.waMessageId,
+        aiSonuc: turn,
+        guven: turn.guven,
+      },
+    });
     return {
       reply:
         "Kars Belediyesi WhatsApp hattına hoş geldiniz. Şikayet veya talebinizi mahalle ve adres bilgisiyle yazabilirsiniz; fotoğraf veya sesli mesaj da gönderebilirsiniz. Açık şikayet durumu için 'durum' yazın.",
+      classification: turn,
+    };
+  }
+
+  const classification = { ...draft.classification, intent: "sikayet" as const };
+  draft = { ...draft, classification };
+
+  const awaiting = nextAwaiting(draft);
+
+  const msg = await prisma.whatsAppMessage.create({
+    data: {
+      telefon: job.telefon,
+      yon: "GELEN",
+      icerik: job.icerik,
+      medyaUrl: job.medyaUrl,
+      medyaTipi: job.medyaTipi,
+      waMessageId: job.waMessageId,
+      aiSonuc: classification,
+      guven: classification.guven,
+      onayDurumu: awaiting ? "ONAY_BEKLIYOR" : undefined,
+    },
+  });
+
+  if (awaiting) {
+    if (awaiting === "ADRES") {
+      draft = { ...draft, askedAdres: true };
+    }
+    await upsertSession(job.telefon, draft, awaiting);
+    return {
+      reply: replyForAwaiting(awaiting),
       classification,
     };
   }
 
-  if (!classification.mahalle) {
+  // Complete — create or operator queue
+  await clearSession(job.telefon);
+
+  if (classification.guven < THRESHOLD) {
     await prisma.whatsAppMessage.update({
       where: { id: msg.id },
       data: { onayDurumu: "ONAY_BEKLIYOR" },
     });
     return {
       reply:
-        "Şikayetinizi almak için mahalle bilgisini yazar mısınız? (örn. Yenişehir)",
-      classification,
-    };
-  }
-
-  if (classification.guven < THRESHOLD) {
-    return {
-      reply:
-        "Mesajınız alındı. Operatörümüz kısa süre içinde kontrol edip size dönüş yapacaktır.",
+        "Bilgileriniz alındı. Operatörümüz kısa süre içinde kontrol edip size dönüş yapacaktır.",
       classification,
     };
   }
