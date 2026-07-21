@@ -16,6 +16,7 @@ import {
   Users,
   Clock3,
   BarChart3,
+  Map,
   Settings,
 } from "lucide-react";
 import type { NavIconName } from "@/lib/nav";
@@ -37,5 +38,6 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   Users,
   Clock3,
   BarChart3,
+  Map,
   Settings,
 };

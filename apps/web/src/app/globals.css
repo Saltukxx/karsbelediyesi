@@ -96,3 +96,88 @@ h2,
   background: #eef2f6;
   font-weight: 600;
 }
+
+/* ── Yol Haritası (Leaflet) görsel iyileştirmeleri ── */
+
+.kb-map .leaflet-popup-content-wrapper {
+  border-radius: 0.65rem;
+  box-shadow: 0 12px 32px rgba(21, 42, 69, 0.22);
+  border: 1px solid var(--kb-border);
+  font-family: var(--font-source-sans), "Source Sans 3", system-ui, sans-serif;
+}
+
+.kb-map .leaflet-popup-content {
+  margin: 0.75rem 0.9rem;
+  line-height: 1.45;
+}
+
+.kb-map .leaflet-popup-tip {
+  box-shadow: 0 6px 16px rgba(21, 42, 69, 0.18);
+}
+
+.kb-map .leaflet-container {
+  font-family: var(--font-source-sans), "Source Sans 3", system-ui, sans-serif;
+}
+
+.kb-map .leaflet-bar {
+  border: 1px solid var(--kb-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(21, 42, 69, 0.14);
+}
+
+.kb-map .leaflet-bar a {
+  color: var(--kb-navy);
+}
+
+.kb-map .leaflet-tooltip {
+  border-radius: 0.5rem;
+  border: 1px solid var(--kb-border);
+  box-shadow: 0 6px 18px rgba(21, 42, 69, 0.16);
+  font-weight: 600;
+  color: var(--kb-navy);
+}
+
+/* Çukur/engel pin ikonu */
+.kb-hazard-pin {
+  background: transparent;
+  border: none;
+}
+
+.kb-hazard-pin .kb-pin-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px 9999px 9999px 0;
+  transform: rotate(-45deg);
+  border: 2px solid #ffffff;
+  box-shadow: 0 3px 8px rgba(21, 42, 69, 0.35);
+}
+
+.kb-hazard-pin .kb-pin-dot > span {
+  transform: rotate(45deg);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Açık engeller için nabız halkası */
+.kb-hazard-pin .kb-pin-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  animation: kb-pin-pulse 1.8s ease-out infinite;
+}
+
+@keyframes kb-pin-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(220, 38, 38, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
+}

@@ -250,6 +250,8 @@ model User {
   onayladigiMesai      PersonnelWorkLog[]   @relation("MesaiOnaylayan")
   kontrolFormlari      ChecklistSubmission[] @relation("FormOperator")
   onayladigiFormlar    ChecklistSubmission[] @relation("FormOnaylayan")
+  asfaltYollari        AsphaltRoad[]         @relation("AsfaltOlusturan")
+  engelKayitlari       RoadHazard[]          @relation("EngelOlusturan")
 }
 
 /// Excel: "Günlük Çalışma Takibi > Personel Listesi" + "TANIMLAMALAR > Personel Listesi"
@@ -842,4 +844,68 @@ model BitumMovement {
 
   @@index([tarih])
   @@index([tip])
+}
+
+// ═══════════════════════ YOL HARİTASI (asfalt + çukur/engel) ═══════════════════════
+
+/// Asfalt yol kaydı durumu
+enum AsfaltDurum {
+  PLANLANDI
+  DEVAM_EDIYOR
+  TAMAMLANDI
+}
+
+/// Yol üzerindeki tehlike tipi
+enum HazardTip {
+  CUKUR
+  ENGEL
+  DIGER
+}
+
+enum HazardDurum {
+  ACIK
+  GIDERILDI
+}
+
+/// Asfalt dökülen yol — harita üzerine polyline olarak çizilir
+model AsphaltRoad {
+  id           String      @id @default(cuid())
+  ad           String
+  /// [[lat,lng], ...] koordinat dizisi (GeoJSON değil, Leaflet sırası)
+  koordinatlar Json
+  durum        AsfaltDurum @default(TAMAMLANDI)
+  dokumTarihi  DateTime?
+  notlar       String?
+  createdById  String
+  createdBy    User        @relation("AsfaltOlusturan", fields: [createdById], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([durum])
+}
+
+/// Yol üzerindeki çukur / engel noktası
+model RoadHazard {
+  id          String            @id @default(cuid())
+  tip         HazardTip         @default(CUKUR)
+  lat         Float
+  lng         Float
+  aciklama    String?
+  durum       HazardDurum       @default(ACIK)
+  photos      RoadHazardPhoto[]
+  createdById String
+  createdBy   User              @relation("EngelOlusturan", fields: [createdById], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([durum])
+}
+
+model RoadHazardPhoto {
+  id        String     @id @default(cuid())
+  hazardId  String
+  hazard    RoadHazard @relation(fields: [hazardId], references: [id], onDelete: Cascade)
+  /// Sunucudaki dosya adı — /api/ops/hazard-photo/[id] üzerinden servis edilir
+  url       String
+  createdAt DateTime   @default(now())
 }

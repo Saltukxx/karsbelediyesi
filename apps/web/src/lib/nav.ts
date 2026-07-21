@@ -25,6 +25,7 @@ export type NavIconName =
   | "Users"
   | "Clock3"
   | "BarChart3"
+  | "Map"
   | "Settings";
 
 export interface NavGroup {
@@ -63,6 +64,7 @@ export const NAV_GROUPS: NavGroup[] = [
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: "LayoutDashboard", group: "genel", roles: TUM_ROLLER },
   { href: "/raporlar", label: "Raporlar", icon: "BarChart3", group: "genel", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"] },
+  { href: "/harita", label: "Yol Haritası", icon: "Map", group: "genel", roles: TUM_ROLLER },
   { href: "/sikayetler", label: "Şikayet Kayıt & Takip", icon: "PhoneCall", group: "cagri", roles: ["ADMIN", "CALL_CENTER", "DEPARTMENT_MANAGER", "APPROVER"] },
   { href: "/whatsapp", label: "WhatsApp Kuyruğu", icon: "MessageCircle", group: "cagri", roles: ["ADMIN", "CALL_CENTER"] },
   { href: "/gorevler", label: "Görevlendirme", icon: "ClipboardList", group: "cagri", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },

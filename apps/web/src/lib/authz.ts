@@ -50,6 +50,7 @@ export const ACTION_ROLES = {
   personnel: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
   worklogs: ["ADMIN", "DEPARTMENT_MANAGER", "DRIVER", "FIELD_WORKER"] as Rol[],
   reports: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"] as Rol[],
+  harita: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
 } as const;
 
 export const EXPORT_ENTITY_ROLES: Record<string, Rol[]> = {
