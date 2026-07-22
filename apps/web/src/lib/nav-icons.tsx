@@ -17,6 +17,8 @@ import {
   Clock3,
   BarChart3,
   Map,
+  LandPlot,
+  ShieldCheck,
   Settings,
 } from "lucide-react";
 import type { NavIconName } from "@/lib/nav";
@@ -39,5 +41,7 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   Clock3,
   BarChart3,
   Map,
+  LandPlot,
+  ShieldCheck,
   Settings,
 };

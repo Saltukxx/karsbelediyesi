@@ -26,6 +26,8 @@ export type NavIconName =
   | "Clock3"
   | "BarChart3"
   | "Map"
+  | "LandPlot"
+  | "ShieldCheck"
   | "Settings";
 
 export interface NavGroup {
@@ -65,6 +67,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: "LayoutDashboard", group: "genel", roles: TUM_ROLLER },
   { href: "/raporlar", label: "Raporlar", icon: "BarChart3", group: "genel", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"] },
   { href: "/harita", label: "Yol Haritası", icon: "Map", group: "genel", roles: TUM_ROLLER },
+  { href: "/parsel", label: "Parsel Sorgu", icon: "LandPlot", group: "genel", roles: TUM_ROLLER },
   { href: "/sikayetler", label: "Şikayet Kayıt & Takip", icon: "PhoneCall", group: "cagri", roles: ["ADMIN", "CALL_CENTER", "DEPARTMENT_MANAGER", "APPROVER"] },
   { href: "/whatsapp", label: "WhatsApp Kuyruğu", icon: "MessageCircle", group: "cagri", roles: ["ADMIN", "CALL_CENTER"] },
   { href: "/gorevler", label: "Görevlendirme", icon: "ClipboardList", group: "cagri", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },
@@ -80,6 +83,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/personel", label: "Personel", icon: "Users", group: "insan", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
   { href: "/gunluk-calisma", label: "Günlük Çalışma", icon: "Clock3", group: "insan", roles: ["ADMIN", "DEPARTMENT_MANAGER", ...SAHA] },
   { href: "/tanimlar", label: "Tanımlar & Yönetim", icon: "Settings", group: "yonetim", roles: ["ADMIN"] },
+  { href: "/denetim", label: "Denetim İzi", icon: "ShieldCheck", group: "yonetim", roles: ["ADMIN"] },
 ];
 
 /** Rol bazlı sık kullanılanlar (sidebar, max 4) */
