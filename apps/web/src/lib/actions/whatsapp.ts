@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
+import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -81,6 +83,28 @@ export async function whatsappOnayla(formData: FormData) {
     return created;
   });
 
+  await auditKaydet(session, "WHATSAPP_ONAYLA", {
+    varlik: "Complaint",
+    varlikId: complaint.id,
+    detay: { sikayetNo: complaint.sikayetNo, messageId: id },
+  });
+
+  if (complaint.departmentId) {
+    const yoneticiler = await kullaniciIdleri(
+      ["DEPARTMENT_MANAGER"],
+      complaint.departmentId,
+    );
+    await bildirimGonder(
+      yoneticiler.filter((uid) => uid !== session.user.id),
+      {
+        tip: "ONAY",
+        baslik: `WhatsApp şikayeti onaylandı: ${complaint.sikayetNo}`,
+        mesaj: aciklama.slice(0, 120) || undefined,
+        href: `/sikayetler/${complaint.id}`,
+      },
+    );
+  }
+
   revalidatePath("/whatsapp");
   revalidatePath("/sikayetler");
   revalidatePath(`/sikayetler/${complaint.id}`);
@@ -93,6 +117,10 @@ export async function whatsappReddet(formData: FormData) {
   await prisma.whatsAppMessage.update({
     where: { id },
     data: { onayDurumu: "REDDEDILDI" },
+  });
+  await auditKaydet(session, "WHATSAPP_REDDET", {
+    varlik: "WhatsAppMessage",
+    varlikId: id,
   });
   revalidatePath("/whatsapp");
   revalidatePath("/");

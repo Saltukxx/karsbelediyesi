@@ -7,6 +7,8 @@ import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
 import { canAccessComplaint, loadComplaintForAccess, toAccessUser } from "@/lib/access";
 import { canTransitionComplaint } from "@/lib/domain/complaint-status";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
+import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
 
 const yeniSikayetSchema = z.object({
   arayanKisi: z.string().min(1, "Arayan kişi zorunlu"),
@@ -93,6 +95,12 @@ export async function sikayetOlustur(formData: FormData) {
     });
   });
 
+  await auditKaydet(session, "SIKAYET_OLUSTUR", {
+    varlik: "Complaint",
+    varlikId: created.id,
+    detay: { sikayetNo: created.sikayetNo },
+  });
+
   revalidatePath("/sikayetler");
   redirect(`/sikayetler/${created.id}`);
 }
@@ -131,6 +139,12 @@ export async function sikayetDurumGuncelle(formData: FormData) {
     },
   });
 
+  await auditKaydet(session, "SIKAYET_DURUM_GUNCELLE", {
+    varlik: "Complaint",
+    varlikId: id,
+    detay: { sikayetNo: eski.sikayetNo, eski: eski.durum, yeni: durum },
+  });
+
   revalidatePath(`/sikayetler/${id}`);
   revalidatePath("/sikayetler");
   revalidatePath("/");
@@ -150,6 +164,7 @@ export async function sikayetAta(formData: FormData) {
 
   let soforAdi: string | null = null;
   let soforTelefonu: string | null = null;
+  let soforUserId: string | null = null;
   if (vehicleId) {
     const arac = await prisma.vehicle.findUnique({
       where: { id: vehicleId },
@@ -157,6 +172,7 @@ export async function sikayetAta(formData: FormData) {
     });
     soforAdi = arac?.atananSofor?.name ?? null;
     soforTelefonu = arac?.atananSofor?.phone ?? null;
+    soforUserId = arac?.atananSofor?.id ?? null;
   }
 
   await prisma.$transaction(async (tx) => {
@@ -179,6 +195,27 @@ export async function sikayetAta(formData: FormData) {
       },
     });
   });
+
+  await auditKaydet(session, "SIKAYET_ATA", {
+    varlik: "Complaint",
+    varlikId: id,
+    detay: { sikayetNo: mevcut.sikayetNo, vehicleId, personnelIds },
+  });
+
+  const yoneticiler = mevcut.departmentId
+    ? await kullaniciIdleri(["DEPARTMENT_MANAGER"], mevcut.departmentId)
+    : [];
+  await bildirimGonder(
+    [...yoneticiler, ...(soforUserId ? [soforUserId] : [])].filter(
+      (uid) => uid !== session.user.id,
+    ),
+    {
+      tip: "ATAMA",
+      baslik: `${mevcut.sikayetNo} görevlendirildi`,
+      mesaj: `${session.user.name} şikayete araç/personel ataması yaptı.`,
+      href: `/sikayetler/${id}`,
+    },
+  );
 
   revalidatePath(`/sikayetler/${id}`);
   revalidatePath("/sikayetler");

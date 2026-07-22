@@ -11,6 +11,7 @@ import {
   bitumToplamMaliyet,
 } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -56,6 +57,7 @@ export async function bitumAyarKaydet(formData: FormData) {
       dusukEsik: sayi(formData.get("dusukEsik")) ?? 0.4,
     },
   });
+  await auditKaydet(session, "BITUM_AYAR_KAYDET", { varlik: "BitumSettings" });
   revalidatePath("/bitum");
 }
 
@@ -125,6 +127,11 @@ export async function bitumHareketOlustur(formData: FormData) {
       toplamMaliyet,
       aciklama: bos(formData.get("aciklama")),
     },
+  });
+
+  await auditKaydet(session, "BITUM_HAREKET_OLUSTUR", {
+    varlik: "BitumMovement",
+    detay: { tip, miktarTon },
   });
 
   revalidatePath("/bitum");

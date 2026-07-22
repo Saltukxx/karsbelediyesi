@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@kars/db";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
+import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -103,6 +105,22 @@ export async function kontrolFormuOnayaGonder(formData: FormData) {
       sefAmirAdi: bos(formData.get("sefAmirAdi")),
     },
   });
+
+  await auditKaydet(session, "KONTROL_FORMU_ONAYA_GONDER", {
+    varlik: "ChecklistSubmission",
+    varlikId: id,
+  });
+  const onaylayanlar = await kullaniciIdleri(["APPROVER"]);
+  await bildirimGonder(
+    onaylayanlar.filter((uid) => uid !== session.user.id),
+    {
+      tip: "ONAY",
+      baslik: "Kontrol formu onay bekliyor",
+      mesaj: `${session.user.name} bir kontrol formunu onaya gönderdi.`,
+      href: `/kontrol-listeleri/${id}`,
+    },
+  );
+
   revalidatePath("/kontrol-listeleri");
   revalidatePath(`/kontrol-listeleri/${id}`);
 }
@@ -111,7 +129,7 @@ export async function kontrolFormuOnayla(formData: FormData) {
   const session = await requireRoles(["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"]);
   const id = String(formData.get("id"));
   const karar = String(formData.get("karar")) as "ONAYLANDI" | "REDDEDILDI";
-  await prisma.checklistSubmission.update({
+  const submission = await prisma.checklistSubmission.update({
     where: { id },
     data: {
       durum: karar,
@@ -120,6 +138,21 @@ export async function kontrolFormuOnayla(formData: FormData) {
       sefAmirAdi: bos(formData.get("sefAmirAdi")) ?? session.user.name,
     },
   });
+
+  await auditKaydet(session, "KONTROL_FORMU_KARAR", {
+    varlik: "ChecklistSubmission",
+    varlikId: id,
+    detay: { karar },
+  });
+  if (submission.operatorId && submission.operatorId !== session.user.id) {
+    await bildirimGonder([submission.operatorId], {
+      tip: "ONAY",
+      baslik: `Kontrol formu ${karar === "ONAYLANDI" ? "onaylandı" : "reddedildi"}`,
+      mesaj: `${session.user.name} kararı verdi.`,
+      href: `/kontrol-listeleri/${id}`,
+    });
+  }
+
   revalidatePath("/kontrol-listeleri");
   revalidatePath(`/kontrol-listeleri/${id}`);
 }

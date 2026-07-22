@@ -10,6 +10,7 @@ import {
   yakitTutari,
 } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -43,6 +44,11 @@ export async function personelGunlukOlustur(formData: FormData) {
       notlar: bos(formData.get("notlar")),
       onaylayanId: bos(formData.get("onaylayanId")),
     },
+  });
+
+  await auditKaydet(session, "PERSONEL_GUNLUK_OLUSTUR", {
+    varlik: "PersonnelWorkLog",
+    detay: { tarih: tarih.toISOString().slice(0, 10) },
   });
 
   revalidatePath("/gunluk-calisma");
@@ -97,6 +103,11 @@ export async function aracGunlukOlustur(formData: FormData) {
         },
       });
     }
+  });
+
+  await auditKaydet(session, "ARAC_GUNLUK_OLUSTUR", {
+    varlik: "VehicleWorkLog",
+    detay: { vehicleId, tarih: tarih.toISOString().slice(0, 10) },
   });
 
   revalidatePath("/gunluk-calisma");

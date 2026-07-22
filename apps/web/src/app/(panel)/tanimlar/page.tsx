@@ -216,6 +216,7 @@ export default async function TanimlarPage() {
                 <th className="p-3">Rol</th>
                 <th className="p-3">Müdürlük</th>
                 <th className="p-3">Aktif</th>
+                <th className="p-3">Son Giriş</th>
                 <th className="p-3">Yeni Şifre</th>
                 <th className="p-3" />
               </tr>
@@ -223,8 +224,8 @@ export default async function TanimlarPage() {
             <tbody>
               {kullanicilar.map((u) => (
                 <tr key={u.id} className="border-b border-kb-border/60">
-                  <td className="p-3" colSpan={7}>
-                    <form action={kullaniciGuncelle} className="grid md:grid-cols-7 gap-2 items-center">
+                  <td className="p-3" colSpan={8}>
+                    <form action={kullaniciGuncelle} className="grid md:grid-cols-8 gap-2 items-center">
                       <input type="hidden" name="id" value={u.id} />
                       <input name="name" defaultValue={u.name} className={inputCls} />
                       <input name="phone" defaultValue={u.phone} className={inputCls} />
@@ -242,6 +243,11 @@ export default async function TanimlarPage() {
                       <label className="text-sm flex items-center gap-2">
                         <input type="checkbox" name="aktif" defaultChecked={u.aktif} /> Aktif
                       </label>
+                      <span className="text-xs text-kb-muted">
+                        {u.lastLoginAt
+                          ? `${u.lastLoginAt.toLocaleDateString("tr-TR")} ${u.lastLoginAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}`
+                          : "—"}
+                      </span>
                       <input name="password" type="password" placeholder="—" className={inputCls} />
                       <button className={btnSecondary}>Kaydet</button>
                     </form>

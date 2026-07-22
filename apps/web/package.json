@@ -13,6 +13,9 @@
   "dependencies": {
     "@kars/db": "*",
     "@kars/shared": "*",
+    "@sentry/nextjs": "^10.67.0",
+    "@turf/boolean-point-in-polygon": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
     "@types/leaflet": "^1.9.21",
     "bcryptjs": "^2.4.3",
     "date-fns": "^4.1.0",

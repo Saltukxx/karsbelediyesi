@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
 import { betonUretimMalzeme } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -45,6 +46,11 @@ export async function betonUretimOlustur(formData: FormData) {
     },
   });
 
+  await auditKaydet(session, "BETON_URETIM_OLUSTUR", {
+    varlik: "ConcreteProduction",
+    detay: { recipeId, hedefM3 },
+  });
+
   // Stok çıkışı production aggregate ile sayfada hesaplanır; burada sadece kayıt.
   revalidatePath("/beton");
 }
@@ -56,6 +62,10 @@ export async function betonStokGiris(formData: FormData) {
   await prisma.concreteStock.update({
     where: { malzeme },
     data: { toplamGiris: { increment: miktar } },
+  });
+  await auditKaydet(session, "BETON_STOK_GIRIS", {
+    varlik: "ConcreteStock",
+    detay: { malzeme, miktar },
   });
   revalidatePath("/beton");
 }
@@ -75,6 +85,10 @@ export async function betonReceteGuncelle(formData: FormData) {
       katkiKg: sayi(formData.get("katkiKg")) ?? 0,
       aciklama: bos(formData.get("aciklama")),
     },
+  });
+  await auditKaydet(session, "BETON_RECETE_GUNCELLE", {
+    varlik: "ConcreteRecipe",
+    varlikId: id,
   });
   revalidatePath("/beton");
 }

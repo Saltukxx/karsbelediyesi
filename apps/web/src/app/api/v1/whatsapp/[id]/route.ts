@@ -1,5 +1,6 @@
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
 import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
+import { auditKaydet } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const updated = await prisma.whatsAppMessage.update({
       where: { id },
       data: { onayDurumu: "REDDEDILDI" },
+    });
+    await auditKaydet({ user: auth.user }, "WHATSAPP_REDDET", {
+      varlik: "WhatsAppMessage",
+      varlikId: id,
+      detay: { kaynak: "api-v1" },
     });
     return json({
       id: updated.id,
@@ -88,6 +94,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
         detay: { messageId: id, kaynak: "api-v1" },
       },
     });
+  });
+
+  await auditKaydet({ user: auth.user }, "WHATSAPP_ONAYLA", {
+    varlik: "WhatsAppMessage",
+    varlikId: id,
+    detay: { kaynak: "api-v1" },
   });
 
   const updated = await prisma.whatsAppMessage.findUniqueOrThrow({ where: { id } });

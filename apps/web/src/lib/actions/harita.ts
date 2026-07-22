@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
 import type { AsfaltDurum, HazardDurum, HazardTip } from "@kars/db";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
+import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
 import {
   deleteHazardPhotoFile,
   isAllowedPhotoMime,
@@ -97,11 +99,16 @@ export async function asfaltYolGuncelle(formData: FormData) {
 }
 
 export async function asfaltYolSil(formData: FormData) {
-  await requireRoles(ACTION_ROLES.harita);
+  const session = await requireRoles(ACTION_ROLES.harita);
 
   const id = bos(formData.get("id"));
   if (!id) throw new Error("Kayıt bulunamadı");
-  await prisma.asphaltRoad.delete({ where: { id } });
+  const silinen = await prisma.asphaltRoad.delete({ where: { id } });
+  await auditKaydet(session, "ASFALT_YOL_SIL", {
+    varlik: "AsphaltRoad",
+    varlikId: id,
+    detay: { ad: silinen.ad },
+  });
   revalidatePath("/harita");
 }
 
@@ -132,7 +139,7 @@ export async function engelKaydet(formData: FormData) {
     savedNames.push(await saveHazardPhoto(f));
   }
 
-  await prisma.roadHazard.create({
+  const engel = await prisma.roadHazard.create({
     data: {
       tip,
       lat,
@@ -142,6 +149,23 @@ export async function engelKaydet(formData: FormData) {
       photos: { create: savedNames.map((url) => ({ url })) },
     },
   });
+
+  await auditKaydet(session, "ENGEL_KAYDET", {
+    varlik: "RoadHazard",
+    varlikId: engel.id,
+    detay: { tip, lat, lng },
+  });
+  const ilgililer = await kullaniciIdleri(["ADMIN", "DEPARTMENT_MANAGER"]);
+  await bildirimGonder(
+    ilgililer.filter((uid) => uid !== session.user.id),
+    {
+      tip: "SISTEM",
+      baslik: "Haritaya yeni engel/çukur işaretlendi",
+      mesaj: `${session.user.name} yeni bir nokta ekledi.`,
+      href: "/harita",
+    },
+  );
+
   revalidatePath("/harita");
 }
 
@@ -161,7 +185,7 @@ export async function engelDurumGuncelle(formData: FormData) {
 }
 
 export async function engelSil(formData: FormData) {
-  await requireRoles(ACTION_ROLES.harita);
+  const session = await requireRoles(ACTION_ROLES.harita);
 
   const id = bos(formData.get("id"));
   if (!id) throw new Error("Kayıt bulunamadı");
@@ -174,5 +198,9 @@ export async function engelSil(formData: FormData) {
   for (const p of photos) {
     await deleteHazardPhotoFile(p.url);
   }
+  await auditKaydet(session, "ENGEL_SIL", {
+    varlik: "RoadHazard",
+    varlikId: id,
+  });
   revalidatePath("/harita");
 }

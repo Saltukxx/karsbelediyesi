@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
 
 function sayi(v: FormDataEntryValue | null, fallback = 0): number {
   const s = v == null ? "" : String(v).trim();
@@ -117,6 +118,8 @@ export async function agregaParametreKaydet(formData: FormData) {
       boyutSatis,
     },
   });
+
+  await auditKaydet(session, "AGREGA_PARAMETRE_KAYDET", { varlik: "AgregaParams" });
 
   revalidatePath("/agrega");
 }

@@ -7,6 +7,8 @@ import { gorevSuresiSaatTarihli, kmFarki } from "@kars/shared";
 import { canAccessTask, loadTaskForAccess, toAccessUser } from "@/lib/access";
 import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
+import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -28,7 +30,7 @@ function tarihSaat(t?: string, s?: string): Date | undefined {
  * Durum "Devam Ediyor" ise araç GOREVDE yapılır (Excel Araç Havuzu durumu).
  */
 export async function gorevOlustur(formData: FormData) {
-  await requireRoles(["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"]);
+  const session = await requireRoles(["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"]);
 
   const vehicleId = String(formData.get("vehicleId"));
   const cikis = tarihSaat(bos(formData.get("cikisTarihi")), bos(formData.get("cikisSaati")));
@@ -49,10 +51,10 @@ export async function gorevOlustur(formData: FormData) {
     include: { atananSofor: true },
   });
 
-  await withSerialRetry(prisma, async (tx) => {
+  const created = await withSerialRetry(prisma, async (tx) => {
     const { yil, sira, gorevNo } = await nextTaskSerial(tx);
 
-    await tx.vehicleTask.create({
+    const gorev = await tx.vehicleTask.create({
       data: {
         gorevNo,
         yil,
@@ -81,7 +83,24 @@ export async function gorevOlustur(formData: FormData) {
         data: { operasyonDurumu: "GOREVDE", sonCikisTarihi: cikis ?? new Date() },
       });
     }
+
+    return gorev;
   });
+
+  await auditKaydet(session, "GOREV_OLUSTUR", {
+    varlik: "VehicleTask",
+    varlikId: created.id,
+    detay: { gorevNo: created.gorevNo, plaka: arac.plaka, durum },
+  });
+
+  if (created.driverId && created.driverId !== session.user.id) {
+    await bildirimGonder([created.driverId], {
+      tip: "GOREV",
+      baslik: `Yeni görev: ${created.gorevNo}`,
+      mesaj: `${arac.plaka} plakalı araç için görev oluşturuldu.`,
+      href: "/gorevler",
+    });
+  }
 
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
@@ -147,6 +166,23 @@ export async function gorevKapat(formData: FormData) {
     }
   });
 
+  await auditKaydet(session, "GOREV_KAPAT", {
+    varlik: "VehicleTask",
+    varlikId: id,
+    detay: { gorevNo: gorev.gorevNo, durum },
+  });
+
+  const onaylayanlar = await kullaniciIdleri(["APPROVER"]);
+  await bildirimGonder(
+    onaylayanlar.filter((uid) => uid !== session.user.id),
+    {
+      tip: "GOREV",
+      baslik: `Görev kapatıldı: ${gorev.gorevNo}`,
+      mesaj: `${session.user.name} görevi ${durum === "TAMAMLANDI" ? "tamamlandı" : "iptal"} olarak kapattı.`,
+      href: "/gorevler",
+    },
+  );
+
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
 }
@@ -180,6 +216,12 @@ export async function gorevBaslat(formData: FormData) {
       where: { id: gorev.vehicleId },
       data: { operasyonDurumu: "GOREVDE", sonCikisTarihi: cikis },
     });
+  });
+
+  await auditKaydet(session, "GOREV_BASLAT", {
+    varlik: "VehicleTask",
+    varlikId: id,
+    detay: { gorevNo: gorev.gorevNo },
   });
 
   revalidatePath("/gorevler");

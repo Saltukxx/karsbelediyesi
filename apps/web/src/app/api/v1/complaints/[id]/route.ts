@@ -4,6 +4,7 @@ import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
 import { assertComplaintApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionComplaint } from "@/lib/domain/complaint-status";
 import { serializeComplaint } from "@/lib/v1-serialize";
+import { auditKaydet } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
         : {}),
     },
     include: complaintInclude,
+  });
+
+  await auditKaydet({ user: auth.user }, "SIKAYET_DURUM_GUNCELLE", {
+    varlik: "Complaint",
+    varlikId: id,
+    detay: { eski: eski.durum, yeni: body.durum, kaynak: "api-v1" },
   });
 
   return json(serializeComplaint(row));

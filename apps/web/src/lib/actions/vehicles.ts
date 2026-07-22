@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@kars/db";
 import { yakitTutari } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
 
 function bosIseUndefined(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -78,6 +79,11 @@ export async function aracOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.vehicles);
   const data = aracVerisi(formData);
   const arac = await prisma.vehicle.create({ data });
+  await auditKaydet(session, "ARAC_OLUSTUR", {
+    varlik: "Vehicle",
+    varlikId: arac.id,
+    detay: { plaka: data.plaka },
+  });
   revalidatePath("/araclar");
   redirect(`/araclar/${arac.id}`);
 }
@@ -87,6 +93,11 @@ export async function aracGuncelle(formData: FormData) {
   const id = String(formData.get("id"));
   const data = aracVerisi(formData);
   await prisma.vehicle.update({ where: { id }, data });
+  await auditKaydet(session, "ARAC_GUNCELLE", {
+    varlik: "Vehicle",
+    varlikId: id,
+    detay: { plaka: data.plaka },
+  });
   revalidatePath("/araclar");
   revalidatePath(`/araclar/${id}`);
   redirect(`/araclar/${id}`);
@@ -129,6 +140,11 @@ export async function bakimOlustur(formData: FormData) {
     });
   });
 
+  await auditKaydet(session, "BAKIM_OLUSTUR", {
+    varlik: "MaintenanceRecord",
+    detay: { vehicleId, durum },
+  });
+
   revalidatePath("/bakim");
   revalidatePath("/araclar");
   redirect("/bakim");
@@ -160,6 +176,11 @@ export async function yakitOlustur(formData: FormData) {
     if (sayac) {
       await tx.vehicle.update({ where: { id: vehicleId }, data: { sayacDeger: sayac } });
     }
+  });
+
+  await auditKaydet(session, "YAKIT_OLUSTUR", {
+    varlik: "FuelRecord",
+    detay: { vehicleId, litre, birimFiyat },
   });
 
   revalidatePath("/yakit");

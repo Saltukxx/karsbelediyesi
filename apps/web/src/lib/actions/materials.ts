@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
 import { mevcutStok } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -15,9 +16,9 @@ function sayi(v: FormDataEntryValue | null): number | undefined {
 }
 
 export async function malzemeOlustur(formData: FormData) {
-  await requireRoles(ACTION_ROLES.materials);
+  const session = await requireRoles(ACTION_ROLES.materials);
 
-  await prisma.material.create({
+  const malzeme = await prisma.material.create({
     data: {
       kod: String(formData.get("kod")).trim(),
       ad: String(formData.get("ad")).trim(),
@@ -29,11 +30,16 @@ export async function malzemeOlustur(formData: FormData) {
       aciklama: bos(formData.get("aciklama")),
     },
   });
+  await auditKaydet(session, "MALZEME_OLUSTUR", {
+    varlik: "Material",
+    varlikId: malzeme.id,
+    detay: { kod: malzeme.kod, ad: malzeme.ad },
+  });
   revalidatePath("/malzeme-depo");
 }
 
 export async function stokHareketOlustur(formData: FormData) {
-  await requireRoles(ACTION_ROLES.materials);
+  const session = await requireRoles(ACTION_ROLES.materials);
 
   const materialId = String(formData.get("materialId"));
   const tip = String(formData.get("tip")) as "GIRIS" | "CIKIS";
@@ -72,6 +78,10 @@ export async function stokHareketOlustur(formData: FormData) {
       belgeNo: bos(formData.get("belgeNo")),
       aciklama: bos(formData.get("aciklama")),
     },
+  });
+  await auditKaydet(session, "STOK_HAREKET_OLUSTUR", {
+    varlik: "MaterialMovement",
+    detay: { materialId, tip, miktar },
   });
   revalidatePath("/malzeme-depo");
 }

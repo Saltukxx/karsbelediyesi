@@ -16,6 +16,7 @@
     "db:migrate": "npm run migrate --workspace=packages/db",
     "db:seed": "npm run seed --workspace=packages/db",
     "db:import": "npm run import --workspace=packages/db --",
+    "backup": "bash scripts/backup.sh",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "npm run test:e2e --workspace=apps/web"
   },

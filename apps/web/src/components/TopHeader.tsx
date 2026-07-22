@@ -1,6 +1,7 @@
 "use client";
 
 import { Menu, Search } from "lucide-react";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function TopHeader({
   userName,
@@ -48,6 +49,7 @@ export function TopHeader({
         >
           <Search className="h-5 w-5" />
         </button>
+        <NotificationBell />
         <div className="text-right">
           <div className="text-sm font-semibold text-kb-ink">{userName}</div>
           <div className="text-xs text-kb-muted">{roleLabel}</div>

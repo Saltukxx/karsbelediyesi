@@ -3,7 +3,35 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@kars/db";
 import type { Rol } from "@kars/db";
+import type { User } from "@kars/db";
 import { authConfig } from "./auth.config";
+
+/** Başarılı/başarısız giriş izi — audit bozulursa giriş akışı etkilenmez */
+async function girisIziYaz(
+  user: Pick<User, "id" | "name" | "role"> | null,
+  phone: string,
+  basarili: boolean,
+): Promise<void> {
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId: user?.id,
+        userAd: user?.name ?? phone,
+        rol: user?.role ?? "-",
+        islem: basarili ? "GIRIS" : "GIRIS_BASARISIZ",
+        detay: { telefon: phone },
+      },
+    });
+    if (basarili && user) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    }
+  } catch (e) {
+    console.error("Giriş izi yazılamadı:", e);
+  }
+}
 
 declare module "next-auth" {
   interface User {
@@ -37,10 +65,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!phone || !password) return null;
 
         const user = await prisma.user.findUnique({ where: { phone } });
-        if (!user || !user.aktif) return null;
+        if (!user || !user.aktif) {
+          await girisIziYaz(null, phone, false);
+          return null;
+        }
 
         const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok) return null;
+        if (!ok) {
+          await girisIziYaz(user, phone, false);
+          return null;
+        }
+
+        await girisIziYaz(user, phone, true);
 
         return {
           id: user.id,

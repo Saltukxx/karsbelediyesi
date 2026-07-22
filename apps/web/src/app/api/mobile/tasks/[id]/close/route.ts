@@ -4,6 +4,7 @@ import { gorevSuresiSaatTarihli, kmFarki } from "@kars/shared";
 import { assertTaskApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
 import { requireMobileUser } from "@/lib/mobile-auth";
+import { auditKaydet } from "@/lib/audit";
 
 export async function POST(
   req: Request,
@@ -68,6 +69,12 @@ export async function POST(
         },
       });
     }
+  });
+
+  await auditKaydet({ user }, "GOREV_KAPAT", {
+    varlik: "VehicleTask",
+    varlikId: id,
+    detay: { gorevNo: gorev.gorevNo, durum, kaynak: "api-mobile" },
   });
 
   return NextResponse.json({ ok: true });

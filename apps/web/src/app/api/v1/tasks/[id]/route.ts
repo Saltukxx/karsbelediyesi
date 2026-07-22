@@ -3,6 +3,7 @@ import { gorevSuresiSaatTarihli, kmFarki } from "@kars/shared";
 import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
 import { assertTaskApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
+import { auditKaydet } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
       });
       return t;
     });
+    await auditKaydet({ user: auth.user }, "GOREV_BASLAT", {
+      varlik: "VehicleTask",
+      varlikId: id,
+      detay: { gorevNo: gorev.gorevNo, kaynak: "api-v1" },
+    });
     return json(serialize(updated));
   }
 
@@ -124,6 +130,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
         });
       }
       return t;
+    });
+    await auditKaydet({ user: auth.user }, "GOREV_KAPAT", {
+      varlik: "VehicleTask",
+      varlikId: id,
+      detay: { gorevNo: gorev.gorevNo, kaynak: "api-v1" },
     });
     return json(serialize(updated));
   }

@@ -3,6 +3,7 @@ import { prisma } from "@kars/db";
 import { assertTaskApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionTask } from "@/lib/domain/task-status";
 import { requireMobileUser } from "@/lib/mobile-auth";
+import { auditKaydet } from "@/lib/audit";
 
 export async function POST(
   req: Request,
@@ -38,6 +39,12 @@ export async function POST(
       where: { id: gorev.vehicleId },
       data: { operasyonDurumu: "GOREVDE", sonCikisTarihi: cikis },
     });
+  });
+
+  await auditKaydet({ user }, "GOREV_BASLAT", {
+    varlik: "VehicleTask",
+    varlikId: id,
+    detay: { gorevNo: gorev.gorevNo, kaynak: "api-mobile" },
   });
 
   return NextResponse.json({ ok: true });

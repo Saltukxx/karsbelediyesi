@@ -7,7 +7,8 @@ import type { NextAuthConfig } from "next-auth";
 export const authConfig = {
   secret: process.env.AUTH_SECRET,
   trustHost: true,
-  session: { strategy: "jwt" },
+  // Oturum en fazla 12 saat geçerli (güvenlik sertleştirme)
+  session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
   pages: { signIn: "/giris" },
   providers: [],
   callbacks: {

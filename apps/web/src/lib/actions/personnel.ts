@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@kars/db";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -13,7 +14,7 @@ function bos(v: FormDataEntryValue | null): string | undefined {
 export async function personelOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.personnel);
 
-  await prisma.personnel.create({
+  const personel = await prisma.personnel.create({
     data: {
       adSoyad: String(formData.get("adSoyad")).trim(),
       unvan: bos(formData.get("unvan")),
@@ -25,6 +26,12 @@ export async function personelOlustur(formData: FormData) {
       durum: (bos(formData.get("durum")) ?? "AKTIF") as "AKTIF" | "IZINLI" | "RAPORLU" | "AYRILDI",
       not: bos(formData.get("not")),
     },
+  });
+
+  await auditKaydet(session, "PERSONEL_OLUSTUR", {
+    varlik: "Personnel",
+    varlikId: personel.id,
+    detay: { adSoyad: personel.adSoyad },
   });
 
   revalidatePath("/personel");
@@ -48,6 +55,11 @@ export async function personelGuncelle(formData: FormData) {
       durum: (bos(formData.get("durum")) ?? "AKTIF") as "AKTIF" | "IZINLI" | "RAPORLU" | "AYRILDI",
       not: bos(formData.get("not")),
     },
+  });
+
+  await auditKaydet(session, "PERSONEL_GUNCELLE", {
+    varlik: "Personnel",
+    varlikId: id,
   });
 
   revalidatePath("/personel");

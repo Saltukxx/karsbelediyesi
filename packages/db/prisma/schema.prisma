@@ -236,6 +236,7 @@ model User {
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
   aktif        Boolean     @default(true)
+  lastLoginAt  DateTime?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -252,6 +253,8 @@ model User {
   onayladigiFormlar    ChecklistSubmission[] @relation("FormOnaylayan")
   asfaltYollari        AsphaltRoad[]         @relation("AsfaltOlusturan")
   engelKayitlari       RoadHazard[]          @relation("EngelOlusturan")
+  sorguladigiParseller Parcel[]              @relation("ParselSorgulayan")
+  notifications        Notification[]
 }
 
 /// Excel: "Günlük Çalışma Takibi > Personel Listesi" + "TANIMLAMALAR > Personel Listesi"
@@ -908,4 +911,80 @@ model RoadHazardPhoto {
   /// Sunucudaki dosya adı — /api/ops/hazard-photo/[id] üzerinden servis edilir
   url       String
   createdAt DateTime   @default(now())
+}
+
+/// TKGM'den sorgulanan kadastro parseli (cache)
+model Parcel {
+  id           String   @id @default(cuid())
+  ilAd         String
+  ilceAd       String
+  mahalleAd    String
+  mahalleId    Int
+  /// Ada numarası olmayan (kırsal) parsellerde "0" normalize edilir
+  adaNo        String
+  parselNo     String
+  /// m² — TKGM "1.517,05" formatında string döndürür, parse edilir
+  alan         Float?
+  nitelik      String?
+  mevkii       String?
+  pafta        String?
+  /// GeoJSON geometry (Polygon/MultiPolygon), koordinatlar GeoJSON sırasında [lng, lat]
+  geometri     Json
+  /// Merkez nokta (haritada zoom için)
+  lat          Float
+  lng          Float
+  /// Bounding box — nokta sorgusunda SQL ön-filtresi için
+  minLat       Float
+  maxLat       Float
+  minLng       Float
+  maxLng       Float
+  sorgulayanId String?
+  sorgulayan   User?    @relation("ParselSorgulayan", fields: [sorgulayanId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([mahalleId, adaNo, parselNo])
+  @@index([adaNo, parselNo])
+  @@index([minLat, maxLat, minLng, maxLng])
+}
+
+// ═══════════════════════ KURUMSAL ALTYAPI ═══════════════════════
+
+/// Denetim izi — kim, neyi, ne zaman değiştirdi
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  /// Kullanıcı silinse bile iz kalsın diye snapshot
+  userAd    String
+  rol       String
+  /// örn. SIKAYET_OLUSTUR, GOREV_KAPAT, GIRIS_BASARISIZ
+  islem     String
+  /// Complaint, VehicleTask, AsphaltRoad...
+  varlik    String?
+  varlikId  String?
+  detay     Json?
+  createdAt DateTime @default(now())
+
+  @@index([varlik, varlikId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// Panel içi bildirim
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Tekrarlı bildirimleri önlemek için tekil anahtar (örn. "sla:ŞKY-2026-0042:u123")
+  anahtar   String?  @unique
+  /// ATAMA | GOREV | ONAY | SLA | SISTEM
+  tip       String
+  baslik    String
+  mesaj     String?
+  href      String?
+  okundu    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, okundu])
+  @@index([createdAt])
 }

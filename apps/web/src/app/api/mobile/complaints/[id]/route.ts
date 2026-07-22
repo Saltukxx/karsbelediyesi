@@ -3,6 +3,7 @@ import { prisma } from "@kars/db";
 import { assertComplaintApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionComplaint } from "@/lib/domain/complaint-status";
 import { requireMobileUser } from "@/lib/mobile-auth";
+import { auditKaydet } from "@/lib/audit";
 
 export async function PATCH(
   req: Request,
@@ -51,6 +52,12 @@ export async function PATCH(
       },
     });
     return c;
+  });
+
+  await auditKaydet({ user }, "SIKAYET_DURUM_GUNCELLE", {
+    varlik: "Complaint",
+    varlikId: id,
+    detay: { eski: access.row.durum, yeni: body.durum, kaynak: "api-mobile" },
   });
 
   return NextResponse.json(updated);

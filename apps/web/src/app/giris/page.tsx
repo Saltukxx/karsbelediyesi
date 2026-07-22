@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Image from "next/image";
 import { auth, signIn } from "@/auth";
 import { AuthError } from "next-auth";
 import { BrandMark } from "@/components/BrandMark";
 import { LoginHero } from "@/components/LoginHero";
+import { checkLoginRateLimit } from "@/lib/rate-limit";
 import { btnPrimary, inputCls, labelCls } from "@/lib/ui";
 
 export const metadata = { title: "Giriş — Kars Belediyesi" };
@@ -19,6 +21,15 @@ export default async function GirisPage({
 
   async function girisYap(formData: FormData) {
     "use server";
+    const h = await headers();
+    const ip =
+      h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      h.get("x-real-ip") ||
+      "unknown";
+    const phone = String(formData.get("phone") ?? "").replace(/\s/g, "");
+    if (!checkLoginRateLimit(ip, phone)) {
+      redirect(`/giris?hata=limit`);
+    }
     try {
       await signIn("credentials", {
         phone: formData.get("phone"),
@@ -63,7 +74,9 @@ export default async function GirisPage({
           </div>
           {hata && (
             <p className="mb-4 rounded-md border border-kb-danger/20 bg-kb-danger-bg px-3 py-2.5 text-sm text-kb-danger">
-              Telefon numarası veya şifre hatalı.
+              {hata === "limit"
+                ? "Çok fazla giriş denemesi yapıldı. Lütfen 15 dakika sonra tekrar deneyin."
+                : "Telefon numarası veya şifre hatalı."}
             </p>
           )}
           <form action={girisYap} className="space-y-4">

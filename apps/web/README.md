@@ -34,3 +34,20 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Otomatik Yedekleme
+
+Kök dizinde `npm run backup` komutu PostgreSQL dump'ını ve fotoğraf klasörünü
+`backups/` altına alır (14 günden eski yedekler silinir). Sunucuda her gece
+03:00'te çalışması için crontab satırı:
+
+```cron
+0 3 * * * cd /path/to/Kars\ Belediyesi && bash scripts/backup.sh >> backups/backup.log 2>&1
+```
+
+## Hata İzleme (Sentry)
+
+`@sentry/nextjs` kuruludur ancak yalnız `SENTRY_DSN` (ve istemci için
+`NEXT_PUBLIC_SENTRY_DSN`) ortam değişkeni tanımlıysa etkinleşir. sentry.io'da
+ücretsiz bir proje açıp DSN'i `.env` dosyasına ekleyin; tanımlı değilse tamamen
+devre dışı kalır.

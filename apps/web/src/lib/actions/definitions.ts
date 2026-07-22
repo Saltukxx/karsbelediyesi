@@ -5,6 +5,14 @@ import { z } from "zod";
 import { prisma } from "@kars/db";
 import bcrypt from "bcryptjs";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { auditKaydet } from "@/lib/audit";
+
+/** Şifre politikası: en az 8 karakter, en az bir harf ve bir rakam */
+const sifreSchema = z
+  .string()
+  .min(8, "Şifre en az 8 karakter olmalı")
+  .regex(/[A-Za-zÇĞİÖŞÜçğıöşü]/, "Şifre en az bir harf içermeli")
+  .regex(/\d/, "Şifre en az bir rakam içermeli");
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -25,7 +33,7 @@ const userCreateSchema = z
     name: z.string().min(1),
     phone: z.string().min(10),
     email: z.string().optional(),
-    password: z.string().min(8, "Şifre en az 8 karakter olmalı"),
+    password: sifreSchema,
     role: rolSchema,
     departmentId: z.string().optional(),
   })
@@ -104,7 +112,7 @@ export async function aracCinsiOlustur(formData: FormData) {
 }
 
 export async function kullaniciOlustur(formData: FormData) {
-  await requireRoles(ACTION_ROLES.definitions);
+  const session = await requireRoles(ACTION_ROLES.definitions);
   const parsed = userCreateSchema.parse({
     name: String(formData.get("name") ?? "").trim(),
     phone: String(formData.get("phone") ?? "").trim(),
@@ -114,7 +122,7 @@ export async function kullaniciOlustur(formData: FormData) {
     departmentId: bos(formData.get("departmentId")),
   });
   const passwordHash = await bcrypt.hash(parsed.password, 10);
-  await prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       name: parsed.name,
       phone: parsed.phone,
@@ -124,16 +132,19 @@ export async function kullaniciOlustur(formData: FormData) {
       departmentId: parsed.departmentId,
     },
   });
+  await auditKaydet(session, "KULLANICI_OLUSTUR", {
+    varlik: "User",
+    varlikId: created.id,
+    detay: { ad: parsed.name, rol: parsed.role },
+  });
   revalidatePath("/tanimlar");
 }
 
 export async function kullaniciGuncelle(formData: FormData) {
-  await requireRoles(ACTION_ROLES.definitions);
+  const session = await requireRoles(ACTION_ROLES.definitions);
   const id = String(formData.get("id"));
   const password = bos(formData.get("password"));
-  if (password && password.length < 8) {
-    throw new Error("Şifre en az 8 karakter olmalı");
-  }
+  if (password) sifreSchema.parse(password);
   const role = rolSchema.parse(String(formData.get("role") ?? ""));
   const departmentId = bos(formData.get("departmentId")) ?? null;
   if (role === "DEPARTMENT_MANAGER" && !departmentId) {
@@ -150,6 +161,11 @@ export async function kullaniciGuncelle(formData: FormData) {
       aktif: formData.get("aktif") === "on" || formData.get("aktif") === "true",
       ...(password ? { passwordHash: await bcrypt.hash(password, 10) } : {}),
     },
+  });
+  await auditKaydet(session, "KULLANICI_GUNCELLE", {
+    varlik: "User",
+    varlikId: id,
+    detay: { rol: role, sifreDegisti: Boolean(password) },
   });
   revalidatePath("/tanimlar");
 }

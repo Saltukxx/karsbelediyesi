@@ -13,6 +13,7 @@ whatsapp-session/
 uploads/
 .turbo/
 .claude/
+backups/
 
 # WhatsApp bot runtime / generated (keep gold.jsonl + README)
 apps/whatsapp-bot/data/auth/
