@@ -10,6 +10,8 @@ import {
   kullaniciOlustur,
   kullaniciGuncelle,
 } from "@/lib/actions/definitions";
+import { otomatikAtamaKaydet } from "@/lib/actions/dispatch";
+import { otomatikAtamaAcikMi } from "@/lib/dispatch";
 import { inputCls, btnPrimary, btnSecondary, cardCls } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { requirePageAccess } from "@/lib/authz";
@@ -18,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TanimlarPage() {
   await requirePageAccess("/tanimlar");
-  const [mahalleler, mudurlukler, turler, aracCinsleri, kullanicilar] = await Promise.all([
+  const [mahalleler, mudurlukler, turler, aracCinsleri, kullanicilar, otomatikAtama] = await Promise.all([
     prisma.neighborhood.findMany({ orderBy: { name: "asc" } }),
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.complaintType.findMany({
@@ -30,6 +32,7 @@ export default async function TanimlarPage() {
       orderBy: { name: "asc" },
       include: { department: true },
     }),
+    otomatikAtamaAcikMi(),
   ]);
 
   return (
@@ -40,6 +43,29 @@ export default async function TanimlarPage() {
           Mahalle, müdürlük, şikayet türü (→müdürlük eşleme), araç cinsi, kullanıcı/rol.
         </p>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-kb-ink">Akıllı Dispatch</h2>
+        <form action={otomatikAtamaKaydet} className={`${cardCls} p-4 space-y-3 max-w-xl`}>
+          <label className="flex items-start gap-2 text-sm text-kb-ink">
+            <input
+              type="checkbox"
+              name="otomatikAtama"
+              defaultChecked={otomatikAtama}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-semibold">Tam otomatik atama</span>
+              <span className="block text-xs text-kb-muted">
+                Açıkken geciken kış / çöp rotaları için en yakın müsait araç öneri
+                beklenmeden göreve atanır. Kapalıyken öneriler /kis ve /cop
+                sayfalarındaki &quot;Bekleyen görevler&quot; panelinde onay bekler.
+              </span>
+            </span>
+          </label>
+          <button className={btnPrimary}>Kaydet</button>
+        </form>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-kb-ink">Mahalleler ({mahalleler.length})</h2>

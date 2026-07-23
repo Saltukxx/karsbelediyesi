@@ -36,6 +36,16 @@ export interface ComplaintPinDto {
   aciklama: string | null;
 }
 
+export interface LiveVehicleDto {
+  id: string;
+  plaka: string;
+  tip: string | null;
+  lat: number;
+  lng: number;
+  /** Son ping zamanı (ISO) */
+  zaman: string;
+}
+
 export const ASFALT_DURUM_LABELS: Record<AsfaltDurumDto, string> = {
   PLANLANDI: "Planlandı",
   DEVAM_EDIYOR: "Devam Ediyor",

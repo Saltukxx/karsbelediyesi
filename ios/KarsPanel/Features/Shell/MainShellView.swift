@@ -3,6 +3,11 @@ import SwiftUI
 struct MainShellView: View {
     @EnvironmentObject private var session: AppSession
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @StateObject private var locationService = LocationService.shared
+
+    private var isFieldRole: Bool {
+        session.user?.role == .DRIVER || session.user?.role == .FIELD_WORKER
+    }
 
     var body: some View {
         Group {
@@ -13,6 +18,40 @@ struct MainShellView: View {
             }
         }
         .tint(KBTheme.navy)
+        .environmentObject(locationService)
+        .onAppear {
+            // Şoför daha önce paylaşımı açtıysa girişte otomatik devam et
+            if isFieldRole && locationService.preferenceEnabled {
+                locationService.start()
+            }
+        }
+        .onChange(of: session.user?.id) { _, newValue in
+            if newValue == nil { locationService.stop() }
+        }
+    }
+}
+
+/// Hesap menüsünde konum paylaşım anahtarı (şoför / saha rolleri)
+struct LocationShareMenuItem: View {
+    @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var locationService: LocationService
+
+    private var isFieldRole: Bool {
+        session.user?.role == .DRIVER || session.user?.role == .FIELD_WORKER
+    }
+
+    var body: some View {
+        if isFieldRole {
+            Toggle(isOn: Binding(
+                get: { locationService.isSharing },
+                set: { on in on ? locationService.start() : locationService.stop() }
+            )) {
+                Label("Konum paylaş", systemImage: "location.fill")
+            }
+            if locationService.authorizationDenied {
+                Text("Konum izni reddedildi — Ayarlar'dan açın")
+            }
+        }
     }
 }
 
@@ -95,6 +134,7 @@ private struct PhoneTabShellView: View {
                     Text(user.role.label)
                     Divider()
                 }
+                LocationShareMenuItem()
                 Button("Çıkış Yap", role: .destructive) {
                     session.signOut()
                 }
@@ -226,6 +266,8 @@ private struct PadSplitShellView: View {
                     .font(.caption)
                     .foregroundStyle(KBTheme.muted)
             }
+            LocationShareMenuItem()
+                .font(.subheadline)
             Button("Çıkış Yap", role: .destructive) {
                 session.signOut()
             }

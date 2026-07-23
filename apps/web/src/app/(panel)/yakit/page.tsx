@@ -21,7 +21,9 @@ export default async function YakitPage() {
     ? { vehicle: { departmentId: dept.departmentId } }
     : undefined;
 
-  const [kayitlar, araclar, personeller, toplam] = await Promise.all([
+  const taskSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [kayitlar, araclar, personeller, toplam, gorevler] = await Promise.all([
     prisma.fuelRecord.findMany({
       where: fuelWhere,
       orderBy: { tarih: "desc" },
@@ -39,6 +41,20 @@ export default async function YakitPage() {
     prisma.fuelRecord.aggregate({
       where: fuelWhere,
       _sum: { litre: true, tutar: true },
+    }),
+    prisma.vehicleTask.findMany({
+      where: {
+        talepTarihi: { gte: taskSince },
+        ...(dept.departmentId ? { vehicle: { departmentId: dept.departmentId } } : {}),
+      },
+      orderBy: { talepTarihi: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        gorevNo: true,
+        gorevTanimi: true,
+        vehicle: { select: { plaka: true } },
+      },
     }),
   ]);
 
@@ -89,6 +105,18 @@ export default async function YakitPage() {
             <option value="">— Seçiniz —</option>
             {personeller.map((p) => (
               <option key={p.id} value={p.id}>{p.adSoyad}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-kb-muted block mb-1">Görev (maliyet takibi)</label>
+          <select name="vehicleTaskId" className={inputCls}>
+            <option value="">— Bağlanmadı —</option>
+            {gorevler.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.gorevNo} · {g.vehicle.plaka}
+                {g.gorevTanimi ? ` — ${g.gorevTanimi.slice(0, 40)}` : ""}
+              </option>
             ))}
           </select>
         </div>

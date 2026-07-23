@@ -66,6 +66,9 @@ struct ModuleListView: View {
         .overlay {
             if viewModel.isLoading && viewModel.rows.isEmpty { LoadingOverlay() }
         }
+        .sheet(item: $viewModel.routeTask) { task in
+            TaskRouteMapView(task: task)
+        }
     }
 }
 

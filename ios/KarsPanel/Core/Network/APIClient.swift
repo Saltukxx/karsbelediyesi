@@ -143,6 +143,16 @@ final class APIClient: ObservableObject {
         try await request(path: "/api/v1/lookups")
     }
 
+    // MARK: - Location
+
+    func sendLocation(lat: Double, lng: Double, hiz: Double?) async throws {
+        let _: LocationPingResponseDTO = try await request(
+            path: "/api/mobile/location",
+            method: .post,
+            body: LocationPingRequestDTO(lat: lat, lng: lng, hiz: hiz)
+        )
+    }
+
     // MARK: - Transport
 
     private func makeURL(path: String, query: [URLQueryItem] = []) throws -> URL {

@@ -193,16 +193,16 @@ model Neighborhood {
 }
 
 model Department {
-  id                String          @id @default(cuid())
-  name              String          @unique
+  id                String             @id @default(cuid())
+  name              String             @unique
   shortName         String
-  aktif             Boolean         @default(true)
+  aktif             Boolean            @default(true)
   users             User[]
   personnel         Personnel[]
   vehicles          Vehicle[]
   complaints        Complaint[]
   complaintTypes    ComplaintType[]
-  vehicleTasks      VehicleTask[]   @relation("TalepEdenMudurluk")
+  vehicleTasks      VehicleTask[]      @relation("TalepEdenMudurluk")
   personnelWorkLogs PersonnelWorkLog[]
   materialMovements MaterialMovement[]
 }
@@ -241,19 +241,26 @@ model User {
   updatedAt    DateTime    @updatedAt
 
   personnel            Personnel?
-  atananAraclar        Vehicle[]            @relation("AtananSofor")
+  atananAraclar        Vehicle[]             @relation("AtananSofor")
   complaintEvents      ComplaintEvent[]
-  onayladigiSikayetler Complaint[]          @relation("Onaylayan")
-  suruculukGorevleri   VehicleTask[]        @relation("GorevSoforu")
-  onayladigiGorevler   VehicleTask[]        @relation("GorevOnaylayan")
-  aracGunlukKayitlari  VehicleWorkLog[]     @relation("GunlukSofor")
-  onayladigiAracGunluk VehicleWorkLog[]     @relation("AracGunlukOnaylayan")
-  onayladigiMesai      PersonnelWorkLog[]   @relation("MesaiOnaylayan")
+  onayladigiSikayetler Complaint[]           @relation("Onaylayan")
+  suruculukGorevleri   VehicleTask[]         @relation("GorevSoforu")
+  onayladigiGorevler   VehicleTask[]         @relation("GorevOnaylayan")
+  aracGunlukKayitlari  VehicleWorkLog[]      @relation("GunlukSofor")
+  onayladigiAracGunluk VehicleWorkLog[]      @relation("AracGunlukOnaylayan")
+  onayladigiMesai      PersonnelWorkLog[]    @relation("MesaiOnaylayan")
   kontrolFormlari      ChecklistSubmission[] @relation("FormOperator")
   onayladigiFormlar    ChecklistSubmission[] @relation("FormOnaylayan")
   asfaltYollari        AsphaltRoad[]         @relation("AsfaltOlusturan")
   engelKayitlari       RoadHazard[]          @relation("EngelOlusturan")
   sorguladigiParseller Parcel[]              @relation("ParselSorgulayan")
+  kisRotalari          WinterRoute[]         @relation("KisRotaOlusturan")
+  kisOperasyonlari     WinterOperation[]     @relation("KisOperasyonOlusturan")
+  kisSuruculukleri     WinterOperation[]     @relation("KisOperasyonSofor")
+  copRotalari          WasteRoute[]          @relation("CopRotaOlusturan")
+  copToplamalari       WasteCollection[]     @relation("CopToplamaOlusturan")
+  copSuruculukleri     WasteCollection[]     @relation("CopToplamaSofor")
+  konumPingleri        VehicleLocation[]     @relation("KonumSofor")
   notifications        Notification[]
 }
 
@@ -270,51 +277,57 @@ model Personnel {
   not            String?
   userId         String?       @unique
   user           User?         @relation(fields: [userId], references: [id])
+  /// İşçilik maliyeti hesabı için saatlik ücret (₺)
+  saatUcret      Decimal?      @db.Decimal(10, 2)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  workLogs            PersonnelWorkLog[]
+  workLogs             PersonnelWorkLog[]
   complaintAssignments ComplaintPersonnel[]
-  fuelRecords         FuelRecord[]
+  fuelRecords          FuelRecord[]
 }
 
 // ═══════════════════════ ARAÇ MODÜLÜ ═══════════════════════
 
 /// Excel: "Araç Envanteri" + "Araç Havuzu" + "Araç Listesi" + "TANIMLAMALAR zimmet" birleşimi
 model Vehicle {
-  id            String         @id @default(cuid())
-  plaka         String         @unique
-  ad            String?
-  vehicleTypeId String?
-  vehicleType   VehicleType?   @relation(fields: [vehicleTypeId], references: [id])
-  marka         String?
-  model         String?
-  modelYili     Int?
-  yakitTipi     YakitTipi?
-  kapasite      String?
+  id                 String         @id @default(cuid())
+  plaka              String         @unique
+  ad                 String?
+  vehicleTypeId      String?
+  vehicleType        VehicleType?   @relation(fields: [vehicleTypeId], references: [id])
+  marka              String?
+  model              String?
+  modelYili          Int?
+  yakitTipi          YakitTipi?
+  kapasite           String?
   /// Sayaç: KM veya çalışma saati
-  sayacDeger    Float?
-  sayacBirim    String?        @default("KM")
+  sayacDeger         Float?
+  sayacBirim         String?        @default("KM")
   /// Akaryakıt Tuketim Takip — Sayaç Tipi + Norm Tüketim (lt/100km veya lt/saat)
-  sayacTipi     SayacTipi      @default(KM)
-  normTuketim   Float?
-  muayeneTarihi   DateTime?
-  sigortaBitis    DateTime?
-  sonBakimTarihi  DateTime?
+  sayacTipi          SayacTipi      @default(KM)
+  normTuketim        Float?
+  muayeneTarihi      DateTime?
+  sigortaBitis       DateTime?
+  sonBakimTarihi     DateTime?
   sonrakiBakimTarihi DateTime?
-  bakimKmSaati    String?
-  departmentId  String?
-  department    Department?    @relation(fields: [departmentId], references: [id])
+  bakimKmSaati       String?
+  departmentId       String?
+  department         Department?    @relation(fields: [departmentId], references: [id])
   /// TANIMLAMALAR araç-şoför zimmet listesi
-  atananSoforId String?
-  atananSofor   User?          @relation("AtananSofor", fields: [atananSoforId], references: [id])
-  envanterDurumu  EnvanterDurum  @default(AKTIF)
-  operasyonDurumu OperasyonDurum @default(MUSAIT)
-  sonCikisTarihi  DateTime?
-  sonGirisTarihi  DateTime?
-  notlar        String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  atananSoforId      String?
+  atananSofor        User?          @relation("AtananSofor", fields: [atananSoforId], references: [id])
+  envanterDurumu     EnvanterDurum  @default(AKTIF)
+  operasyonDurumu    OperasyonDurum @default(MUSAIT)
+  sonCikisTarihi     DateTime?
+  sonGirisTarihi     DateTime?
+  notlar             String?
+  /// Son bilinen konum (VehicleLocation'dan denormalize — en yakın araç sorgusu için)
+  sonKonumLat        Float?
+  sonKonumLng        Float?
+  sonKonumZamani     DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   maintenanceRecords   MaintenanceRecord[]
   fuelRecords          FuelRecord[]
@@ -322,87 +335,96 @@ model Vehicle {
   tasks                VehicleTask[]
   workLogs             VehicleWorkLog[]
   checklistSubmissions ChecklistSubmission[]
+  kisOperasyonlari     WinterOperation[]     @relation("KisOperasyonArac")
+  copToplamalar        WasteCollection[]     @relation("CopToplamaArac")
+  locations            VehicleLocation[]
+  dispatchJobs         DispatchJob[]         @relation("DispatchArac")
 }
 
 /// Excel: "Bakım Takip" (11 sütun)
 model MaintenanceRecord {
-  id                 String     @id @default(cuid())
-  vehicleId          String
-  vehicle            Vehicle    @relation(fields: [vehicleId], references: [id])
-  bakimTarihi        DateTime
-  bakimTuru          BakimTuru
-  yapilanIslemler    String?
-  kullanilanMalzeme  String?
-  maliyet            Decimal?   @db.Decimal(12, 2)
-  yapanFirmaPersonel String?
-  sonrakiBakimTarihi DateTime?
-  durum              BakimDurum @default(PLANLANDI)
+  id                          String     @id @default(cuid())
+  vehicleId                   String
+  vehicle                     Vehicle    @relation(fields: [vehicleId], references: [id])
+  bakimTarihi                 DateTime
+  bakimTuru                   BakimTuru
+  yapilanIslemler             String?
+  kullanilanMalzeme           String?
+  maliyet                     Decimal?   @db.Decimal(12, 2)
+  yapanFirmaPersonel          String?
+  sonrakiBakimTarihi          DateTime?
+  durum                       BakimDurum @default(PLANLANDI)
   /// Kontrol formundaki ❌ kaleminden otomatik oluşturulduysa
-  kaynakChecklistItemResultId String? @unique
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  kaynakChecklistItemResultId String?    @unique
+  createdAt                   DateTime   @default(now())
+  updatedAt                   DateTime   @updatedAt
 }
 
 /// Excel: "Yakıt Takip" (10 sütun) — tutar = litre × birimFiyat (server-side)
 model FuelRecord {
-  id                 String     @id @default(cuid())
-  vehicleId          String
-  vehicle            Vehicle    @relation(fields: [vehicleId], references: [id])
-  tarih              DateTime
-  yakitTuru          YakitTuru
-  litre              Decimal    @db.Decimal(10, 2)
-  birimFiyat         Decimal    @db.Decimal(10, 2)
-  tutar              Decimal    @db.Decimal(12, 2)
-  sayac              Float?
-  sorumluPersonelId  String?
-  sorumluPersonel    Personnel? @relation(fields: [sorumluPersonelId], references: [id])
-  fisFotoUrl         String?
+  id                String          @id @default(cuid())
+  vehicleId         String
+  vehicle           Vehicle         @relation(fields: [vehicleId], references: [id])
+  tarih             DateTime
+  yakitTuru         YakitTuru
+  litre             Decimal         @db.Decimal(10, 2)
+  birimFiyat        Decimal         @db.Decimal(10, 2)
+  tutar             Decimal         @db.Decimal(12, 2)
+  sayac             Float?
+  sorumluPersonelId String?
+  sorumluPersonel   Personnel?      @relation(fields: [sorumluPersonelId], references: [id])
+  fisFotoUrl        String?
   /// Araç günlük çalışma kaydından geldiyse
-  vehicleWorkLogId   String?    @unique
-  vehicleWorkLog     VehicleWorkLog? @relation(fields: [vehicleWorkLogId], references: [id])
-  createdAt          DateTime   @default(now())
+  vehicleWorkLogId  String?         @unique
+  vehicleWorkLog    VehicleWorkLog? @relation(fields: [vehicleWorkLogId], references: [id])
+  /// Bir göreve bağlandıysa (iş başına maliyet)
+  vehicleTaskId     String?
+  vehicleTask       VehicleTask?    @relation(fields: [vehicleTaskId], references: [id])
+  createdAt         DateTime        @default(now())
+
+  @@index([vehicleTaskId])
 }
 
 // ═══════════════════════ ŞİKAYET MODÜLÜ ═══════════════════════
 
 /// Excel: "ŞİKAYET KAYIT" (18 sütun). AKTİF/KAPALI İŞLER = durum filtresi.
 model Complaint {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   /// ŞKY-2026-0001 (Excel: ="ŞKY-"&TEXT(sıra,"0000"))
-  sikayetNo       String        @unique
+  sikayetNo       String         @unique
   yil             Int
   sira            Int
-  kanal           SikayetKanal  @default(TELEFON)
-  kayitTarihi     DateTime      @default(now())
+  kanal           SikayetKanal   @default(TELEFON)
+  kayitTarihi     DateTime       @default(now())
   arayanKisi      String
   telefon         String?
   neighborhoodId  String?
-  neighborhood    Neighborhood? @relation(fields: [neighborhoodId], references: [id])
+  neighborhood    Neighborhood?  @relation(fields: [neighborhoodId], references: [id])
   acikAdres       String?
   complaintTypeId String?
   complaintType   ComplaintType? @relation(fields: [complaintTypeId], references: [id])
   aciklama        String?
   departmentId    String?
-  department      Department?   @relation(fields: [departmentId], references: [id])
-  oncelik         Oncelik       @default(NORMAL)
-  durum           SikayetDurum  @default(ACIK)
+  department      Department?    @relation(fields: [departmentId], references: [id])
+  oncelik         Oncelik        @default(NORMAL)
+  durum           SikayetDurum   @default(ACIK)
   kapanisTarihi   DateTime?
   cozumNotu       String?
   onaylayanId     String?
-  onaylayan       User?         @relation("Onaylayan", fields: [onaylayanId], references: [id])
+  onaylayan       User?          @relation("Onaylayan", fields: [onaylayanId], references: [id])
   /// Görevlendirme (plaka → şoför bilgisi araçtan gelir, değiştirilebilir)
   vehicleId       String?
-  vehicle         Vehicle?      @relation("GorevlendirilenArac", fields: [vehicleId], references: [id])
+  vehicle         Vehicle?       @relation("GorevlendirilenArac", fields: [vehicleId], references: [id])
   soforAdi        String?
   soforTelefonu   String?
   lat             Float?
   lng             Float?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  personel        ComplaintPersonnel[]
-  events          ComplaintEvent[]
-  photos          ComplaintPhoto[]
+  personel         ComplaintPersonnel[]
+  events           ComplaintEvent[]
+  photos           ComplaintPhoto[]
   whatsappMessages WhatsAppMessage[]
 
   @@unique([yil, sira])
@@ -446,20 +468,20 @@ model ComplaintPhoto {
 
 /// WhatsApp ham mesaj + AI sınıflandırma sonucu
 model WhatsAppMessage {
-  id            String            @id @default(cuid())
-  telefon       String
-  yon           WhatsAppYon
-  icerik        String?
-  medyaUrl      String?
-  medyaTipi     String?
+  id          String             @id @default(cuid())
+  telefon     String
+  yon         WhatsAppYon
+  icerik      String?
+  medyaUrl    String?
+  medyaTipi   String?
   /// Claude çıktısı: { intent, sikayet_turu, mahalle, adres, aciklama_ozeti, oncelik, guven }
-  aiSonuc       Json?
-  guven         Float?
-  onayDurumu    WhatsAppOnayDurum?
-  complaintId   String?
-  complaint     Complaint?        @relation(fields: [complaintId], references: [id])
-  waMessageId   String?           @unique
-  createdAt     DateTime          @default(now())
+  aiSonuc     Json?
+  guven       Float?
+  onayDurumu  WhatsAppOnayDurum?
+  complaintId String?
+  complaint   Complaint?         @relation(fields: [complaintId], references: [id])
+  waMessageId String?            @unique
+  createdAt   DateTime           @default(now())
 
   @@index([telefon])
   @@index([onayDurumu])
@@ -483,35 +505,41 @@ model WhatsAppSession {
 
 /// Excel: "Görev Formu" (18 sütun) + "Çıkış-Giriş Takip" (13 sütun) birleşik
 model VehicleTask {
-  id             String      @id @default(cuid())
+  id                    String             @id @default(cuid())
   /// GRV-2026-0001
-  gorevNo        String      @unique
-  yil            Int
-  sira           Int
-  talepTarihi    DateTime    @default(now())
-  vehicleId      String
-  vehicle        Vehicle     @relation(fields: [vehicleId], references: [id])
+  gorevNo               String             @unique
+  yil                   Int
+  sira                  Int
+  talepTarihi           DateTime           @default(now())
+  vehicleId             String
+  vehicle               Vehicle            @relation(fields: [vehicleId], references: [id])
   talepEdenDepartmentId String?
-  talepEdenDepartment   Department? @relation("TalepEdenMudurluk", fields: [talepEdenDepartmentId], references: [id])
-  gorevYeri      String?
-  gorevTanimi    String?
-  cikisTarihi    DateTime?
-  girisTarihi    DateTime?
+  talepEdenDepartment   Department?        @relation("TalepEdenMudurluk", fields: [talepEdenDepartmentId], references: [id])
+  gorevYeri             String?
+  gorevTanimi           String?
+  cikisTarihi           DateTime?
+  girisTarihi           DateTime?
   /// Saat cinsinden — server-side hesaplanır (gece devri destekli)
-  sureSaat       Float?
-  driverId       String?
-  driver         User?       @relation("GorevSoforu", fields: [driverId], references: [id])
-  kmSayacCikis   Float?
-  kmSayacGiris   Float?
+  sureSaat              Float?
+  driverId              String?
+  driver                User?              @relation("GorevSoforu", fields: [driverId], references: [id])
+  kmSayacCikis          Float?
+  kmSayacGiris          Float?
   /// = kmSayacGiris - kmSayacCikis (server-side)
-  kmFarki        Float?
-  onaylayanId    String?
-  onaylayan      User?       @relation("GorevOnaylayan", fields: [onaylayanId], references: [id])
-  durum          GorevDurum  @default(PLANLANDI)
-  not            String?
-  maliyet        Decimal?    @db.Decimal(12, 2)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  kmFarki               Float?
+  onaylayanId           String?
+  onaylayan             User?              @relation("GorevOnaylayan", fields: [onaylayanId], references: [id])
+  durum                 GorevDurum         @default(PLANLANDI)
+  not                   String?
+  /// Manuel girilen / diğer maliyet — hesaplanan kırılıma "diğer" olarak eklenir
+  maliyet               Decimal?           @db.Decimal(12, 2)
+  /// Dispatch motorundan doğduysa (rota bilgisi mobile buradan gider)
+  dispatchJobId         String?            @unique
+  dispatchJob           DispatchJob?       @relation(fields: [dispatchJobId], references: [id])
+  fuelRecords           FuelRecord[]
+  materialMovements     MaterialMovement[]
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
   @@unique([yil, sira])
   @@index([vehicleId])
@@ -522,23 +550,23 @@ model VehicleTask {
 
 /// Excel: "İş Makineleri Bakim Kontrol" — 5 makine şablonu (195 kalem)
 model ChecklistTemplate {
-  id          String  @id @default(cuid())
-  ekipmanAdi  String  @unique
-  aciklama    String?
-  aktif       Boolean @default(true)
+  id         String  @id @default(cuid())
+  ekipmanAdi String  @unique
+  aciklama   String?
+  aktif      Boolean @default(true)
 
   items       ChecklistTemplateItem[]
   submissions ChecklistSubmission[]
 }
 
 model ChecklistTemplateItem {
-  id           String            @id @default(cuid())
-  templateId   String
-  template     ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  kategori     String
-  siraNo       Int
+  id            String            @id @default(cuid())
+  templateId    String
+  template      ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  kategori      String
+  siraNo        Int
   kontrolKalemi String
-  aktif        Boolean           @default(true)
+  aktif         Boolean           @default(true)
 
   results ChecklistItemResult[]
 
@@ -547,28 +575,28 @@ model ChecklistTemplateItem {
 
 /// Doldurulan form: Araç/Plaka, Ay/Yıl, operatör/teknisyen, lokasyon + imza & onay
 model ChecklistSubmission {
-  id           String            @id @default(cuid())
-  templateId   String
-  template     ChecklistTemplate @relation(fields: [templateId], references: [id])
-  vehicleId    String
-  vehicle      Vehicle           @relation(fields: [vehicleId], references: [id])
-  ay           Int
-  yilDonem     Int
+  id                       String            @id @default(cuid())
+  templateId               String
+  template                 ChecklistTemplate @relation(fields: [templateId], references: [id])
+  vehicleId                String
+  vehicle                  Vehicle           @relation(fields: [vehicleId], references: [id])
+  ay                       Int
+  yilDonem                 Int
   sorumluOperatorTeknisyen String?
-  santiyeLokasyon String?
-  durum        KontrolFormDurum  @default(TASLAK)
-  operatorId   String?
-  operator     User?             @relation("FormOperator", fields: [operatorId], references: [id])
+  santiyeLokasyon          String?
+  durum                    KontrolFormDurum  @default(TASLAK)
+  operatorId               String?
+  operator                 User?             @relation("FormOperator", fields: [operatorId], references: [id])
   /// Dijital imzalar (çizim, base64/dosya url)
-  operatorImzaUrl  String?
-  teknisyenAdi     String?
-  teknisyenImzaUrl String?
-  sefAmirAdi   String?
-  onaylayanId  String?
-  onaylayan    User?             @relation("FormOnaylayan", fields: [onaylayanId], references: [id])
-  onayTarihi   DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+  operatorImzaUrl          String?
+  teknisyenAdi             String?
+  teknisyenImzaUrl         String?
+  sefAmirAdi               String?
+  onaylayanId              String?
+  onaylayan                User?             @relation("FormOnaylayan", fields: [onaylayanId], references: [id])
+  onayTarihi               DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
 
   results ChecklistItemResult[]
 
@@ -576,16 +604,16 @@ model ChecklistSubmission {
 }
 
 model ChecklistItemResult {
-  id           String                @id @default(cuid())
-  submissionId String
-  submission   ChecklistSubmission   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  id             String                @id @default(cuid())
+  submissionId   String
+  submission     ChecklistSubmission   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   templateItemId String
-  templateItem ChecklistTemplateItem @relation(fields: [templateItemId], references: [id])
-  periyot      KontrolPeriyot
-  sonuc        KontrolSonuc
-  aciklamaNot  String?
-  fotoUrl      String?
-  createdAt    DateTime              @default(now())
+  templateItem   ChecklistTemplateItem @relation(fields: [templateItemId], references: [id])
+  periyot        KontrolPeriyot
+  sonuc          KontrolSonuc
+  aciklamaNot    String?
+  fotoUrl        String?
+  createdAt      DateTime              @default(now())
 
   @@unique([submissionId, templateItemId, periyot])
 }
@@ -594,26 +622,26 @@ model ChecklistItemResult {
 
 /// Excel: "Personel Günlük Takip" (15 sütun) — saat alanları server-side hesaplanır
 model PersonnelWorkLog {
-  id          String      @id @default(cuid())
-  personnelId String
-  personnel   Personnel   @relation(fields: [personnelId], references: [id])
-  tarih       DateTime    @db.Date
-  girisSaati  String
-  cikisSaati  String
+  id                     String      @id @default(cuid())
+  personnelId            String
+  personnel              Personnel   @relation(fields: [personnelId], references: [id])
+  tarih                  DateTime    @db.Date
+  girisSaati             String
+  cikisSaati             String
   /// 08:00-17:00 arası, 12:00-13:00 öğle molası düşülmüş (Excel formülü birebir)
-  normalSaat  Float
+  normalSaat             Float
   /// 17:00 sonrası
-  mesaiSaat   Float
-  toplamSaat  Float
-  calismaTipi CalismaTipi @default(NORMAL_MESAI)
-  yapilanIs   String?
+  mesaiSaat              Float
+  toplamSaat             Float
+  calismaTipi            CalismaTipi @default(NORMAL_MESAI)
+  yapilanIs              String?
   gorevlendirilenBirimId String?
   gorevlendirilenBirim   Department? @relation(fields: [gorevlendirilenBirimId], references: [id])
-  notlar      String?
-  onaylayanId String?
-  onaylayan   User?       @relation("MesaiOnaylayan", fields: [onaylayanId], references: [id])
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  notlar                 String?
+  onaylayanId            String?
+  onaylayan              User?       @relation("MesaiOnaylayan", fields: [onaylayanId], references: [id])
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
   @@unique([personnelId, tarih])
   @@index([tarih])
@@ -621,24 +649,24 @@ model PersonnelWorkLog {
 
 /// Excel: "Araç Günlük Takip" (13 sütun) — çalışma saati gece devri destekli
 model VehicleWorkLog {
-  id          String   @id @default(cuid())
-  vehicleId   String
-  vehicle     Vehicle  @relation(fields: [vehicleId], references: [id])
-  tarih       DateTime @db.Date
-  driverId    String?
-  driver      User?    @relation("GunlukSofor", fields: [driverId], references: [id])
-  soforAdi    String?
-  gorevTanimi String?
-  yerBolge    String?
-  girisSaati  String
-  cikisSaati  String
+  id           String   @id @default(cuid())
+  vehicleId    String
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id])
+  tarih        DateTime @db.Date
+  driverId     String?
+  driver       User?    @relation("GunlukSofor", fields: [driverId], references: [id])
+  soforAdi     String?
+  gorevTanimi  String?
+  yerBolge     String?
+  girisSaati   String
+  cikisSaati   String
   calismaSaati Float
-  yakitLitre  Decimal? @db.Decimal(10, 2)
-  notlar      String?
-  onaylayanId String?
-  onaylayan   User?    @relation("AracGunlukOnaylayan", fields: [onaylayanId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  yakitLitre   Decimal? @db.Decimal(10, 2)
+  notlar       String?
+  onaylayanId  String?
+  onaylayan    User?    @relation("AracGunlukOnaylayan", fields: [onaylayanId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   fuelRecord FuelRecord?
 
@@ -650,66 +678,74 @@ model VehicleWorkLog {
 
 /// Excel: MalzemeDepo Envanter > Malzeme Tanımlama
 model Material {
-  id            String   @id @default(cuid())
-  kod           String   @unique
-  ad            String
-  kategori      String
-  birim         String
-  depoLokasyon  String?
-  kritikStok    Float    @default(0)
-  birimFiyat    Decimal? @db.Decimal(12, 2)
-  aciklama      String?
-  aktif         Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  kod          String   @unique
+  ad           String
+  kategori     String
+  birim        String
+  depoLokasyon String?
+  kritikStok   Float    @default(0)
+  birimFiyat   Decimal? @db.Decimal(12, 2)
+  aciklama     String?
+  aktif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   movements MaterialMovement[]
 }
 
 /// Excel: Stok Hareketleri — stok = SUM(Giriş) − SUM(Çıkış)
 model MaterialMovement {
-  id           String          @id @default(cuid())
-  materialId   String
-  material     Material        @relation(fields: [materialId], references: [id])
-  tarih        DateTime
-  tip          StokHareketTipi
-  miktar       Decimal         @db.Decimal(12, 3)
-  departmentId String?
-  department   Department?     @relation(fields: [departmentId], references: [id])
-  belgeNo      String?
-  aciklama     String?
-  createdAt    DateTime        @default(now())
+  id                String           @id @default(cuid())
+  materialId        String
+  material          Material         @relation(fields: [materialId], references: [id])
+  tarih             DateTime
+  tip               StokHareketTipi
+  miktar            Decimal          @db.Decimal(12, 3)
+  departmentId      String?
+  department        Department?      @relation(fields: [departmentId], references: [id])
+  belgeNo           String?
+  aciklama          String?
+  /// Bir göreve bağlandıysa (iş başına maliyet)
+  vehicleTaskId     String?
+  vehicleTask       VehicleTask?     @relation(fields: [vehicleTaskId], references: [id])
+  /// Kış operasyonundan otomatik tuz düşümü ise
+  winterOperationId String?
+  winterOperation   WinterOperation? @relation(fields: [winterOperationId], references: [id])
+  createdAt         DateTime         @default(now())
 
   @@index([materialId, tip])
   @@index([tarih])
+  @@index([vehicleTaskId])
+  @@index([winterOperationId])
 }
 
 // ═══════════════════════ BETON SANTRALİ ═══════════════════════
 
 /// Excel: Beton Receteleri > Receteler (1 m³)
 model ConcreteRecipe {
-  id           String  @id @default(cuid())
-  sinif        String  @unique
-  cimentoKg    Float
-  kumKg        Float
-  micir05Kg    Float
-  micir512Kg   Float
-  micir1219Kg  Float
-  suLt         Float
-  katkiKg      Float   @default(0)
-  aciklama     String?
-  aktif        Boolean @default(true)
+  id          String  @id @default(cuid())
+  sinif       String  @unique
+  cimentoKg   Float
+  kumKg       Float
+  micir05Kg   Float
+  micir512Kg  Float
+  micir1219Kg Float
+  suLt        Float
+  katkiKg     Float   @default(0)
+  aciklama    String?
+  aktif       Boolean @default(true)
 
   productions ConcreteProduction[]
 }
 
 /// Excel: Uretim Hesaplama — malzeme = hedefM3 × reçete
 model ConcreteProduction {
-  id        String         @id @default(cuid())
-  tarih     DateTime
-  recipeId  String
-  recipe    ConcreteRecipe @relation(fields: [recipeId], references: [id])
-  hedefM3   Float
+  id          String         @id @default(cuid())
+  tarih       DateTime
+  recipeId    String
+  recipe      ConcreteRecipe @relation(fields: [recipeId], references: [id])
+  hedefM3     Float
   /// Otomatik hesaplanan tüketimler (snapshot)
   cimentoKg   Float
   kumKg       Float
@@ -719,20 +755,20 @@ model ConcreteProduction {
   suLt        Float
   katkiKg     Float
   notlar      String?
-  createdAt DateTime       @default(now())
+  createdAt   DateTime       @default(now())
 
   @@index([tarih])
 }
 
 /// Excel: Malzeme Stok (beton santrali) — başlangıç + giriş − üretim çıkışı
 model ConcreteStock {
-  id             String @id @default(cuid())
-  malzeme        String @unique
-  birim          String @default("kg")
-  baslangicStok  Float  @default(0)
-  toplamGiris    Float  @default(0)
-  kritikSeviye   Float  @default(0)
-  updatedAt      DateTime @updatedAt
+  id            String   @id @default(cuid())
+  malzeme       String   @unique
+  birim         String   @default("kg")
+  baslangicStok Float    @default(0)
+  toplamGiris   Float    @default(0)
+  kritikSeviye  Float    @default(0)
+  updatedAt     DateTime @updatedAt
 }
 
 // ═══════════════════════ AGREGA MALİYET ═══════════════════════
@@ -740,110 +776,110 @@ model ConcreteStock {
 /// Excel: Agrega Maliyet Analizi 2 — Parametreler (fiziksel model)
 /// Tek aktif senaryo; hesaplar server-side
 model AgregaParams {
-  id        String   @id @default(cuid())
-  ad        String   @unique @default("varsayilan")
+  id                     String   @id @default(cuid())
+  ad                     String   @unique @default("varsayilan")
   /// mesafe km tek yön, motorin TL/lt, elektrik TL/kWh
-  mesafeKm           Float @default(3)
-  motorinFiyat       Float @default(45)
-  elektrikFiyat      Float @default(3.2)
+  mesafeKm               Float    @default(3)
+  motorinFiyat           Float    @default(45)
+  elektrikFiyat          Float    @default(3.2)
   /// Söküm (kırıcı ekskavatör)
-  sokumYakitLtSaat   Float @default(18)
-  sokumAmortisman    Float @default(350)
-  sokumKapasiteTonSaat Float @default(45)
+  sokumYakitLtSaat       Float    @default(18)
+  sokumAmortisman        Float    @default(350)
+  sokumKapasiteTonSaat   Float    @default(45)
   /// Yükleme
-  yuklemeYakitLtSaat Float @default(16)
-  yuklemeAmortisman  Float @default(300)
-  yuklemeKapasiteTonSaat Float @default(90)
+  yuklemeYakitLtSaat     Float    @default(16)
+  yuklemeAmortisman      Float    @default(300)
+  yuklemeKapasiteTonSaat Float    @default(90)
   /// Nakliye
-  kamyonKapasiteTon  Float @default(20)
-  kamyonYakitLtKm    Float @default(0.42)
-  seferHizKmSaat     Float @default(30)
-  yuklemeBosaltmaDk  Float @default(10)
-  kamyonAmortisman   Float @default(180)
+  kamyonKapasiteTon      Float    @default(20)
+  kamyonYakitLtKm        Float    @default(0.42)
+  seferHizKmSaat         Float    @default(30)
+  yuklemeBosaltmaDk      Float    @default(10)
+  kamyonAmortisman       Float    @default(180)
   /// Kırıcı tesis
-  kiriciKw           Float @default(400)
-  yukFaktoru         Float @default(0.75)
-  kiriciKapasiteTonSaat Float @default(120)
+  kiriciKw               Float    @default(400)
+  yukFaktoru             Float    @default(0.75)
+  kiriciKapasiteTonSaat  Float    @default(120)
   /// Boyut oranları (toplam 1 olmalı)
-  oran05             Float @default(0.30)
-  oran512            Float @default(0.25)
-  oran1219           Float @default(0.25)
-  oran1932           Float @default(0.20)
-  donemUretimTon     Float @default(5000)
+  oran05                 Float    @default(0.30)
+  oran512                Float    @default(0.25)
+  oran1219               Float    @default(0.25)
+  oran1932               Float    @default(0.20)
+  donemUretimTon         Float    @default(5000)
   /// Proje modeli (basit ₺/ton kalemler) — Agrega maliyet analizi proje devam eden
-  gunlukHedefTon     Float @default(500)
-  yillikCalismaGun   Float @default(250)
-  kiriciYakitTon     Float @default(8.5)
-  kiriciBakimTon     Float @default(3.2)
-  yukleyiciYakitTon  Float @default(6.8)
-  yukleyiciBakimTon  Float @default(2.5)
-  nakliyeYakitTon    Float @default(10)
-  elekElektrikTon    Float @default(2.5)
-  elemeBakimTon      Float @default(6)
-  yikamaSuTon        Float @default(1.2)
-  genelGiderTon      Float @default(0)
+  gunlukHedefTon         Float    @default(500)
+  yillikCalismaGun       Float    @default(250)
+  kiriciYakitTon         Float    @default(8.5)
+  kiriciBakimTon         Float    @default(3.2)
+  yukleyiciYakitTon      Float    @default(6.8)
+  yukleyiciBakimTon      Float    @default(2.5)
+  nakliyeYakitTon        Float    @default(10)
+  elekElektrikTon        Float    @default(2.5)
+  elemeBakimTon          Float    @default(6)
+  yikamaSuTon            Float    @default(1.2)
+  genelGiderTon          Float    @default(0)
   /// Satış / stok hedefleri JSON: [{boyut, oran, satisFiyati, stokHedefi}]
-  boyutSatis Json?
-  updatedAt  DateTime @updatedAt
+  boyutSatis             Json?
+  updatedAt              DateTime @updatedAt
 }
 
 // ═══════════════════════ BİTÜM ═══════════════════════
 
 /// Excel: Bitum maliyet 1 > Ayarlar_Depo parametreleri
 model BitumSettings {
-  id                 String @id @default("default")
-  depoKapasitesiTon  Float  @default(80)
-  mesafeKm           Float  @default(185)
-  tirKapasiteTon     Float  @default(30)
-  yakitTlKm          Float  @default(45)
+  id                String   @id @default("default")
+  depoKapasitesiTon Float    @default(80)
+  mesafeKm          Float    @default(185)
+  tirKapasiteTon    Float    @default(30)
+  yakitTlKm         Float    @default(45)
   /// = mesafeKm * 2 * yakitTlKm
-  seferMaliyetiTl    Float  @default(16650)
+  seferMaliyetiTl   Float    @default(16650)
   /// = seferMaliyetiTl / tirKapasiteTon
-  tonTasimaTl        Float  @default(555)
-  referansAlisFiyat  Float  @default(18000)
-  kritikEsik         Float  @default(0.2)
-  dusukEsik          Float  @default(0.4)
-  updatedAt          DateTime @updatedAt
+  tonTasimaTl       Float    @default(555)
+  referansAlisFiyat Float    @default(18000)
+  kritikEsik        Float    @default(0.2)
+  dusukEsik         Float    @default(0.4)
+  updatedAt         DateTime @updatedAt
 }
 
 model BitumDepot {
-  id        String        @id @default(cuid())
-  ad        String        @unique
-  tip       BitumDepoTipi
-  kapasite  Float
-  aktif     Boolean       @default(true)
+  id       String        @id @default(cuid())
+  ad       String        @unique
+  tip      BitumDepoTipi
+  kapasite Float
+  aktif    Boolean       @default(true)
 
-  alisHareketleri    BitumMovement[] @relation("BitumAlisDepo")
-  kaynakHareketleri  BitumMovement[] @relation("BitumKaynak")
-  hedefHareketleri   BitumMovement[] @relation("BitumHedef")
+  alisHareketleri     BitumMovement[] @relation("BitumAlisDepo")
+  kaynakHareketleri   BitumMovement[] @relation("BitumKaynak")
+  hedefHareketleri    BitumMovement[] @relation("BitumHedef")
   kullanimHareketleri BitumMovement[] @relation("BitumKullanim")
 }
 
 /// Excel: Gunluk_Hareket — Alış / Taşıma / Kullanım
 model BitumMovement {
-  id              String           @id @default(cuid())
-  tarih           DateTime
-  tip             BitumHareketTipi
+  id               String           @id @default(cuid())
+  tarih            DateTime
+  tip              BitumHareketTipi
   /// Alış / Kullanım deposu
-  depoId          String?
-  depo            BitumDepot?      @relation("BitumAlisDepo", fields: [depoId], references: [id])
-  kaynakDepoId    String?
-  kaynakDepo      BitumDepot?      @relation("BitumKaynak", fields: [kaynakDepoId], references: [id])
-  hedefDepoId     String?
+  depoId           String?
+  depo             BitumDepot?      @relation("BitumAlisDepo", fields: [depoId], references: [id])
+  kaynakDepoId     String?
+  kaynakDepo       BitumDepot?      @relation("BitumKaynak", fields: [kaynakDepoId], references: [id])
+  hedefDepoId      String?
   hedefDepo        BitumDepot?      @relation("BitumHedef", fields: [hedefDepoId], references: [id])
-  kullanimDepoId  String?
-  kullanimDepo    BitumDepot?      @relation("BitumKullanim", fields: [kullanimDepoId], references: [id])
-  miktarTon       Float
-  alisFiyati      Float?
+  kullanimDepoId   String?
+  kullanimDepo     BitumDepot?      @relation("BitumKullanim", fields: [kullanimDepoId], references: [id])
+  miktarTon        Float
+  alisFiyati       Float?
   /// Server-side: Alış → miktar*fiyat; Taşıma → sefer/maliyet alanları
-  alisMaliyeti    Float?
-  tirSeferSayisi  Int?
-  tasimaMaliyeti  Float?
-  kaynakOrtFiyat  Float?
+  alisMaliyeti     Float?
+  tirSeferSayisi   Int?
+  tasimaMaliyeti   Float?
+  kaynakOrtFiyat   Float?
   varisMaliyetiTon Float?
-  toplamMaliyet   Float?
-  aciklama        String?
-  createdAt       DateTime         @default(now())
+  toplamMaliyet    Float?
+  aciklama         String?
+  createdAt        DateTime         @default(now())
 
   @@index([tarih])
   @@index([tip])
@@ -946,6 +982,172 @@ model Parcel {
   @@unique([mahalleId, adaNo, parselNo])
   @@index([adaNo, parselNo])
   @@index([minLat, maxLat, minLng, maxLng])
+}
+
+// ═══════════════════════ KIŞ OPERASYONU ═══════════════════════
+
+enum KisRotaTip {
+  KAR_KUREME
+  TUZLAMA
+  KARMA
+}
+
+enum KisOperasyonTip {
+  KURUME
+  TUZLAMA
+  KARMA
+}
+
+/// Kar küreme / tuzlama güzergahı
+model WinterRoute {
+  id           String            @id @default(cuid())
+  ad           String
+  /// [[lat,lng], ...] — AsphaltRoad.koordinatlar ile aynı konvansiyon
+  koordinatlar Json
+  tip          KisRotaTip        @default(KARMA)
+  /// 1 = en yüksek öncelik (ana arterler)
+  oncelik      Int               @default(2)
+  aktif        Boolean           @default(true)
+  notlar       String?
+  createdById  String
+  createdBy    User              @relation("KisRotaOlusturan", fields: [createdById], references: [id])
+  operations   WinterOperation[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([aktif])
+}
+
+/// Bir rotanın küreme/tuzlama geçişi
+model WinterOperation {
+  id                String             @id @default(cuid())
+  routeId           String
+  route             WinterRoute        @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  tip               KisOperasyonTip
+  vehicleId         String?
+  vehicle           Vehicle?           @relation("KisOperasyonArac", fields: [vehicleId], references: [id])
+  driverId          String?
+  driver            User?              @relation("KisOperasyonSofor", fields: [driverId], references: [id])
+  baslangic         DateTime
+  bitis             DateTime?
+  /// Kullanılan tuz/solüsyon (kg) — MaterialMovement CIKIS ile düşülür
+  tuzKg             Decimal?           @db.Decimal(10, 2)
+  notlar            String?
+  createdById       String
+  createdBy         User               @relation("KisOperasyonOlusturan", fields: [createdById], references: [id])
+  materialMovements MaterialMovement[]
+  createdAt         DateTime           @default(now())
+
+  @@index([routeId, baslangic])
+}
+
+// ═══════════════════════ KONUM & DISPATCH ═══════════════════════
+
+enum KonumKaynak {
+  TELEFON
+  TAKIP_CIHAZI
+}
+
+/// Araç konum ping'i — şoför telefonu (v1) veya araç takip cihazı (ileride)
+model VehicleLocation {
+  id        String      @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId  String?
+  driver    User?       @relation("KonumSofor", fields: [driverId], references: [id])
+  lat       Float
+  lng       Float
+  /// km/sa (opsiyonel, cihaz gönderirse)
+  hiz       Float?
+  kaynak    KonumKaynak @default(TELEFON)
+  zaman     DateTime    @default(now())
+
+  @@index([vehicleId, zaman])
+}
+
+enum DispatchTip {
+  KIS
+  COP
+}
+
+enum DispatchDurum {
+  ONERILDI
+  ATANDI
+  REDDEDILDI
+}
+
+/// Dispatch motoru önerisi/ataması — en yakın aracın bir servis rotasına yönlendirilmesi
+model DispatchJob {
+  id        String        @id @default(cuid())
+  tip       DispatchTip
+  /// tip'e göre WinterRoute veya WasteRoute id'si (polimorfik — FK yok)
+  routeId   String
+  /// Rota adı snapshot'ı (listelemede join'siz gösterim için)
+  routeAd   String
+  vehicleId String?
+  vehicle   Vehicle?      @relation("DispatchArac", fields: [vehicleId], references: [id])
+  durum     DispatchDurum @default(ONERILDI)
+  /// OSRM gidiş rotası [[lat,lng], ...] (araç konumu → rota başlangıcı)
+  rota      Json?
+  mesafeKm  Float?
+  sureDk    Float?
+  /// OSRM alınamayıp kuş uçuşu tahmini kullanıldıysa
+  tahmini   Boolean       @default(false)
+  task      VehicleTask?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([durum])
+  @@index([tip, routeId, createdAt])
+}
+
+/// Basit anahtar/değer uygulama ayarları (örn. dispatch otomatik atama)
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ═══════════════════════ ÇÖP TOPLAMA ═══════════════════════
+
+/// Çöp toplama güzergahı
+model WasteRoute {
+  id           String            @id @default(cuid())
+  ad           String
+  /// [[lat,lng], ...] — WinterRoute.koordinatlar ile aynı konvansiyon
+  koordinatlar Json
+  /// Toplama günleri: ISO gün numaraları [1=Pzt ... 7=Paz], örn [1,3,5]
+  gunler       Json
+  /// 1 = en yüksek öncelik
+  oncelik      Int               @default(2)
+  aktif        Boolean           @default(true)
+  notlar       String?
+  createdById  String
+  createdBy    User              @relation("CopRotaOlusturan", fields: [createdById], references: [id])
+  collections  WasteCollection[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([aktif])
+}
+
+/// Bir rotanın toplama geçişi
+model WasteCollection {
+  id          String     @id @default(cuid())
+  routeId     String
+  route       WasteRoute @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  vehicleId   String?
+  vehicle     Vehicle?   @relation("CopToplamaArac", fields: [vehicleId], references: [id])
+  driverId    String?
+  driver      User?      @relation("CopToplamaSofor", fields: [driverId], references: [id])
+  baslangic   DateTime
+  bitis       DateTime?
+  notlar      String?
+  createdById String
+  createdBy   User       @relation("CopToplamaOlusturan", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+
+  @@index([routeId, baslangic])
 }
 
 // ═══════════════════════ KURUMSAL ALTYAPI ═══════════════════════

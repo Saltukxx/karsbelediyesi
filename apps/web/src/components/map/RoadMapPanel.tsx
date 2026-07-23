@@ -1,7 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ComplaintPinDto, HazardDto, RoadDto } from "@/components/map/road-map-types";
+import type {
+  ComplaintPinDto,
+  HazardDto,
+  LiveVehicleDto,
+  RoadDto,
+} from "@/components/map/road-map-types";
 
 const RoadMap = dynamic(() => import("@/components/map/RoadMap"), {
   ssr: false,
@@ -16,6 +21,7 @@ export default function RoadMapPanel(props: {
   roads: RoadDto[];
   hazards: HazardDto[];
   complaints: ComplaintPinDto[];
+  liveVehicles: LiveVehicleDto[];
   canEdit: boolean;
 }) {
   return <RoadMap {...props} />;

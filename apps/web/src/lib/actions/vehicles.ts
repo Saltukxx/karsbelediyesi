@@ -171,6 +171,7 @@ export async function yakitOlustur(formData: FormData) {
         tutar: yakitTutari(litre, birimFiyat), // Excel H sütunu formülü
         sayac,
         sorumluPersonelId: bosIseUndefined(formData.get("sorumluPersonelId")),
+        vehicleTaskId: bosIseUndefined(formData.get("vehicleTaskId")),
       },
     });
     if (sayac) {

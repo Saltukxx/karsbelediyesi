@@ -9,6 +9,7 @@ import { StickyFilter } from "@/components/ui/StickyFilter";
 import { DataTable } from "@/components/ui/DataTable";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
 import { Pagination, pageSize, parsePage } from "@/components/ui/Pagination";
+import { gorevMaliyetleri, paraFormat } from "@/lib/task-cost";
 
 export const dynamic = "force-dynamic";
 
@@ -111,6 +112,20 @@ export default async function GorevlerPage({
     cur.adet += 1;
     tipMap.set(key, cur);
   }
+
+  const maliyetler = await gorevMaliyetleri(
+    gorevler
+      .filter((g) => g.durum === "TAMAMLANDI")
+      .map((g) => ({
+        id: g.id,
+        sureSaat: g.sureSaat,
+        kmFarki: g.kmFarki,
+        driverId: g.driverId,
+        vehicleId: g.vehicleId,
+        normTuketim: g.vehicle.normTuketim,
+        manuelMaliyet: g.maliyet != null ? Number(g.maliyet) : null,
+      })),
+  );
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -245,6 +260,7 @@ export default async function GorevlerPage({
             <th>Şoför</th>
             <th>Süre</th>
             <th>KM Fark</th>
+            <th>Maliyet</th>
             <th>Durum</th>
             <th>İşlem</th>
           </tr>
@@ -272,6 +288,23 @@ export default async function GorevlerPage({
               <td>{g.driver?.name ?? "—"}</td>
               <td>{g.sureSaat != null ? `${g.sureSaat.toFixed(1)} sa` : "—"}</td>
               <td>{g.kmFarki != null ? g.kmFarki : "—"}</td>
+              <td>
+                {(() => {
+                  const m = maliyetler.get(g.id);
+                  if (!m || m.toplam === 0) return "—";
+                  return (
+                    <span
+                      className="font-medium"
+                      title={`Yakıt: ${paraFormat(m.yakit)}${m.yakitTahmini ? " (tahmini)" : ""} · Malzeme: ${paraFormat(m.malzeme)} · İşçilik: ${paraFormat(m.iscilik)} · Diğer: ${paraFormat(m.diger)}`}
+                    >
+                      {paraFormat(m.toplam)}
+                      {m.yakitTahmini && (
+                        <span className="ml-1 text-xs text-kb-muted">~</span>
+                      )}
+                    </span>
+                  );
+                })()}
+              </td>
               <td>
                 <StatusBadge label={GOREV_DURUM_LABELS[g.durum]} />
               </td>

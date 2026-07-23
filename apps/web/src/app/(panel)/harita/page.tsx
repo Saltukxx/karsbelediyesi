@@ -4,11 +4,13 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import RoadMapPanel from "@/components/map/RoadMapPanel";
 import RoadMapStats from "@/components/map/RoadMapStats";
 import { ACTION_ROLES, requirePageAccess } from "@/lib/authz";
+import { KONUM_TAZELIK_MS } from "@/lib/location";
 import type {
   AsfaltDurumDto,
   ComplaintPinDto,
   HazardDto,
   HazardTipDto,
+  LiveVehicleDto,
   RoadDto,
 } from "@/components/map/road-map-types";
 
@@ -18,7 +20,7 @@ export default async function HaritaPage() {
   const session = await requirePageAccess("/harita");
   const canEdit = ACTION_ROLES.harita.includes(session.user.role);
 
-  const [roadRows, hazardRows, complaintRows] = await Promise.all([
+  const [roadRows, hazardRows, complaintRows, vehicleRows] = await Promise.all([
     prisma.asphaltRoad.findMany({
       orderBy: { createdAt: "desc" },
       include: { createdBy: { select: { name: true } } },
@@ -39,6 +41,21 @@ export default async function HaritaPage() {
         lat: true,
         lng: true,
         aciklama: true,
+      },
+    }),
+    prisma.vehicle.findMany({
+      where: {
+        sonKonumLat: { not: null },
+        sonKonumLng: { not: null },
+        sonKonumZamani: { gte: new Date(Date.now() - KONUM_TAZELIK_MS) },
+      },
+      select: {
+        id: true,
+        plaka: true,
+        sonKonumLat: true,
+        sonKonumLng: true,
+        sonKonumZamani: true,
+        vehicleType: { select: { name: true } },
       },
     }),
   ]);
@@ -76,6 +93,15 @@ export default async function HaritaPage() {
     aciklama: c.aciklama,
   }));
 
+  const liveVehicles: LiveVehicleDto[] = vehicleRows.map((v) => ({
+    id: v.id,
+    plaka: v.plaka,
+    tip: v.vehicleType?.name ?? null,
+    lat: v.sonKonumLat as number,
+    lng: v.sonKonumLng as number,
+    zaman: (v.sonKonumZamani as Date).toISOString(),
+  }));
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -87,6 +113,7 @@ export default async function HaritaPage() {
         roads={roads}
         hazards={hazards}
         complaints={complaints}
+        liveVehicles={liveVehicles}
         canEdit={canEdit}
       />
     </div>

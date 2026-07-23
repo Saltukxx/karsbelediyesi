@@ -18,6 +18,8 @@ import {
   BarChart3,
   Map,
   LandPlot,
+  Snowflake,
+  Trash2,
   ShieldCheck,
   Settings,
 } from "lucide-react";
@@ -42,6 +44,8 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   BarChart3,
   Map,
   LandPlot,
+  Snowflake,
+  Trash2,
   ShieldCheck,
   Settings,
 };

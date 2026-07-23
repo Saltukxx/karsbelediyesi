@@ -62,7 +62,11 @@ export default async function PersonelPage() {
             ))}
           </select>
         </div>
-        <div className="lg:col-span-2">
+        <div>
+          <label className="text-xs text-kb-muted block mb-1">Saat Ücreti (₺)</label>
+          <input name="saatUcret" type="number" step="0.01" min="0" className={inputCls} />
+        </div>
+        <div>
           <label className="text-xs text-kb-muted block mb-1">Not</label>
           <input name="not" className={inputCls} />
         </div>
@@ -83,6 +87,7 @@ export default async function PersonelPage() {
             <th>Birim</th>
             <th>Telefon</th>
             <th>İşe Giriş</th>
+            <th>Saat Ücreti</th>
             <th>Durum</th>
             <th className="!text-right">Aksiyon</th>
           </tr>
@@ -91,8 +96,8 @@ export default async function PersonelPage() {
           {personeller.map((p, i) => (
             <tr key={p.id} className="group">
               <td className="text-kb-muted">{i + 1}</td>
-              <td colSpan={7}>
-                <form action={personelGuncelle} className="grid items-end gap-2 md:grid-cols-7">
+              <td colSpan={8}>
+                <form action={personelGuncelle} className="grid items-end gap-2 md:grid-cols-8">
                   <input type="hidden" name="id" value={p.id} />
                   <input name="adSoyad" defaultValue={p.adSoyad} required className={inputCls} />
                   <input name="unvan" defaultValue={p.unvan ?? ""} className={inputCls} />
@@ -109,6 +114,15 @@ export default async function PersonelPage() {
                     name="iseGirisTarihi"
                     type="date"
                     defaultValue={p.iseGirisTarihi?.toISOString().slice(0, 10) ?? ""}
+                    className={inputCls}
+                  />
+                  <input
+                    name="saatUcret"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="₺/saat"
+                    defaultValue={p.saatUcret ? Number(p.saatUcret) : ""}
                     className={inputCls}
                   />
                   <div className="flex flex-col gap-1">

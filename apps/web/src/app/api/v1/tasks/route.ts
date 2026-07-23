@@ -4,19 +4,52 @@ import { toAccessUser } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
-function serializeTask(t: {
-  id: string;
-  gorevNo: string;
-  durum: string;
-  talepTarihi: Date;
-  cikisTarihi: Date | null;
-  girisTarihi: Date | null;
-  gorevTanimi: string | null;
-  vehicleId: string;
-  driverId: string | null;
-  talepEdenDepartmentId: string | null;
-  vehicle: { id: string; plaka: string };
-}) {
+type TaskDispatchJob = {
+  tip: "KIS" | "COP";
+  routeId: string;
+  rota: unknown;
+  mesafeKm: number | null;
+  sureDk: number | null;
+  tahmini: boolean;
+} | null;
+
+interface RotaAlani {
+  /** Araç konumu → iş başlangıcı (OSRM) [[lat,lng], ...] */
+  gidis: [number, number][] | null;
+  /** Servis rotası (küreme/toplama güzergahı) [[lat,lng], ...] */
+  servis: [number, number][] | null;
+  mesafeKm: number | null;
+  sureDk: number | null;
+  tahmini: boolean;
+}
+
+function serializeTask(
+  t: {
+    id: string;
+    gorevNo: string;
+    durum: string;
+    talepTarihi: Date;
+    cikisTarihi: Date | null;
+    girisTarihi: Date | null;
+    gorevTanimi: string | null;
+    vehicleId: string;
+    driverId: string | null;
+    talepEdenDepartmentId: string | null;
+    vehicle: { id: string; plaka: string };
+    dispatchJob?: TaskDispatchJob;
+  },
+  servisKoordinatlari?: Map<string, [number, number][]>,
+) {
+  let rota: RotaAlani | null = null;
+  if (t.dispatchJob) {
+    rota = {
+      gidis: (t.dispatchJob.rota as [number, number][] | null) ?? null,
+      servis: servisKoordinatlari?.get(t.dispatchJob.routeId) ?? null,
+      mesafeKm: t.dispatchJob.mesafeKm,
+      sureDk: t.dispatchJob.sureDk,
+      tahmini: t.dispatchJob.tahmini,
+    };
+  }
   return {
     id: t.id,
     gorevNo: t.gorevNo,
@@ -29,7 +62,35 @@ function serializeTask(t: {
     vehicle: { id: t.vehicle.id, plaka: t.vehicle.plaka },
     driverId: t.driverId,
     talepEdenDepartmentId: t.talepEdenDepartmentId,
+    rota,
   };
+}
+
+/** Dispatch'li görevlerin servis rotası koordinatları (routeId → [[lat,lng]]) */
+async function servisRotalari(
+  jobs: Array<NonNullable<TaskDispatchJob>>,
+): Promise<Map<string, [number, number][]>> {
+  const sonuc = new Map<string, [number, number][]>();
+  const kisIds = [...new Set(jobs.filter((j) => j.tip === "KIS").map((j) => j.routeId))];
+  const copIds = [...new Set(jobs.filter((j) => j.tip === "COP").map((j) => j.routeId))];
+  const [kisRotalar, copRotalar] = await Promise.all([
+    kisIds.length > 0
+      ? prisma.winterRoute.findMany({
+          where: { id: { in: kisIds } },
+          select: { id: true, koordinatlar: true },
+        })
+      : Promise.resolve([]),
+    copIds.length > 0
+      ? prisma.wasteRoute.findMany({
+          where: { id: { in: copIds } },
+          select: { id: true, koordinatlar: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  for (const r of [...kisRotalar, ...copRotalar]) {
+    sonuc.set(r.id, r.koordinatlar as [number, number][]);
+  }
+  return sonuc;
 }
 
 export async function GET(req: Request) {
@@ -59,12 +120,28 @@ export async function GET(req: Request) {
 
   const rows = await prisma.vehicleTask.findMany({
     where,
-    include: { vehicle: { select: { id: true, plaka: true } } },
+    include: {
+      vehicle: { select: { id: true, plaka: true } },
+      dispatchJob: {
+        select: {
+          tip: true,
+          routeId: true,
+          rota: true,
+          mesafeKm: true,
+          sureDk: true,
+          tahmini: true,
+        },
+      },
+    },
     orderBy: { talepTarihi: "desc" },
     take: 200,
   });
 
-  return json(rows.map(serializeTask));
+  const servisler = await servisRotalari(
+    rows.map((r) => r.dispatchJob).filter((j): j is NonNullable<typeof j> => j != null),
+  );
+
+  return json(rows.map((r) => serializeTask(r, servisler)));
 }
 
 export async function POST(req: Request) {

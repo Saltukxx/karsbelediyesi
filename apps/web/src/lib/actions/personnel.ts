@@ -11,6 +11,13 @@ function bos(v: FormDataEntryValue | null): string | undefined {
   return s === "" ? undefined : s;
 }
 
+function sayi(v: FormDataEntryValue | null): number | undefined {
+  const s = bos(v);
+  if (s === undefined) return undefined;
+  const n = Number(s.replace(",", "."));
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export async function personelOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.personnel);
 
@@ -25,6 +32,7 @@ export async function personelOlustur(formData: FormData) {
         : undefined,
       durum: (bos(formData.get("durum")) ?? "AKTIF") as "AKTIF" | "IZINLI" | "RAPORLU" | "AYRILDI",
       not: bos(formData.get("not")),
+      saatUcret: sayi(formData.get("saatUcret")),
     },
   });
 
@@ -54,6 +62,7 @@ export async function personelGuncelle(formData: FormData) {
         : null,
       durum: (bos(formData.get("durum")) ?? "AKTIF") as "AKTIF" | "IZINLI" | "RAPORLU" | "AYRILDI",
       not: bos(formData.get("not")),
+      saatUcret: sayi(formData.get("saatUcret")) ?? null,
     },
   });
 

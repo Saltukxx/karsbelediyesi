@@ -77,6 +77,8 @@ export async function stokHareketOlustur(formData: FormData) {
       departmentId: bos(formData.get("departmentId")),
       belgeNo: bos(formData.get("belgeNo")),
       aciklama: bos(formData.get("aciklama")),
+      // Yalnızca ÇIKIŞ hareketi bir göreve bağlanır (iş başına maliyet)
+      vehicleTaskId: tip === "CIKIS" ? bos(formData.get("vehicleTaskId")) : null,
     },
   });
   await auditKaydet(session, "STOK_HAREKET_OLUSTUR", {

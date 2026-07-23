@@ -119,3 +119,14 @@ struct LookupsDTO: Decodable {
     let sikayetTurleri: [NamedRefDTO]?
     let aracCinsleri: [String]?
 }
+
+struct LocationPingRequestDTO: Encodable {
+    let lat: Double
+    let lng: Double
+    let hiz: Double?
+}
+
+struct LocationPingResponseDTO: Decodable {
+    let ok: Bool
+    let vehicleId: String?
+}

@@ -24,4 +24,14 @@ struct VehicleTaskDTO: Codable, Identifiable, Hashable {
     let vehicle: VehicleSummaryDTO?
     let driverId: String?
     let talepEdenDepartmentId: String?
+    let rota: TaskRouteDTO?
+}
+
+/// Dispatch rotası: gidiş (araç → iş başlangıcı) + servis güzergahı, [[lat,lng]]
+struct TaskRouteDTO: Codable, Hashable {
+    let gidis: [[Double]]?
+    let servis: [[Double]]?
+    let mesafeKm: Double?
+    let sureDk: Double?
+    let tahmini: Bool?
 }

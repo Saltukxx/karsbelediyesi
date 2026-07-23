@@ -32,6 +32,7 @@ import { btnPrimary, btnSecondary, inputCls, labelCls } from "@/lib/ui";
 import { formatLength, roadLengthMeters } from "@/components/map/road-map-geo";
 import RoadMapTables from "@/components/map/RoadMapTables";
 import RoadMap3D from "@/components/map/RoadMap3D";
+import HeatLayer from "@/components/map/HeatLayer";
 import { BASEMAPS, KARS_CENTER, type Basemap } from "@/components/map/basemaps";
 import {
   ASFALT_DURUM_LABELS,
@@ -40,6 +41,7 @@ import {
   type ComplaintPinDto,
   type HazardDto,
   type HazardTipDto,
+  type LiveVehicleDto,
   type RoadDto,
 } from "@/components/map/road-map-types";
 
@@ -118,6 +120,16 @@ function hazardIcon(h: HazardDto) {
   });
 }
 
+function vehicleIcon(plaka: string) {
+  return divIcon({
+    className: "kb-vehicle-pin",
+    html: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;"><div style="width:14px;height:14px;border-radius:9999px;background:#0d9488;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);"></div><span style="background:#0f172a;color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;">${plaka}</span></div>`,
+    iconSize: [60, 32],
+    iconAnchor: [30, 8],
+    popupAnchor: [0, -8],
+  });
+}
+
 function MapClickHandler({ onClick }: { onClick: (e: LeafletMouseEvent) => void }) {
   useMapEvents({ click: onClick });
   return null;
@@ -127,11 +139,13 @@ export default function RoadMap({
   roads,
   hazards,
   complaints,
+  liveVehicles,
   canEdit,
 }: {
   roads: RoadDto[];
   hazards: HazardDto[];
   complaints: ComplaintPinDto[];
+  liveVehicles: LiveVehicleDto[];
   canEdit: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("gezinme");
@@ -142,6 +156,8 @@ export default function RoadMap({
   const [showRoads, setShowRoads] = useState(true);
   const [showHazards, setShowHazards] = useState(true);
   const [showComplaints, setShowComplaints] = useState(true);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showVehicles, setShowVehicles] = useState(true);
   const [roadFilter, setRoadFilter] = useState<RoadFilter>("ALL");
   const [hazardFilter, setHazardFilter] = useState<HazardFilter>("ALL");
   const [complaintFilter, setComplaintFilter] = useState<ComplaintFilter>("ALL");
@@ -176,6 +192,11 @@ export default function RoadMap({
           c.durumKodu === "DEVAM_EDIYOR",
       ),
     [complaints, complaintFilter],
+  );
+
+  const heatPoints = useMemo<Array<[number, number]>>(
+    () => visibleComplaints.map((c) => [c.lat, c.lng]),
+    [visibleComplaints],
   );
 
   const draftLength = roadLengthMeters(draftPoints);
@@ -486,7 +507,10 @@ export default function RoadMap({
               </Marker>
             ))}
 
+          {showComplaints && showHeatmap && <HeatLayer points={heatPoints} />}
+
           {showComplaints &&
+            !showHeatmap &&
             visibleComplaints.map((c) => (
               <CircleMarker
                 key={c.id}
@@ -516,6 +540,21 @@ export default function RoadMap({
                   </div>
                 </Popup>
               </CircleMarker>
+            ))}
+
+          {showVehicles &&
+            liveVehicles.map((v) => (
+              <Marker key={`veh-${v.id}`} position={[v.lat, v.lng]} icon={vehicleIcon(v.plaka)}>
+                <Popup>
+                  <div className="space-y-1 text-sm">
+                    <p className="font-semibold">{v.plaka}</p>
+                    {v.tip && <p>{v.tip}</p>}
+                    <p className="text-xs text-gray-500">
+                      Son konum: {format(new Date(v.zaman), "dd.MM.yyyy HH:mm")}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
             ))}
 
           {draftPoints.length > 0 && (
@@ -723,15 +762,36 @@ export default function RoadMap({
                 Şikayetler ({visibleComplaints.length})
               </label>
               {showComplaints && (
-                <select
-                  value={complaintFilter}
-                  onChange={(e) => setComplaintFilter(e.target.value as ComplaintFilter)}
-                  className={`${inputCls} mt-1 py-1 text-xs`}
-                >
-                  <option value="ALL">Tümü</option>
-                  <option value="ACIK">Sadece açık / devam eden</option>
-                </select>
+                <>
+                  <select
+                    value={complaintFilter}
+                    onChange={(e) => setComplaintFilter(e.target.value as ComplaintFilter)}
+                    className={`${inputCls} mt-1 py-1 text-xs`}
+                  >
+                    <option value="ALL">Tümü</option>
+                    <option value="ACIK">Sadece açık / devam eden</option>
+                  </select>
+                  <label className="mt-1.5 flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={showHeatmap}
+                      onChange={(e) => setShowHeatmap(e.target.checked)}
+                    />
+                    Isı haritası (yoğunluk)
+                  </label>
+                </>
               )}
+            </div>
+            <div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showVehicles}
+                  onChange={(e) => setShowVehicles(e.target.checked)}
+                />
+                Araçlar (canlı) ({liveVehicles.length})
+              </label>
+              <p className="mt-0.5 text-xs text-kb-muted">Son 15 dk içinde konum bildirenler</p>
             </div>
           </div>
         </div>

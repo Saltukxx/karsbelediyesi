@@ -25,6 +25,15 @@ export const taskActionSchema = z.object({
   kmSayacGiris: z.number().optional(),
 });
 
+export const locationPingSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  /** km/sa */
+  hiz: z.number().nonnegative().optional(),
+  /** Verilmezse şoförün aktif görev / zimmet aracı bulunur */
+  vehicleId: z.string().optional(),
+});
+
 export const fuelCreateSchema = z.object({
   vehicleId: z.string().min(1),
   litre: z.number().positive(),

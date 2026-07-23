@@ -6,6 +6,10 @@ final class ModuleListViewModel: ObservableObject {
     @Published var rows: [ModuleRow] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    /// "Rota" aksiyonu seçilen görev — sheet ile harita açılır
+    @Published var routeTask: VehicleTaskDTO?
+
+    private var tasksById: [String: VehicleTaskDTO] = [:]
 
     private let api: APIClient
 
@@ -46,6 +50,10 @@ final class ModuleListViewModel: ObservableObject {
 
     func perform(action: ModuleAction, destination: NavDestination) async {
         errorMessage = nil
+        if action.kind == "map" {
+            routeTask = tasksById[action.recordId]
+            return
+        }
         do {
             switch destination {
             case .whatsapp:
@@ -78,8 +86,13 @@ final class ModuleListViewModel: ObservableObject {
                 )
             }
         case .gorevler:
-            return try await api.fetchTasks().map { task in
+            let tasks = try await api.fetchTasks()
+            tasksById = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+            return tasks.map { task in
                 var actions: [ModuleAction] = []
+                if task.rota != nil {
+                    actions.append(ModuleAction(id: "\(task.id)-map", recordId: task.id, label: "Rota", kind: "map", destructive: false))
+                }
                 if task.durum == "PLANLANDI" {
                     actions.append(ModuleAction(id: "\(task.id)-start", recordId: task.id, label: "Başlat", kind: "start", destructive: false))
                 }

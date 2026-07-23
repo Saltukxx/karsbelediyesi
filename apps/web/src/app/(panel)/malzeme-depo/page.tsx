@@ -20,7 +20,9 @@ export default async function MalzemeDepoPage({
   const ayAdi = sp.ay || AY_ADLARI[new Date().getMonth()];
   const ayIndex = AY_ADLARI.indexOf(ayAdi as (typeof AY_ADLARI)[number]);
 
-  const [materials, movements, mudurlukler, allMovements] = await Promise.all([
+  const taskSince = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [materials, movements, mudurlukler, allMovements, gorevler] = await Promise.all([
     prisma.material.findMany({ where: { aktif: true }, orderBy: { kod: "asc" } }),
     prisma.materialMovement.findMany({
       orderBy: { tarih: "desc" },
@@ -30,6 +32,17 @@ export default async function MalzemeDepoPage({
     prisma.department.findMany({ where: { aktif: true }, orderBy: { name: "asc" } }),
     prisma.materialMovement.findMany({
       include: { material: true },
+    }),
+    prisma.vehicleTask.findMany({
+      where: { talepTarihi: { gte: taskSince } },
+      orderBy: { talepTarihi: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        gorevNo: true,
+        gorevTanimi: true,
+        vehicle: { select: { plaka: true } },
+      },
     }),
   ]);
 
@@ -190,6 +203,20 @@ export default async function MalzemeDepoPage({
             <div>
               <label className="text-xs text-kb-muted block mb-1">Belge No</label>
               <input name="belgeNo" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs text-kb-muted block mb-1">
+                Görev (çıkışta maliyet takibi)
+              </label>
+              <select name="vehicleTaskId" className={inputCls}>
+                <option value="">— Bağlanmadı —</option>
+                {gorevler.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.gorevNo} · {g.vehicle.plaka}
+                    {g.gorevTanimi ? ` — ${g.gorevTanimi.slice(0, 40)}` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
             <button className={`${btnPrimary} lg:col-span-6`}>+ Hareket Kaydet</button>
           </form>
