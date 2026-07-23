@@ -24,10 +24,10 @@ import {
   copToplamaKaydet,
   copToplamaSil,
 } from "@/lib/actions/cop";
-import { dispatchOnerAction } from "@/lib/actions/dispatch";
 import { btnPrimary, btnSecondary, inputCls, labelCls } from "@/lib/ui";
 import { formatLength, roadLengthMeters } from "@/components/map/road-map-geo";
 import { BASEMAPS, KARS_CENTER, type Basemap } from "@/components/map/basemaps";
+import SmartAssignPanel from "@/components/dispatch/SmartAssignPanel";
 import {
   COP_DURUM_LABEL,
   COP_DURUM_RENK,
@@ -70,6 +70,7 @@ export default function WasteMap({
   const [editRouteId, setEditRouteId] = useState<string | null>(null);
   const [opRouteId, setOpRouteId] = useState<string>("");
   const [hoverRouteId, setHoverRouteId] = useState<string | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const mapRef = useRef<LeafletMap | null>(null);
   const routeFormRef = useRef<HTMLFormElement>(null);
@@ -79,6 +80,9 @@ export default function WasteMap({
 
   const editingRoute = editRouteId
     ? routes.find((r) => r.id === editRouteId) ?? null
+    : null;
+  const selectedRoute = selectedRouteId
+    ? routes.find((r) => r.id === selectedRouteId) ?? null
     : null;
 
   const siraliRotalar = useMemo(
@@ -113,14 +117,16 @@ export default function WasteMap({
 
   async function submitRoute(formData: FormData) {
     formData.set("koordinatlar", JSON.stringify(draftPoints));
+    let id: string;
     if (editRouteId) {
       formData.set("id", editRouteId);
-      await copRotaGuncelle(formData);
+      id = await copRotaGuncelle(formData);
     } else {
-      await copRotaKaydet(formData);
+      id = await copRotaKaydet(formData);
     }
     routeFormRef.current?.reset();
     resetDrafts();
+    if (id) setSelectedRouteId(id);
   }
 
   async function submitCollection(formData: FormData) {
@@ -140,7 +146,9 @@ export default function WasteMap({
     const fd = new FormData();
     fd.set("id", route.id);
     fd.set("aktif", route.aktif ? "false" : "true");
-    startTransition(() => copRotaGuncelle(fd));
+    startTransition(() => {
+      void copRotaGuncelle(fd);
+    });
   }
 
   function deleteCollection(id: string) {
@@ -151,6 +159,7 @@ export default function WasteMap({
   }
 
   function focusRoute(r: WasteRouteDto) {
+    setSelectedRouteId(r.id);
     if (r.koordinatlar.length > 0) {
       mapRef.current?.fitBounds(latLngBounds(r.koordinatlar), { padding: [40, 40] });
     }
@@ -159,19 +168,13 @@ export default function WasteMap({
   function selectCollectionRoute(routeId: string) {
     mapRef.current?.closePopup();
     setOpRouteId(routeId);
+    setSelectedRouteId(routeId);
     opFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function enYakinAracIste(routeId: string) {
+  function akilliAtamaAc(routeId: string) {
     mapRef.current?.closePopup();
-    startTransition(async () => {
-      const oneri = await dispatchOnerAction("COP", routeId);
-      if (!oneri) {
-        window.alert(
-          "Uygun araç bulunamadı (müsait ve taze konumlu araç yok). Şoförlerin konum paylaşımını kontrol edin.",
-        );
-      }
-    });
+    setSelectedRouteId(routeId);
   }
 
   return (
@@ -269,11 +272,10 @@ export default function WasteMap({
                           </button>
                           <button
                             type="button"
-                            onClick={() => enYakinAracIste(r.id)}
-                            disabled={pending}
+                            onClick={() => akilliAtamaAc(r.id)}
                             className="text-xs font-semibold text-emerald-700 hover:underline"
                           >
-                            En yakın aracı öner
+                            Akıllı atama
                           </button>
                           <button
                             type="button"
@@ -336,6 +338,13 @@ export default function WasteMap({
       </div>
 
       <aside className="w-full shrink-0 space-y-4 lg:w-96">
+        <SmartAssignPanel
+          tip="COP"
+          routeId={selectedRouteId}
+          routeAd={selectedRoute?.ad}
+          canEdit={canEdit}
+        />
+
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
             Altlık harita

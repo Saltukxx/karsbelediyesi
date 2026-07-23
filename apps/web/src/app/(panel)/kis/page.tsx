@@ -5,6 +5,7 @@ import WinterMapPanel from "@/components/map/WinterMapPanel";
 import DispatchPanel, {
   type DispatchOneriDto,
 } from "@/components/dispatch/DispatchPanel";
+import { gerekceOzeti, type DispatchGerekce } from "@/lib/dispatch";
 import { ACTION_ROLES, requirePageAccess } from "@/lib/authz";
 import { cardCls } from "@/lib/ui";
 import type {
@@ -78,6 +79,7 @@ export default async function KisPage() {
     mesafeKm: j.mesafeKm,
     sureDk: j.sureDk,
     tahmini: j.tahmini,
+    gerekceOzet: gerekceOzeti(j.gerekce as DispatchGerekce | null),
     createdAt: j.createdAt.toISOString(),
   }));
 

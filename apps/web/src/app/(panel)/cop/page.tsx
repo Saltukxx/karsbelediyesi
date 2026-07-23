@@ -4,6 +4,7 @@ import WasteMapPanel from "@/components/map/WasteMapPanel";
 import DispatchPanel, {
   type DispatchOneriDto,
 } from "@/components/dispatch/DispatchPanel";
+import { gerekceOzeti, type DispatchGerekce } from "@/lib/dispatch";
 import { ACTION_ROLES, requirePageAccess } from "@/lib/authz";
 import { cardCls } from "@/lib/ui";
 import { copDurumu, type WasteRouteDto } from "@/components/map/waste-types";
@@ -66,6 +67,7 @@ export default async function CopPage() {
     mesafeKm: j.mesafeKm,
     sureDk: j.sureDk,
     tahmini: j.tahmini,
+    gerekceOzet: gerekceOzeti(j.gerekce as DispatchGerekce | null),
     createdAt: j.createdAt.toISOString(),
   }));
 

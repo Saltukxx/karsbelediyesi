@@ -13,6 +13,8 @@ export interface DispatchOneriDto {
   mesafeKm: number | null;
   sureDk: number | null;
   tahmini: boolean;
+  /** Skor özeti: "skor 72 · tip uyumlu · taze konum" */
+  gerekceOzet: string | null;
   /** ISO */
   createdAt: string;
 }
@@ -72,6 +74,11 @@ export default function DispatchPanel({
                   {" "}
                   · tahmini varış {o.sureDk} dk / {o.mesafeKm} km
                   {o.tahmini ? " (kuş uçuşu)" : ""}
+                </span>
+              )}
+              {o.gerekceOzet && (
+                <span className="mt-0.5 block text-xs text-emerald-800">
+                  {o.gerekceOzet}
                 </span>
               )}
               <span className="ml-1 text-xs text-kb-muted">

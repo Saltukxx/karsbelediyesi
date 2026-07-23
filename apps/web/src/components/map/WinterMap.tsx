@@ -24,10 +24,10 @@ import {
   kisRotaKaydet,
   kisRotaSil,
 } from "@/lib/actions/kis";
-import { dispatchOnerAction } from "@/lib/actions/dispatch";
 import { btnPrimary, btnSecondary, inputCls, labelCls } from "@/lib/ui";
 import { formatLength, roadLengthMeters } from "@/components/map/road-map-geo";
 import { BASEMAPS, KARS_CENTER, type Basemap } from "@/components/map/basemaps";
+import SmartAssignPanel from "@/components/dispatch/SmartAssignPanel";
 import {
   OPERASYON_TIP_LABELS,
   ROTA_TIP_LABELS,
@@ -72,6 +72,7 @@ export default function WinterMap({
   const [opRouteId, setOpRouteId] = useState<string>("");
   const [tuzGirildi, setTuzGirildi] = useState(false);
   const [hoverRouteId, setHoverRouteId] = useState<string | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const mapRef = useRef<LeafletMap | null>(null);
   const routeFormRef = useRef<HTMLFormElement>(null);
@@ -82,6 +83,9 @@ export default function WinterMap({
 
   const editingRoute = editRouteId
     ? routes.find((r) => r.id === editRouteId) ?? null
+    : null;
+  const selectedRoute = selectedRouteId
+    ? routes.find((r) => r.id === selectedRouteId) ?? null
     : null;
 
   const siraliRotalar = useMemo(
@@ -116,14 +120,17 @@ export default function WinterMap({
 
   async function submitRoute(formData: FormData) {
     formData.set("koordinatlar", JSON.stringify(draftPoints));
+    let id: string;
     if (editRouteId) {
       formData.set("id", editRouteId);
-      await kisRotaGuncelle(formData);
+      id = await kisRotaGuncelle(formData);
     } else {
-      await kisRotaKaydet(formData);
+      id = await kisRotaKaydet(formData);
     }
     routeFormRef.current?.reset();
     resetDrafts();
+    if (id) setSelectedRouteId(id);
+    // form action void dönmeli
   }
 
   async function submitOperation(formData: FormData) {
@@ -144,7 +151,9 @@ export default function WinterMap({
     const fd = new FormData();
     fd.set("id", route.id);
     fd.set("aktif", route.aktif ? "false" : "true");
-    startTransition(() => kisRotaGuncelle(fd));
+    startTransition(() => {
+      void kisRotaGuncelle(fd);
+    });
   }
 
   function deleteOperation(id: string) {
@@ -155,6 +164,7 @@ export default function WinterMap({
   }
 
   function focusRoute(r: WinterRouteDto) {
+    setSelectedRouteId(r.id);
     if (r.koordinatlar.length > 0) {
       mapRef.current?.fitBounds(latLngBounds(r.koordinatlar), { padding: [40, 40] });
     }
@@ -163,19 +173,13 @@ export default function WinterMap({
   function selectOperationRoute(routeId: string) {
     mapRef.current?.closePopup();
     setOpRouteId(routeId);
+    setSelectedRouteId(routeId);
     opFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function enYakinAracIste(routeId: string) {
+  function akilliAtamaAc(routeId: string) {
     mapRef.current?.closePopup();
-    startTransition(async () => {
-      const oneri = await dispatchOnerAction("KIS", routeId);
-      if (!oneri) {
-        window.alert(
-          "Uygun araç bulunamadı (müsait ve taze konumlu araç yok). Şoförlerin konum paylaşımını kontrol edin.",
-        );
-      }
-    });
+    setSelectedRouteId(routeId);
   }
 
   return (
@@ -276,11 +280,10 @@ export default function WinterMap({
                           </button>
                           <button
                             type="button"
-                            onClick={() => enYakinAracIste(r.id)}
-                            disabled={pending}
+                            onClick={() => akilliAtamaAc(r.id)}
                             className="text-xs font-semibold text-emerald-700 hover:underline"
                           >
-                            En yakın aracı öner
+                            Akıllı atama
                           </button>
                           <button
                             type="button"
@@ -343,6 +346,13 @@ export default function WinterMap({
       </div>
 
       <aside className="w-full shrink-0 space-y-4 lg:w-96">
+        <SmartAssignPanel
+          tip="KIS"
+          routeId={selectedRouteId}
+          routeAd={selectedRoute?.ad}
+          canEdit={canEdit}
+        />
+
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
             Altlık harita

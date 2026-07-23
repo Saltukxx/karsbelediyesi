@@ -1093,6 +1093,8 @@ model DispatchJob {
   sureDk    Float?
   /// OSRM alınamayıp kuş uçuşu tahmini kullanıldıysa
   tahmini   Boolean       @default(false)
+  /// Skor kırılımı snapshot: { skor, kirilim, etiketler }
+  gerekce   Json?
   task      VehicleTask?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt

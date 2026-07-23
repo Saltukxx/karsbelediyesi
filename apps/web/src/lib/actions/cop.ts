@@ -82,6 +82,7 @@ export async function copRotaKaydet(formData: FormData) {
     detay: { ad },
   });
   revalidatePath("/cop");
+  return rota.id;
 }
 
 export async function copRotaGuncelle(formData: FormData) {
@@ -115,6 +116,7 @@ export async function copRotaGuncelle(formData: FormData) {
     varlikId: id,
   });
   revalidatePath("/cop");
+  return id;
 }
 
 export async function copRotaSil(formData: FormData) {

@@ -77,6 +77,7 @@ export async function kisRotaKaydet(formData: FormData) {
     detay: { ad },
   });
   revalidatePath("/kis");
+  return rota.id;
 }
 
 export async function kisRotaGuncelle(formData: FormData) {
@@ -106,6 +107,7 @@ export async function kisRotaGuncelle(formData: FormData) {
     varlikId: id,
   });
   revalidatePath("/kis");
+  return id;
 }
 
 export async function kisRotaSil(formData: FormData) {
