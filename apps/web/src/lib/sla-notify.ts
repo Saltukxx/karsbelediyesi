@@ -86,36 +86,64 @@ async function dispatchOnerisiUret(
 const KIS_ESIK_ONCELIK1_SAAT = 12;
 const KIS_ESIK_ONCELIK2_SAAT = 18;
 
+export interface GecikenKisRota {
+  id: string;
+  ad: string;
+  oncelik: number;
+  esikSaat: number;
+  /** Son operasyon başlangıcı (hiç yoksa null) */
+  sonIslem: Date | null;
+  koordinatlar: [number, number][];
+}
+
+/**
+ * Kış sezonunda eşiği aşan öncelik-1 (12 sa) ve öncelik-2 (18 sa) rotalar.
+ * Salt okunur — bildirim/atama üretmez; hem tarama hem komuta ekranı kullanır.
+ * Sezon dışında boş liste döner.
+ */
+export async function gecikenKisRotalari(simdi: number): Promise<GecikenKisRota[]> {
+  const ay = new Date(simdi).getMonth();
+  const kisSezonu = ay >= 9 || ay <= 3;
+  if (!kisSezonu) return [];
+
+  const rotalar = await prisma.winterRoute.findMany({
+    where: { aktif: true, oncelik: { in: [1, 2] } },
+    orderBy: { oncelik: "asc" },
+    select: {
+      id: true,
+      ad: true,
+      oncelik: true,
+      koordinatlar: true,
+      operations: {
+        orderBy: { baslangic: "desc" },
+        take: 1,
+        select: { baslangic: true },
+      },
+    },
+  });
+
+  return rotalar
+    .map((r) => ({
+      id: r.id,
+      ad: r.ad,
+      oncelik: r.oncelik,
+      esikSaat: r.oncelik === 1 ? KIS_ESIK_ONCELIK1_SAAT : KIS_ESIK_ONCELIK2_SAAT,
+      sonIslem: r.operations[0]?.baslangic ?? null,
+      koordinatlar: (r.koordinatlar as [number, number][]) ?? [],
+    }))
+    .filter((r) => {
+      const esik = simdi - r.esikSaat * 60 * 60 * 1000;
+      return !r.sonIslem || r.sonIslem.getTime() < esik;
+    });
+}
+
 /**
  * Kış sezonunda geciken öncelik-1 (12 sa) ve öncelik-2 (18 sa) rotalar.
  * Öncelik-1 önce işlenir; aynı araç aynı turda ikinci rotaya önerilmez.
  */
 async function kisRotaTaramasi(simdi: number): Promise<void> {
   try {
-    const ay = new Date(simdi).getMonth();
-    const kisSezonu = ay >= 9 || ay <= 3;
-    if (!kisSezonu) return;
-
-    const rotalar = await prisma.winterRoute.findMany({
-      where: { aktif: true, oncelik: { in: [1, 2] } },
-      orderBy: { oncelik: "asc" },
-      select: {
-        id: true,
-        ad: true,
-        oncelik: true,
-        operations: {
-          orderBy: { baslangic: "desc" },
-          take: 1,
-          select: { baslangic: true },
-        },
-      },
-    });
-
-    const gecikenler = rotalar.filter((r) => {
-      const esikSaat = r.oncelik === 1 ? KIS_ESIK_ONCELIK1_SAAT : KIS_ESIK_ONCELIK2_SAAT;
-      const esik = simdi - esikSaat * 60 * 60 * 1000;
-      return !r.operations[0] || r.operations[0].baslangic.getTime() < esik;
-    });
+    const gecikenler = await gecikenKisRotalari(simdi);
     if (gecikenler.length === 0) return;
 
     const otomatik = await otomatikAtamaAcikMi();
@@ -126,11 +154,10 @@ async function kisRotaTaramasi(simdi: number): Promise<void> {
     for (const r of gecikenler) {
       const sonuc = await dispatchOnerisiUret("KIS", r.id, otomatik, kullanilanAraclar);
       if (sonuc) kullanilanAraclar.push(sonuc.vehicleId);
-      const esikSaat = r.oncelik === 1 ? KIS_ESIK_ONCELIK1_SAAT : KIS_ESIK_ONCELIK2_SAAT;
       await bildirimGonder(ilgililer, {
         tip: "SLA",
         baslik: `Kış rotası bekliyor: ${r.ad}`,
-        mesaj: `Öncelik-${r.oncelik} rota ${esikSaat} saatten uzun süredir işlem görmedi.${
+        mesaj: `Öncelik-${r.oncelik} rota ${r.esikSaat} saatten uzun süredir işlem görmedi.${
           sonuc ? ` ${sonuc.not}.` : ""
         }`,
         href: "/kis",
@@ -145,34 +172,59 @@ async function kisRotaTaramasi(simdi: number): Promise<void> {
 /** İlk uyarı 09:00; öğleden sonra (14:00+) ikinci tarama penceresi aynı anahtarla spam üretmez */
 const COP_UYARI_SAATI = 9;
 
-async function copRotaTaramasi(simdi: number): Promise<void> {
-  try {
-    const bugun = new Date(simdi);
-    if (bugun.getHours() < COP_UYARI_SAATI) return;
-    const isoGun = bugun.getDay() === 0 ? 7 : bugun.getDay();
-    const bugunBasi = new Date(simdi);
-    bugunBasi.setHours(0, 0, 0, 0);
+export interface GecikenCopRota {
+  id: string;
+  ad: string;
+  /** Bugünkü son toplama (yoksa null) */
+  sonIslem: Date | null;
+  koordinatlar: [number, number][];
+}
 
-    const rotalar = await prisma.wasteRoute.findMany({
-      where: { aktif: true },
-      orderBy: { oncelik: "asc" },
-      select: {
-        id: true,
-        ad: true,
-        gunler: true,
-        collections: {
-          orderBy: { baslangic: "desc" },
-          take: 1,
-          select: { baslangic: true },
-        },
+/**
+ * Bugün toplanması gerekip henüz toplanmamış çöp rotaları (09:00'dan itibaren).
+ * Salt okunur — bildirim/atama üretmez; hem tarama hem komuta ekranı kullanır.
+ */
+export async function gecikenCopRotalari(simdi: number): Promise<GecikenCopRota[]> {
+  const bugun = new Date(simdi);
+  if (bugun.getHours() < COP_UYARI_SAATI) return [];
+  const isoGun = bugun.getDay() === 0 ? 7 : bugun.getDay();
+  const bugunBasi = new Date(simdi);
+  bugunBasi.setHours(0, 0, 0, 0);
+
+  const rotalar = await prisma.wasteRoute.findMany({
+    where: { aktif: true },
+    orderBy: { oncelik: "asc" },
+    select: {
+      id: true,
+      ad: true,
+      gunler: true,
+      koordinatlar: true,
+      collections: {
+        orderBy: { baslangic: "desc" },
+        take: 1,
+        select: { baslangic: true },
       },
-    });
-    const gecikenler = rotalar.filter((r) => {
+    },
+  });
+  return rotalar
+    .filter((r) => {
       const gunler = (r.gunler as number[]) ?? [];
       if (!gunler.includes(isoGun)) return false;
       const son = r.collections[0]?.baslangic;
       return !son || son < bugunBasi;
-    });
+    })
+    .map((r) => ({
+      id: r.id,
+      ad: r.ad,
+      sonIslem: r.collections[0]?.baslangic ?? null,
+      koordinatlar: (r.koordinatlar as [number, number][]) ?? [],
+    }));
+}
+
+async function copRotaTaramasi(simdi: number): Promise<void> {
+  try {
+    const bugun = new Date(simdi);
+    const gecikenler = await gecikenCopRotalari(simdi);
     if (gecikenler.length === 0) return;
 
     const otomatik = await otomatikAtamaAcikMi();

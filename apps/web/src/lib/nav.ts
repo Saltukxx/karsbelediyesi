@@ -26,6 +26,7 @@ export type NavIconName =
   | "Clock3"
   | "BarChart3"
   | "Map"
+  | "Radar"
   | "LandPlot"
   | "Snowflake"
   | "Trash2"
@@ -67,6 +68,7 @@ export const NAV_GROUPS: NavGroup[] = [
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Dashboard", icon: "LayoutDashboard", group: "genel", roles: TUM_ROLLER },
+  { href: "/komuta", label: "Komuta Ekranı", icon: "Radar", group: "genel", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
   { href: "/raporlar", label: "Raporlar", icon: "BarChart3", group: "genel", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"] },
   { href: "/harita", label: "Yol Haritası", icon: "Map", group: "genel", roles: TUM_ROLLER },
   { href: "/parsel", label: "Parsel Sorgu", icon: "LandPlot", group: "genel", roles: TUM_ROLLER },
