@@ -205,6 +205,7 @@ model Department {
   vehicleTasks      VehicleTask[]      @relation("TalepEdenMudurluk")
   personnelWorkLogs PersonnelWorkLog[]
   materialMovements MaterialMovement[]
+  asphaltRoads      AsphaltRoad[]
 }
 
 model ComplaintType {
@@ -258,10 +259,12 @@ model User {
   kisOperasyonlari     WinterOperation[]     @relation("KisOperasyonOlusturan")
   kisSuruculukleri     WinterOperation[]     @relation("KisOperasyonSofor")
   copRotalari          WasteRoute[]          @relation("CopRotaOlusturan")
+  temizlikRotalari     CleaningRoute[]       @relation("TemizlikRotaOlusturan")
   copToplamalari       WasteCollection[]     @relation("CopToplamaOlusturan")
   copSuruculukleri     WasteCollection[]     @relation("CopToplamaSofor")
   konumPingleri        VehicleLocation[]     @relation("KonumSofor")
   notifications        Notification[]
+  gonderilenWhatsapp   WhatsAppMessage[]     @relation("WhatsAppGonderen")
 }
 
 /// Excel: "Günlük Çalışma Takibi > Personel Listesi" + "TANIMLAMALAR > Personel Listesi"
@@ -284,6 +287,7 @@ model Personnel {
 
   workLogs             PersonnelWorkLog[]
   complaintAssignments ComplaintPersonnel[]
+  asphaltAssignments   AsphaltRoadPersonnel[]
   fuelRecords          FuelRecord[]
 }
 
@@ -480,11 +484,15 @@ model WhatsAppMessage {
   onayDurumu  WhatsAppOnayDurum?
   complaintId String?
   complaint   Complaint?         @relation(fields: [complaintId], references: [id])
+  /// Panelden gönderildiyse gönderen kullanıcı
+  sentByUserId String?
+  sentByUser   User?             @relation("WhatsAppGonderen", fields: [sentByUserId], references: [id])
   waMessageId String?            @unique
   createdAt   DateTime           @default(now())
 
   @@index([telefon])
   @@index([onayDurumu])
+  @@index([complaintId])
 }
 
 /// Telefon bazlı WhatsApp diyalog oturumu (mahalle/adres/açıklama toplama)
@@ -536,6 +544,7 @@ model VehicleTask {
   /// Dispatch motorundan doğduysa (rota bilgisi mobile buradan gider)
   dispatchJobId         String?            @unique
   dispatchJob           DispatchJob?       @relation(fields: [dispatchJobId], references: [id])
+  trackAnalysis         RouteTrackAnalysis?
   fuelRecords           FuelRecord[]
   materialMovements     MaterialMovement[]
   createdAt             DateTime           @default(now())
@@ -915,12 +924,30 @@ model AsphaltRoad {
   durum        AsfaltDurum @default(TAMAMLANDI)
   dokumTarihi  DateTime?
   notlar       String?
+  /// Atanan müdürlük
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
   createdById  String
   createdBy    User        @relation("AsfaltOlusturan", fields: [createdById], references: [id])
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
+  personel AsphaltRoadPersonnel[]
+
   @@index([durum])
+  @@index([departmentId])
+}
+
+/// Asfalt rotasına atanan personel
+model AsphaltRoadPersonnel {
+  asphaltRoadId String
+  asphaltRoad   AsphaltRoad @relation(fields: [asphaltRoadId], references: [id], onDelete: Cascade)
+  personnelId   String
+  personnel     Personnel   @relation(fields: [personnelId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@id([asphaltRoadId, personnelId])
+  @@index([personnelId])
 }
 
 /// Yol üzerindeki çukur / engel noktası
@@ -1068,6 +1095,7 @@ model VehicleLocation {
 enum DispatchTip {
   KIS
   COP
+  TEMIZLIK
 }
 
 enum DispatchDurum {
@@ -1080,7 +1108,7 @@ enum DispatchDurum {
 model DispatchJob {
   id        String        @id @default(cuid())
   tip       DispatchTip
-  /// tip'e göre WinterRoute veya WasteRoute id'si (polimorfik — FK yok)
+  /// tip'e göre WinterRoute, WasteRoute veya CleaningRoute id'si (polimorfik — FK yok)
   routeId   String
   /// Rota adı snapshot'ı (listelemede join'siz gösterim için)
   routeAd   String
@@ -1150,6 +1178,100 @@ model WasteCollection {
   createdAt   DateTime   @default(now())
 
   @@index([routeId, baslangic])
+}
+
+// ═══════════════════════ YOL TEMİZLİĞİ ═══════════════════════
+
+/// Yol temizliği güzergahı (süpürme/yıkama)
+model CleaningRoute {
+  id           String   @id @default(cuid())
+  ad           String
+  /// [[lat,lng], ...] — WinterRoute.koordinatlar ile aynı konvansiyon
+  koordinatlar Json
+  /// 1 = en yüksek öncelik
+  oncelik      Int      @default(2)
+  aktif        Boolean  @default(true)
+  notlar       String?
+  createdById  String
+  createdBy    User     @relation("TemizlikRotaOlusturan", fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([aktif])
+}
+
+// ═══════════════════════ ROTA TAKİP ANALİZİ ═══════════════════════
+
+/// Analiz raporunun veri güvenilirliği (ping yoğunluğuna göre)
+enum AnalizVeriKalite {
+  IYI
+  ZAYIF
+  YOK
+}
+
+/// Görev sonrası rota takip hükmü
+enum AnalizSonuc {
+  TAMAMLANDI
+  KISMEN
+  YETERSIZ
+  VERI_YOK
+}
+
+/// Görev sonrası GPS izi ↔ çizilen rota karşılaştırma sonucu
+model RouteTrackAnalysis {
+  id      String      @id @default(cuid())
+  taskId  String      @unique
+  task    VehicleTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tip     DispatchTip
+  /// tip'e göre WinterRoute/WasteRoute/CleaningRoute id'si (snapshot, FK yok)
+  routeId String
+  routeAd String
+
+  vehicleId String
+  driverId  String?
+
+  /// Rotaya (buffer içine) ilk/son giriş zamanı
+  rotaGiris DateTime?
+  rotaCikis DateTime?
+  /// Rota üzerinde geçirilen süre (giriş→çıkış, dk)
+  sureDk    Float?
+
+  /// Buffer içindeki ping oranı — rotada kalma sadakati (0-100)
+  uyumYuzde     Float @default(0)
+  /// Rotanın kat edilen kısmı (0-100)
+  kapsamaYuzde  Float @default(0)
+  maxSapmaM     Float?
+  ortSapmaM     Float?
+  /// Rota dışı olaylar: [{baslangic,bitis,sureDk,maxMesafeM,lat,lng,izler}]
+  sapmalar      Json?
+
+  ortalamaHizKmh Float?
+  maxHizKmh      Float?
+  toplamMesafeKm Float?
+  pingSayisi     Int    @default(0)
+
+  /// Duraklamalar: [{lat,lng,baslangic,bitis,sureDk,rotaUzerinde}]
+  duraklamalar Json?
+
+  /// Ping gelmeyen ≥5 dk aralıklar: [{baslangic,bitis,sureDk}]
+  veriBosluklari   Json?
+  ortPingAraligiSn Float?
+  veriKalitesi     AnalizVeriKalite @default(YOK)
+
+  sonuc AnalizSonuc @default(VERI_YOK)
+
+  /// GPS izi snapshot: [[lat,lng,tsMs,hiz|null], ...]
+  izKoordinatlar  Json?
+  /// Kat edilmeyen rota bölümleri: [[[lat,lng],...], ...]
+  eksikSegmentler Json?
+  /// Serbest notlar (örn. atanan şoför dışında ping)
+  notlar          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tip, routeId])
+  @@index([sonuc])
 }
 
 // ═══════════════════════ KURUMSAL ALTYAPI ═══════════════════════

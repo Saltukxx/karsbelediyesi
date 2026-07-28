@@ -51,6 +51,7 @@ export default async function GorevlerPage({
           driver: true,
           talepEdenDepartment: true,
           onaylayan: true,
+          trackAnalysis: { select: { sonuc: true } },
         },
       }),
       prisma.vehicle.findMany({
@@ -307,8 +308,39 @@ export default async function GorevlerPage({
               </td>
               <td>
                 <StatusBadge label={GOREV_DURUM_LABELS[g.durum]} />
+                {g.trackAnalysis && (
+                  <div className="mt-1">
+                    <span
+                      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                        g.trackAnalysis.sonuc === "TAMAMLANDI"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : g.trackAnalysis.sonuc === "KISMEN"
+                            ? "bg-amber-100 text-amber-700"
+                            : g.trackAnalysis.sonuc === "YETERSIZ"
+                              ? "bg-red-100 text-red-700"
+                              : "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {g.trackAnalysis.sonuc === "TAMAMLANDI"
+                        ? "Rota: tamam"
+                        : g.trackAnalysis.sonuc === "KISMEN"
+                          ? "Rota: kısmen"
+                          : g.trackAnalysis.sonuc === "YETERSIZ"
+                            ? "Rota: yetersiz"
+                            : "Rota: veri yok"}
+                    </span>
+                  </div>
+                )}
               </td>
               <td className="space-y-2">
+                {g.dispatchJobId && (
+                  <Link
+                    href={`/gorevler/${g.id}/takip`}
+                    className="block text-xs font-semibold text-kb-navy hover:underline"
+                  >
+                    Takip raporu
+                  </Link>
+                )}
                 {g.durum === "PLANLANDI" && (
                   <form action={gorevBaslat} className="flex flex-col gap-1">
                     <input type="hidden" name="id" value={g.id} />

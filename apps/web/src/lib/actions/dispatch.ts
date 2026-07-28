@@ -16,7 +16,23 @@ import {
 } from "@/lib/dispatch";
 
 function sayfa(tip: DispatchTip): string {
-  return tip === "KIS" ? "/kis" : "/cop";
+  switch (tip) {
+    case "KIS":
+      return "/kis";
+    case "COP":
+      return "/cop";
+    case "TEMIZLIK":
+      return "/temizlik";
+    default: {
+      const _exhaustive: never = tip;
+      return _exhaustive;
+    }
+  }
+}
+
+function parseTip(v: FormDataEntryValue | null): DispatchTip {
+  const s = String(v ?? "KIS");
+  return s === "COP" || s === "TEMIZLIK" ? s : "KIS";
 }
 
 /** UI için skorlanmış aday listesi (top 5) — rota seçilince çağrılır */
@@ -79,7 +95,7 @@ export async function dispatchAtaAction(formData: FormData): Promise<void> {
   const session = await requireRoles(ACTION_ROLES.dispatch);
   const jobId = String(formData.get("jobId") ?? "");
   if (!jobId) throw new Error("Öneri bulunamadı");
-  const tip = (String(formData.get("tip") ?? "KIS") === "COP" ? "COP" : "KIS") as DispatchTip;
+  const tip = parseTip(formData.get("tip"));
 
   const { gorevNo, taskId } = await dispatchAta(jobId, session.user);
   await auditKaydet(session, "DISPATCH_ATA", {
@@ -97,7 +113,7 @@ export async function dispatchReddetAction(formData: FormData): Promise<void> {
   const session = await requireRoles(ACTION_ROLES.dispatch);
   const jobId = String(formData.get("jobId") ?? "");
   if (!jobId) throw new Error("Öneri bulunamadı");
-  const tip = (String(formData.get("tip") ?? "KIS") === "COP" ? "COP" : "KIS") as DispatchTip;
+  const tip = parseTip(formData.get("tip"));
 
   await dispatchReddet(jobId);
   await auditKaydet(session, "DISPATCH_REDDET", {

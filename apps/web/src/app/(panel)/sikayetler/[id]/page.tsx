@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@kars/db";
-import { sikayetDurumGuncelle, sikayetAta } from "@/lib/actions/complaints";
+import {
+  sikayetDurumGuncelle,
+  sikayetAta,
+  sikayetMudurlukAta,
+  sikayetPersonelAta,
+} from "@/lib/actions/complaints";
 import {
   ONCELIK_LABELS,
   SIKAYET_DURUM_LABELS,
@@ -18,6 +23,7 @@ const EVENT_LABELS: Record<string, string> = {
   OLUSTURULDU: "Kayıt oluşturuldu",
   DURUM_DEGISTI: "Durum değiştirildi",
   GOREVLENDIRME: "Görevlendirme yapıldı",
+  MUDURLUK_ATAMA: "Müdürlüğe yönlendirildi",
   NOT: "Not eklendi",
 };
 
@@ -43,15 +49,36 @@ export default async function SikayetDetayPage({
   });
   if (!s || !canAccessComplaint(toAccessUser(session.user), s)) notFound();
 
-  const [araclar, personeller, onaylayanlar] = await Promise.all([
-    prisma.vehicle.findMany({
-      where: { envanterDurumu: "AKTIF" },
-      include: { atananSofor: true },
-      orderBy: { plaka: "asc" },
-    }),
-    prisma.personnel.findMany({ where: { durum: "AKTIF" }, orderBy: { adSoyad: "asc" } }),
-    prisma.user.findMany({ where: { role: { in: ["APPROVER", "ADMIN"] }, aktif: true } }),
-  ]);
+  const rol = session.user.role;
+  const mudurlukAtayabilir = rol === "ADMIN" || rol === "CALL_CENTER";
+  const personelAtayabilir =
+    rol === "ADMIN" ||
+    (rol === "DEPARTMENT_MANAGER" && !!session.user.departmentId);
+
+  const [araclar, personeller, onaylayanlar, mudurlukler, atanabilirPersonel] =
+    await Promise.all([
+      prisma.vehicle.findMany({
+        where: { envanterDurumu: "AKTIF" },
+        include: { atananSofor: true },
+        orderBy: { plaka: "asc" },
+      }),
+      prisma.personnel.findMany({ where: { durum: "AKTIF" }, orderBy: { adSoyad: "asc" } }),
+      prisma.user.findMany({ where: { role: { in: ["APPROVER", "ADMIN"] }, aktif: true } }),
+      mudurlukAtayabilir
+        ? prisma.department.findMany({ where: { aktif: true }, orderBy: { name: "asc" } })
+        : Promise.resolve([]),
+      personelAtayabilir
+        ? prisma.personnel.findMany({
+            where: {
+              durum: "AKTIF",
+              ...(rol === "DEPARTMENT_MANAGER"
+                ? { departmentId: session.user.departmentId }
+                : {}),
+            },
+            orderBy: { adSoyad: "asc" },
+          })
+        : Promise.resolve([]),
+    ]);
 
   const acikMi = s.durum === "ACIK" || s.durum === "DEVAM_EDIYOR";
   const inputCls =
@@ -122,6 +149,66 @@ export default async function SikayetDetayPage({
               </div>
             )}
           </section>
+
+          {/* MÜDÜRLÜĞE YÖNLENDİRME (ADMIN / CALL_CENTER) */}
+          {mudurlukAtayabilir && acikMi && (
+            <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+                Müdürlüğe Yönlendir
+              </h2>
+              <form action={sikayetMudurlukAta} className="grid md:grid-cols-3 gap-3">
+                <input type="hidden" name="id" value={s.id} />
+                <div className="md:col-span-2">
+                  <label className="text-xs text-kb-muted block mb-1">Müdürlük</label>
+                  <select name="departmentId" defaultValue={s.departmentId ?? ""} className={inputCls}>
+                    <option value="">— Müdürlük yok —</option>
+                    {mudurlukler.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button className="rounded-md bg-kb-navy hover:bg-kb-navy-soft text-white px-4 py-2 text-sm w-full">
+                    Yönlendir
+                  </button>
+                </div>
+              </form>
+            </section>
+          )}
+
+          {/* PERSONELE ATAMA (ADMIN / MÜDÜR) */}
+          {personelAtayabilir && acikMi && (
+            <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
+              <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+                Personele Ata
+              </h2>
+              <form action={sikayetPersonelAta} className="grid md:grid-cols-3 gap-3">
+                <input type="hidden" name="id" value={s.id} />
+                <div className="md:col-span-2">
+                  <label className="text-xs text-kb-muted block mb-1">
+                    Personel (birden fazla seçilebilir)
+                  </label>
+                  <select name="personnelIds" multiple size={4} className={inputCls}>
+                    {atanabilirPersonel.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.adSoyad}{p.unvan ? ` — ${p.unvan}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button className="rounded-md bg-kb-navy hover:bg-kb-navy-soft text-white px-4 py-2 text-sm w-full">
+                    Personele Ata
+                  </button>
+                </div>
+              </form>
+              {s.personel.length > 0 && (
+                <p className="mt-3 text-xs text-kb-muted">
+                  Atanmış: {s.personel.map((p) => p.personnel.adSoyad).join(", ")}
+                </p>
+              )}
+            </section>
+          )}
 
           {/* GÖREVLENDİRME */}
           <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">

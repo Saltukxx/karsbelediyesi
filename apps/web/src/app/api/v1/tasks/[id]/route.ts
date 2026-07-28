@@ -4,6 +4,7 @@ import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
 import { assertTaskApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
 import { auditKaydet } from "@/lib/audit";
+import { gorevIziAnalizDene } from "@/lib/route-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       }
       return t;
     });
+    await gorevIziAnalizDene(id);
     await auditKaydet({ user: auth.user }, "GOREV_KAPAT", {
       varlik: "VehicleTask",
       varlikId: id,

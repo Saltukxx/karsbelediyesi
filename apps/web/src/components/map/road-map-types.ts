@@ -11,6 +11,20 @@ export interface RoadDto {
   notlar: string | null;
   olusturan: string;
   createdAt: string;
+  departmentId: string | null;
+  mudurluk: string | null;
+  personel: Array<{ id: string; adSoyad: string }>;
+}
+
+export interface DepartmentOptionDto {
+  id: string;
+  name: string;
+}
+
+export interface PersonnelOptionDto {
+  id: string;
+  adSoyad: string;
+  unvan: string | null;
 }
 
 export interface HazardDto {

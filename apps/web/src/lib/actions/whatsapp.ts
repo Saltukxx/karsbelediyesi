@@ -2,9 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
-import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { ACTION_ROLES, requireRoles, requireSession } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
+import { whatsappMesajKuyrugaEkle } from "@/lib/whatsapp-outbound";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -109,6 +110,64 @@ export async function whatsappOnayla(formData: FormData) {
   revalidatePath("/sikayetler");
   revalidatePath(`/sikayetler/${complaint.id}`);
   revalidatePath("/");
+}
+
+/**
+ * Vatandaşa WhatsApp üzerinden serbest metin cevap gönderir.
+ * Yetki: ADMIN, şikayetin müdürlük yöneticisi veya şikayete atanmış personelin kullanıcısı.
+ */
+export async function whatsappCevapGonder(formData: FormData) {
+  const session = await requireSession();
+
+  const complaintId = String(formData.get("complaintId"));
+  const text = String(formData.get("text") ?? "").trim();
+  if (!text) throw new Error("Mesaj boş olamaz");
+  if (text.length > 2000) throw new Error("Mesaj çok uzun (en fazla 2000 karakter)");
+
+  const complaint = await prisma.complaint.findUnique({
+    where: { id: complaintId },
+    include: { personel: { include: { personnel: { select: { userId: true } } } } },
+  });
+  if (!complaint) throw new Error("Şikayet bulunamadı");
+  if (!complaint.telefon) throw new Error("Şikayette telefon numarası yok");
+
+  const { role, id: userId, departmentId } = session.user;
+  const atanmisPersonel = complaint.personel.some(
+    (p) => p.personnel?.userId === userId,
+  );
+  const mudurYetkili =
+    role === "DEPARTMENT_MANAGER" &&
+    !!departmentId &&
+    complaint.departmentId === departmentId;
+  if (role !== "ADMIN" && !mudurYetkili && !atanmisPersonel) {
+    throw new Error("Bu şikayete cevap yazma yetkiniz yok");
+  }
+
+  await whatsappMesajKuyrugaEkle({
+    telefon: complaint.telefon,
+    text,
+    complaintId: complaint.id,
+    sentByUserId: userId,
+  });
+
+  await prisma.complaintEvent.create({
+    data: {
+      complaintId: complaint.id,
+      userId,
+      tip: "WHATSAPP_CEVAP",
+      detay: { mesaj: text.slice(0, 200) },
+    },
+  });
+
+  await auditKaydet(session, "WHATSAPP_CEVAP_GONDER", {
+    varlik: "Complaint",
+    varlikId: complaint.id,
+    detay: { sikayetNo: complaint.sikayetNo },
+  });
+
+  revalidatePath("/islerim");
+  revalidatePath(`/islerim/${complaint.id}`);
+  revalidatePath(`/sikayetler/${complaint.id}`);
 }
 
 export async function whatsappReddet(formData: FormData) {

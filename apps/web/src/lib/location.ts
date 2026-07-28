@@ -1,4 +1,5 @@
 import { prisma } from "@kars/db";
+import { canliSapmaKontrol } from "@/lib/route-analysis";
 
 /** Bu süreden eski konumlar "bayat" sayılır ve dispatch'te kullanılmaz */
 export const KONUM_TAZELIK_MS = 15 * 60 * 1000;
@@ -78,4 +79,8 @@ export async function konumPingKaydet(params: {
       },
     }),
   ]);
+
+  // Aktif dispatch görevi varsa canlı rota-dışı sapma kontrolü
+  // (hata fırlatmaz — ping kaydını bozamaz)
+  await canliSapmaKontrol(params.vehicleId, params.lat, params.lng);
 }

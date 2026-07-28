@@ -25,7 +25,7 @@ export default function DispatchPanel({
   oneriler,
   canEdit,
 }: {
-  tip: "KIS" | "COP";
+  tip: "KIS" | "COP" | "TEMIZLIK";
   oneriler: DispatchOneriDto[];
   canEdit: boolean;
 }) {

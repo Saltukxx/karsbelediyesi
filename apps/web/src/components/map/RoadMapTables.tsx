@@ -4,12 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { DataTable } from "@/components/ui/DataTable";
+import { asfaltPersonelAta } from "@/lib/actions/harita";
+import { btnPrimary, btnSecondary, inputCls } from "@/lib/ui";
 import { formatLength, roadLengthMeters } from "@/components/map/road-map-geo";
 import {
   ASFALT_DURUM_LABELS,
   HAZARD_TIP_LABELS,
   type ComplaintPinDto,
   type HazardDto,
+  type PersonnelOptionDto,
   type RoadDto,
 } from "@/components/map/road-map-types";
 
@@ -35,6 +38,8 @@ export default function RoadMapTables({
   complaints,
   canEdit,
   pending,
+  atanabilirPersonel,
+  personelAtayabilir,
   onFocusRoad,
   onEditRoad,
   onDeleteRoad,
@@ -48,6 +53,8 @@ export default function RoadMapTables({
   complaints: ComplaintPinDto[];
   canEdit: boolean;
   pending: boolean;
+  atanabilirPersonel: PersonnelOptionDto[];
+  personelAtayabilir: boolean;
   onFocusRoad: (r: RoadDto) => void;
   onEditRoad: (r: RoadDto) => void;
   onDeleteRoad: (id: string) => void;
@@ -57,6 +64,12 @@ export default function RoadMapTables({
   onFocusComplaint: (c: ComplaintPinDto) => void;
 }) {
   const [tab, setTab] = useState<TabId>("yollar");
+  const [atamaRoadId, setAtamaRoadId] = useState<string | null>(null);
+
+  async function submitPersonelAta(formData: FormData) {
+    await asfaltPersonelAta(formData);
+    setAtamaRoadId(null);
+  }
 
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: "yollar", label: `Asfalt yollar (${roads.length})` },
@@ -99,6 +112,8 @@ export default function RoadMapTables({
                 <th>Durum</th>
                 <th>Uzunluk</th>
                 <th>Döküm tarihi</th>
+                <th>Müdürlük</th>
+                <th>Personel</th>
                 <th>Ekleyen</th>
                 <th>Notlar</th>
                 <th>İşlem</th>
@@ -113,6 +128,46 @@ export default function RoadMapTables({
                   <td>
                     {r.dokumTarihi ? format(new Date(r.dokumTarihi), "dd.MM.yyyy") : "—"}
                   </td>
+                  <td>{r.mudurluk ?? "—"}</td>
+                  <td className="max-w-48">
+                    {atamaRoadId === r.id ? (
+                      <form action={submitPersonelAta} className="space-y-1.5">
+                        <input type="hidden" name="id" value={r.id} />
+                        <select
+                          name="personnelIds"
+                          multiple
+                          size={4}
+                          defaultValue={r.personel.map((p) => p.id)}
+                          className={`${inputCls} text-xs`}
+                        >
+                          {atanabilirPersonel.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.adSoyad}
+                              {p.unvan ? ` — ${p.unvan}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex gap-1.5">
+                          <button type="submit" className={`${btnPrimary} !px-2 !py-1 !text-xs`}>
+                            Ata
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAtamaRoadId(null)}
+                            className={`${btnSecondary} !px-2 !py-1 !text-xs`}
+                          >
+                            Vazgeç
+                          </button>
+                        </div>
+                      </form>
+                    ) : (
+                      <span className="truncate" title={r.personel.map((p) => p.adSoyad).join(", ")}>
+                        {r.personel.length > 0
+                          ? r.personel.map((p) => p.adSoyad).join(", ")
+                          : "—"}
+                      </span>
+                    )}
+                  </td>
                   <td>{r.olusturan}</td>
                   <td className="max-w-56 truncate" title={r.notlar ?? undefined}>
                     {r.notlar ?? "—"}
@@ -122,6 +177,16 @@ export default function RoadMapTables({
                       <button type="button" onClick={() => onFocusRoad(r)} className={linkBtn}>
                         Haritada göster
                       </button>
+                      {personelAtayabilir && atamaRoadId !== r.id && (
+                        <button
+                          type="button"
+                          onClick={() => setAtamaRoadId(r.id)}
+                          disabled={pending}
+                          className={linkBtn}
+                        >
+                          Personel ata
+                        </button>
+                      )}
                       {canEdit && (
                         <>
                           <button

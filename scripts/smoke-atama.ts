@@ -1,0 +1,147 @@
+/**
+ * Uçtan uca duman testi: müdürlük → personel ataması → /islerim verisi →
+ * whatsapp-outbound kuyruğu → GIDEN kaydı simülasyonu.
+ * Çalıştırma: npx tsx scripts/smoke-atama.ts
+ */
+import { Queue } from "bullmq";
+import IORedis from "ioredis";
+import { prisma } from "../packages/db/src/index";
+
+const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
+
+async function main() {
+  // 1) Müdürlük + personel + kullanıcı bağı
+  const dept = await prisma.department.findFirst({ where: { aktif: true } });
+  if (!dept) throw new Error("Aktif müdürlük yok (seed çalıştırın)");
+
+  const user = await prisma.user.upsert({
+    where: { phone: "05990000001" },
+    update: {},
+    create: {
+      name: "Smoke Saha Personeli",
+      phone: "05990000001",
+      passwordHash: "x",
+      role: "FIELD_WORKER",
+      departmentId: dept.id,
+    },
+  });
+  const personel = await prisma.personnel.upsert({
+    where: { userId: user.id },
+    update: { departmentId: dept.id },
+    create: {
+      adSoyad: "Smoke Saha Personeli",
+      departmentId: dept.id,
+      userId: user.id,
+    },
+  });
+  console.log("✓ Personel + kullanıcı bağı:", personel.adSoyad, "→", dept.name);
+
+  // 2) WhatsApp kanallı şikayet + müdürlük + personel ataması
+  const yil = new Date().getFullYear();
+  const son = await prisma.complaint.findFirst({
+    where: { yil },
+    orderBy: { sira: "desc" },
+  });
+  const sira = (son?.sira ?? 0) + 1;
+  const complaint = await prisma.complaint.create({
+    data: {
+      sikayetNo: `SMK-${yil}-${String(sira).padStart(4, "0")}`,
+      yil,
+      sira,
+      kanal: "WHATSAPP",
+      arayanKisi: "905990000002",
+      telefon: "905990000002",
+      aciklama: "Smoke test şikayeti",
+      departmentId: dept.id,
+      personel: { create: { personnelId: personel.id } },
+    },
+  });
+  console.log("✓ Şikayet oluşturuldu ve atandı:", complaint.sikayetNo);
+
+  // 3) Asfalt rotası + müdürlük + personel ataması
+  const road = await prisma.asphaltRoad.create({
+    data: {
+      ad: "Smoke Test Rotası",
+      koordinatlar: [
+        [40.6013, 43.0975],
+        [40.6021, 43.0989],
+      ],
+      durum: "PLANLANDI",
+      departmentId: dept.id,
+      createdById: user.id,
+      personel: { create: { personnelId: personel.id } },
+    },
+  });
+  console.log("✓ Asfalt rotası oluşturuldu ve atandı:", road.ad);
+
+  // 4) /islerim sorguları (sayfanın yaptığı sorgular)
+  const [sikayetler, rotalar] = await Promise.all([
+    prisma.complaintPersonnel.findMany({
+      where: { personnelId: personel.id },
+      include: { complaint: true },
+    }),
+    prisma.asphaltRoadPersonnel.findMany({
+      where: { personnelId: personel.id },
+      include: { asphaltRoad: true },
+    }),
+  ]);
+  const sikayetVar = sikayetler.some((a) => a.complaintId === complaint.id);
+  const rotaVar = rotalar.some((a) => a.asphaltRoadId === road.id);
+  console.log(
+    sikayetVar && rotaVar
+      ? "✓ /islerim verisi: şikayet ve rota atamaları görünüyor"
+      : "✗ /islerim verisi eksik!",
+  );
+  if (!sikayetVar || !rotaVar) process.exitCode = 1;
+
+  // 5) whatsapp-outbound kuyruğuna cevap ekle (bot kapalıysa bekler)
+  const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+  const queue = new Queue("whatsapp-outbound", { connection });
+  const job = await queue.add("outbound", {
+    telefon: complaint.telefon,
+    text: "Smoke test cevabı",
+    complaintId: complaint.id,
+    sentByUserId: user.id,
+  });
+  const counts = await queue.getJobCounts("waiting", "active", "completed", "failed");
+  console.log("✓ Kuyruğa eklendi. Kuyruk durumu:", counts);
+
+  // 6) Bot davranışını simüle et: GIDEN mesaj kaydı
+  const giden = await prisma.whatsAppMessage.create({
+    data: {
+      telefon: complaint.telefon!,
+      yon: "GIDEN",
+      icerik: "Smoke test cevabı",
+      complaintId: complaint.id,
+      sentByUserId: user.id,
+    },
+  });
+  const thread = await prisma.whatsAppMessage.findMany({
+    where: { complaintId: complaint.id },
+    include: { sentByUser: { select: { name: true } } },
+  });
+  console.log(
+    thread.length === 1 && thread[0].sentByUser?.name === user.name
+      ? "✓ GIDEN kaydı complaintId + sentByUser ile okunuyor"
+      : "✗ GIDEN kaydı doğrulanamadı!",
+  );
+
+  // 7) Temizlik
+  await job.remove();
+  await prisma.whatsAppMessage.delete({ where: { id: giden.id } });
+  await prisma.asphaltRoad.delete({ where: { id: road.id } });
+  await prisma.complaint.delete({ where: { id: complaint.id } });
+  await prisma.personnel.delete({ where: { id: personel.id } });
+  await prisma.user.delete({ where: { id: user.id } });
+  console.log("✓ Test verileri temizlendi");
+
+  await queue.close();
+  connection.disconnect();
+  await prisma.$disconnect();
+}
+
+main().catch(async (e) => {
+  console.error("✗ Smoke test hatası:", e);
+  await prisma.$disconnect();
+  process.exit(1);
+});

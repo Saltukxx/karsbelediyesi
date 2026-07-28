@@ -21,6 +21,7 @@ import {
   LandPlot,
   Snowflake,
   Trash2,
+  Brush,
   ShieldCheck,
   Settings,
 } from "lucide-react";
@@ -48,6 +49,7 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   LandPlot,
   Snowflake,
   Trash2,
+  Brush,
   ShieldCheck,
   Settings,
 };

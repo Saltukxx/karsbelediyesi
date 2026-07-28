@@ -3,8 +3,10 @@
 import dynamic from "next/dynamic";
 import type {
   ComplaintPinDto,
+  DepartmentOptionDto,
   HazardDto,
   LiveVehicleDto,
+  PersonnelOptionDto,
   RoadDto,
 } from "@/components/map/road-map-types";
 
@@ -23,6 +25,9 @@ export default function RoadMapPanel(props: {
   complaints: ComplaintPinDto[];
   liveVehicles: LiveVehicleDto[];
   canEdit: boolean;
+  mudurlukler: DepartmentOptionDto[];
+  atanabilirPersonel: PersonnelOptionDto[];
+  personelAtayabilir: boolean;
 }) {
   return <RoadMap {...props} />;
 }

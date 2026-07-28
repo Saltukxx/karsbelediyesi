@@ -32,7 +32,7 @@ export default function SmartAssignPanel({
   routeAd,
   canEdit,
 }: {
-  tip: "KIS" | "COP";
+  tip: "KIS" | "COP" | "TEMIZLIK";
   routeId: string | null;
   routeAd?: string | null;
   canEdit: boolean;

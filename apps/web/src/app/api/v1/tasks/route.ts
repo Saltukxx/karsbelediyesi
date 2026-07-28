@@ -5,7 +5,7 @@ import { toAccessUser } from "@/lib/access";
 export const dynamic = "force-dynamic";
 
 type TaskDispatchJob = {
-  tip: "KIS" | "COP";
+  tip: "KIS" | "COP" | "TEMIZLIK";
   routeId: string;
   rota: unknown;
   mesafeKm: number | null;
@@ -73,7 +73,10 @@ async function servisRotalari(
   const sonuc = new Map<string, [number, number][]>();
   const kisIds = [...new Set(jobs.filter((j) => j.tip === "KIS").map((j) => j.routeId))];
   const copIds = [...new Set(jobs.filter((j) => j.tip === "COP").map((j) => j.routeId))];
-  const [kisRotalar, copRotalar] = await Promise.all([
+  const temizlikIds = [
+    ...new Set(jobs.filter((j) => j.tip === "TEMIZLIK").map((j) => j.routeId)),
+  ];
+  const [kisRotalar, copRotalar, temizlikRotalar] = await Promise.all([
     kisIds.length > 0
       ? prisma.winterRoute.findMany({
           where: { id: { in: kisIds } },
@@ -86,8 +89,14 @@ async function servisRotalari(
           select: { id: true, koordinatlar: true },
         })
       : Promise.resolve([]),
+    temizlikIds.length > 0
+      ? prisma.cleaningRoute.findMany({
+          where: { id: { in: temizlikIds } },
+          select: { id: true, koordinatlar: true },
+        })
+      : Promise.resolve([]),
   ]);
-  for (const r of [...kisRotalar, ...copRotalar]) {
+  for (const r of [...kisRotalar, ...copRotalar, ...temizlikRotalar]) {
     sonuc.set(r.id, r.koordinatlar as [number, number][]);
   }
   return sonuc;

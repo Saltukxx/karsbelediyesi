@@ -65,7 +65,7 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
     }
   }
 
-  function ata(jobId: string, tip: "KIS" | "COP") {
+  function ata(jobId: string, tip: "KIS" | "COP" | "TEMIZLIK") {
     const fd = new FormData();
     fd.set("jobId", jobId);
     fd.set("tip", tip);
@@ -79,7 +79,7 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
     });
   }
 
-  function reddet(jobId: string, tip: "KIS" | "COP") {
+  function reddet(jobId: string, tip: "KIS" | "COP" | "TEMIZLIK") {
     const fd = new FormData();
     fd.set("jobId", jobId);
     fd.set("tip", tip);
@@ -325,6 +325,17 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
                         {a.tip && <span className="text-kb-muted"> · {a.tip}</span>}
                       </span>
                       <span className="text-kb-muted">
+                        {a.rotada != null && (
+                          <span
+                            className={`mr-1.5 rounded px-1 py-0.5 text-[10px] font-semibold ${
+                              a.rotada
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {a.rotada ? "rotada" : `rota dışı (${a.rotaUzaklikM} m)`}
+                          </span>
+                        )}
                         {a.aktifGorev ? a.aktifGorev.gorevNo : "boşta"}
                       </span>
                     </button>

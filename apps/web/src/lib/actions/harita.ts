@@ -48,6 +48,24 @@ function parseKoordinatlar(raw: string | undefined): [number, number][] {
   return parsed as [number, number][];
 }
 
+/** Müdürlük değiştiyse yeni müdürlüğün yöneticilerine bildirim gönderir */
+async function asfaltMudurlukBildir(
+  session: Awaited<ReturnType<typeof requireRoles>>,
+  roadAd: string,
+  departmentId: string,
+) {
+  const yoneticiler = await kullaniciIdleri(["DEPARTMENT_MANAGER"], departmentId);
+  await bildirimGonder(
+    yoneticiler.filter((uid) => uid !== session.user.id),
+    {
+      tip: "ATAMA",
+      baslik: "Asfalt rotası müdürlüğünüze atandı",
+      mesaj: `${session.user.name} "${roadAd}" rotasını müdürlüğünüze atadı.`,
+      href: "/harita",
+    },
+  );
+}
+
 export async function asfaltYolKaydet(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.harita);
 
@@ -59,6 +77,7 @@ export async function asfaltYolKaydet(formData: FormData) {
     ? (durumRaw as AsfaltDurum)
     : "TAMAMLANDI";
   const dokumTarihi = bos(formData.get("dokumTarihi"));
+  const departmentId = bos(formData.get("departmentId"));
 
   await prisma.asphaltRoad.create({
     data: {
@@ -67,14 +86,19 @@ export async function asfaltYolKaydet(formData: FormData) {
       durum,
       dokumTarihi: dokumTarihi ? new Date(dokumTarihi) : undefined,
       notlar: bos(formData.get("notlar")),
+      departmentId,
       createdById: session.user.id,
     },
   });
+  if (departmentId) {
+    await asfaltMudurlukBildir(session, ad, departmentId);
+  }
   revalidatePath("/harita");
+  revalidatePath("/islerim");
 }
 
 export async function asfaltYolGuncelle(formData: FormData) {
-  await requireRoles(ACTION_ROLES.harita);
+  const session = await requireRoles(ACTION_ROLES.harita);
 
   const id = bos(formData.get("id"));
   if (!id) throw new Error("Kayıt bulunamadı");
@@ -82,8 +106,14 @@ export async function asfaltYolGuncelle(formData: FormData) {
   const durumRaw = bos(formData.get("durum"));
   const dokumTarihi = bos(formData.get("dokumTarihi"));
   const koordinatlarRaw = bos(formData.get("koordinatlar"));
+  const departmentId = bos(formData.get("departmentId")) ?? null;
 
-  await prisma.asphaltRoad.update({
+  const eski = await prisma.asphaltRoad.findUnique({
+    where: { id },
+    select: { departmentId: true },
+  });
+
+  const guncel = await prisma.asphaltRoad.update({
     where: { id },
     data: {
       ad,
@@ -93,9 +123,80 @@ export async function asfaltYolGuncelle(formData: FormData) {
         : undefined,
       dokumTarihi: dokumTarihi ? new Date(dokumTarihi) : undefined,
       notlar: bos(formData.get("notlar")) ?? null,
+      departmentId,
     },
   });
+  if (departmentId && departmentId !== eski?.departmentId) {
+    await asfaltMudurlukBildir(session, guncel.ad, departmentId);
+  }
   revalidatePath("/harita");
+  revalidatePath("/islerim");
+}
+
+export async function asfaltPersonelAta(formData: FormData) {
+  const session = await requireRoles(["ADMIN", "DEPARTMENT_MANAGER"]);
+
+  const id = bos(formData.get("id"));
+  if (!id) throw new Error("Kayıt bulunamadı");
+  const personnelIds = formData.getAll("personnelIds").map(String).filter(Boolean);
+
+  const road = await prisma.asphaltRoad.findUnique({
+    where: { id },
+    select: { id: true, ad: true, departmentId: true },
+  });
+  if (!road) throw new Error("Kayıt bulunamadı");
+  if (
+    session.user.role === "DEPARTMENT_MANAGER" &&
+    (!session.user.departmentId || road.departmentId !== session.user.departmentId)
+  ) {
+    throw new Error("Bu rota müdürlüğünüze atanmamış");
+  }
+
+  // Müdür yalnızca kendi müdürlüğündeki aktif personeli atayabilir
+  const personeller = await prisma.personnel.findMany({
+    where: {
+      id: { in: personnelIds },
+      durum: "AKTIF",
+      ...(session.user.role === "DEPARTMENT_MANAGER"
+        ? { departmentId: session.user.departmentId ?? "-" }
+        : {}),
+    },
+    select: { id: true, adSoyad: true, userId: true },
+  });
+  if (personeller.length !== personnelIds.length) {
+    throw new Error("Seçilen personel bulunamadı veya müdürlüğünüze bağlı değil");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.asphaltRoadPersonnel.deleteMany({ where: { asphaltRoadId: id } });
+    if (personnelIds.length > 0) {
+      await tx.asphaltRoadPersonnel.createMany({
+        data: personnelIds.map((personnelId) => ({ asphaltRoadId: id, personnelId })),
+      });
+    }
+  });
+
+  await auditKaydet(session, "ASFALT_PERSONEL_ATA", {
+    varlik: "AsphaltRoad",
+    varlikId: id,
+    detay: { ad: road.ad, personnelIds },
+  });
+
+  const personelUserIds = personeller
+    .map((p) => p.userId)
+    .filter((uid): uid is string => !!uid);
+  await bildirimGonder(
+    personelUserIds.filter((uid) => uid !== session.user.id),
+    {
+      tip: "ATAMA",
+      baslik: `"${road.ad}" asfalt rotası size atandı`,
+      mesaj: `${session.user.name} sizi bu rotada görevlendirdi.`,
+      href: "/islerim",
+    },
+  );
+
+  revalidatePath("/harita");
+  revalidatePath("/islerim");
 }
 
 export async function asfaltYolSil(formData: FormData) {

@@ -8,9 +8,11 @@ import { KONUM_TAZELIK_MS } from "@/lib/location";
 import type {
   AsfaltDurumDto,
   ComplaintPinDto,
+  DepartmentOptionDto,
   HazardDto,
   HazardTipDto,
   LiveVehicleDto,
+  PersonnelOptionDto,
   RoadDto,
 } from "@/components/map/road-map-types";
 
@@ -20,10 +22,19 @@ export default async function HaritaPage() {
   const session = await requirePageAccess("/harita");
   const canEdit = ACTION_ROLES.harita.includes(session.user.role);
 
-  const [roadRows, hazardRows, complaintRows, vehicleRows] = await Promise.all([
+  const rol = session.user.role;
+  const personelAtayabilir =
+    rol === "ADMIN" || (rol === "DEPARTMENT_MANAGER" && !!session.user.departmentId);
+
+  const [roadRows, hazardRows, complaintRows, vehicleRows, mudurlukRows, personelRows] =
+    await Promise.all([
     prisma.asphaltRoad.findMany({
       orderBy: { createdAt: "desc" },
-      include: { createdBy: { select: { name: true } } },
+      include: {
+        createdBy: { select: { name: true } },
+        department: { select: { name: true } },
+        personel: { include: { personnel: { select: { id: true, adSoyad: true } } } },
+      },
     }),
     prisma.roadHazard.findMany({
       orderBy: { createdAt: "desc" },
@@ -58,6 +69,25 @@ export default async function HaritaPage() {
         vehicleType: { select: { name: true } },
       },
     }),
+    canEdit
+      ? prisma.department.findMany({
+          where: { aktif: true },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+    personelAtayabilir
+      ? prisma.personnel.findMany({
+          where: {
+            durum: "AKTIF",
+            ...(rol === "DEPARTMENT_MANAGER"
+              ? { departmentId: session.user.departmentId }
+              : {}),
+          },
+          orderBy: { adSoyad: "asc" },
+          select: { id: true, adSoyad: true, unvan: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const roads: RoadDto[] = roadRows.map((r) => ({
@@ -69,7 +99,16 @@ export default async function HaritaPage() {
     notlar: r.notlar,
     olusturan: r.createdBy.name,
     createdAt: r.createdAt.toISOString(),
+    departmentId: r.departmentId,
+    mudurluk: r.department?.name ?? null,
+    personel: r.personel.map((p) => ({
+      id: p.personnel.id,
+      adSoyad: p.personnel.adSoyad,
+    })),
   }));
+
+  const mudurlukler: DepartmentOptionDto[] = mudurlukRows;
+  const atanabilirPersonel: PersonnelOptionDto[] = personelRows;
 
   const hazards: HazardDto[] = hazardRows.map((h) => ({
     id: h.id,
@@ -115,6 +154,9 @@ export default async function HaritaPage() {
         complaints={complaints}
         liveVehicles={liveVehicles}
         canEdit={canEdit}
+        mudurlukler={mudurlukler}
+        atanabilirPersonel={atanabilirPersonel}
+        personelAtayabilir={personelAtayabilir}
       />
     </div>
   );

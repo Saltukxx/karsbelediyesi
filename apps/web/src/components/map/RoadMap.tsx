@@ -39,9 +39,11 @@ import {
   HAZARD_TIP_LABELS,
   type AsfaltDurumDto,
   type ComplaintPinDto,
+  type DepartmentOptionDto,
   type HazardDto,
   type HazardTipDto,
   type LiveVehicleDto,
+  type PersonnelOptionDto,
   type RoadDto,
 } from "@/components/map/road-map-types";
 
@@ -141,12 +143,18 @@ export default function RoadMap({
   complaints,
   liveVehicles,
   canEdit,
+  mudurlukler,
+  atanabilirPersonel,
+  personelAtayabilir,
 }: {
   roads: RoadDto[];
   hazards: HazardDto[];
   complaints: ComplaintPinDto[];
   liveVehicles: LiveVehicleDto[];
   canEdit: boolean;
+  mudurlukler: DepartmentOptionDto[];
+  atanabilirPersonel: PersonnelOptionDto[];
+  personelAtayabilir: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("gezinme");
   const [is3D, setIs3D] = useState(false);
@@ -418,6 +426,10 @@ export default function RoadMap({
                       <p>Uzunluk: {formatLength(roadLengthMeters(r.koordinatlar))}</p>
                       {r.dokumTarihi && (
                         <p>Döküm: {format(new Date(r.dokumTarihi), "dd.MM.yyyy")}</p>
+                      )}
+                      {r.mudurluk && <p>Müdürlük: {r.mudurluk}</p>}
+                      {r.personel.length > 0 && (
+                        <p>Personel: {r.personel.map((p) => p.adSoyad).join(", ")}</p>
                       )}
                       {r.notlar && <p>{r.notlar}</p>}
                       <p className="text-xs text-gray-500">Ekleyen: {r.olusturan}</p>
@@ -871,6 +883,21 @@ export default function RoadMap({
                   </select>
                 </div>
                 <div>
+                  <label className={labelCls}>Müdürlük</label>
+                  <select
+                    name="departmentId"
+                    defaultValue={editingRoad?.departmentId ?? ""}
+                    className={inputCls}
+                  >
+                    <option value="">— Müdürlük yok —</option>
+                    {mudurlukler.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className={labelCls}>Döküm tarihi</label>
                   <input
                     type="date"
@@ -963,6 +990,8 @@ export default function RoadMap({
         complaints={complaints}
         canEdit={canEdit}
         pending={pending}
+        atanabilirPersonel={atanabilirPersonel}
+        personelAtayabilir={personelAtayabilir}
         onFocusRoad={focusRoad}
         onEditRoad={(r) => {
           startEditRoad(r);

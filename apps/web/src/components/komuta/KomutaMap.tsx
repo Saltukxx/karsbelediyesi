@@ -198,6 +198,15 @@ export default function KomutaMap({
                       }`
                     : "Boşta"}
                 </p>
+                {a.rotada != null && (
+                  <p
+                    className={`text-xs font-semibold ${
+                      a.rotada ? "text-emerald-600" : "text-red-600"
+                    }`}
+                  >
+                    {a.rotada ? "Rotada" : `Rota dışı (${a.rotaUzaklikM} m)`}
+                  </p>
+                )}
               </div>
             </Popup>
           </CircleMarker>

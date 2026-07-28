@@ -9,6 +9,7 @@ import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
+import { gorevIziAnalizDene } from "@/lib/route-analysis";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -165,6 +166,8 @@ export async function gorevKapat(formData: FormData) {
       });
     }
   });
+
+  await gorevIziAnalizDene(id);
 
   await auditKaydet(session, "GOREV_KAPAT", {
     varlik: "VehicleTask",

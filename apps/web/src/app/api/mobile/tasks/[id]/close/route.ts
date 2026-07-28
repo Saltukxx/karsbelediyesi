@@ -5,6 +5,7 @@ import { assertTaskApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
 import { requireMobileUser } from "@/lib/mobile-auth";
 import { auditKaydet } from "@/lib/audit";
+import { gorevIziAnalizDene } from "@/lib/route-analysis";
 
 export async function POST(
   req: Request,
@@ -70,6 +71,8 @@ export async function POST(
       });
     }
   });
+
+  await gorevIziAnalizDene(id);
 
   await auditKaydet({ user }, "GOREV_KAPAT", {
     varlik: "VehicleTask",

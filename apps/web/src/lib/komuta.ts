@@ -2,6 +2,8 @@ import { prisma } from "@kars/db";
 import { KONUM_TAZELIK_MS } from "@/lib/location";
 import { gerekceOzeti, type DispatchGerekce } from "@/lib/dispatch";
 import { gecikenCopRotalari, gecikenKisRotalari } from "@/lib/sla-notify";
+import { rotayaUzaklikM, type LatLng } from "@/lib/geo-track";
+import { analizEsikleri } from "@/lib/route-analysis";
 
 export type KomutaSlaBucket = "lt24" | "d1to3" | "gt3";
 
@@ -17,6 +19,10 @@ export interface KomutaAracDto {
   taze: boolean;
   /** Devam eden görev (yoksa null) */
   aktifGorev: { gorevNo: string; tanim: string | null } | null;
+  /** Aktif dispatch görev rotasına uzaklık (m) — dispatch görevi/konum yoksa null */
+  rotaUzaklikM: number | null;
+  /** Rotada mı (uzaklık ≤ sapma eşiği) — hesaplanamıyorsa null */
+  rotada: boolean | null;
 }
 
 export interface KomutaSikayetPinDto {
@@ -46,7 +52,7 @@ export interface KomutaGecikenRotaDto {
 
 export interface KomutaBekleyenDto {
   jobId: string;
-  tip: "KIS" | "COP";
+  tip: "KIS" | "COP" | "TEMIZLIK";
   routeAd: string;
   plaka: string | null;
   aracTip: string | null;
@@ -124,7 +130,12 @@ export async function komutaVerisiGetir(): Promise<KomutaVeri> {
           where: { durum: "DEVAM_EDIYOR" },
           orderBy: { cikisTarihi: "desc" },
           take: 1,
-          select: { gorevNo: true, gorevTanimi: true, gorevYeri: true },
+          select: {
+            gorevNo: true,
+            gorevTanimi: true,
+            gorevYeri: true,
+            dispatchJob: { select: { tip: true, routeId: true } },
+          },
         },
       },
     }),
@@ -157,22 +168,67 @@ export async function komutaVerisiGetir(): Promise<KomutaVeri> {
     prisma.wasteCollection.count({ where: { baslangic: { gte: bugunBasi } } }),
   ]);
 
-  const aracDtos: KomutaAracDto[] = araclar.map((v) => ({
-    id: v.id,
-    plaka: v.plaka,
-    tip: v.vehicleType?.name ?? null,
-    lat: v.sonKonumLat,
-    lng: v.sonKonumLng,
-    konumZamani: v.sonKonumZamani?.toISOString() ?? null,
-    taze:
-      !!v.sonKonumZamani && now - v.sonKonumZamani.getTime() <= KONUM_TAZELIK_MS,
-    aktifGorev: v.tasks[0]
-      ? {
-          gorevNo: v.tasks[0].gorevNo,
-          tanim: v.tasks[0].gorevTanimi ?? v.tasks[0].gorevYeri ?? null,
-        }
-      : null,
-  }));
+  // Aktif dispatch görevi olan araçlar için rota polyline'larını toplu yükle
+  const dispatchRotaAnahtarlari = new Map<string, { tip: "KIS" | "COP" | "TEMIZLIK"; routeId: string }>();
+  for (const v of araclar) {
+    const dj = v.tasks[0]?.dispatchJob;
+    if (dj && v.sonKonumLat != null && v.sonKonumLng != null) {
+      dispatchRotaAnahtarlari.set(`${dj.tip}:${dj.routeId}`, dj);
+    }
+  }
+  const rotaKoordinatlari = new Map<string, LatLng[]>();
+  if (dispatchRotaAnahtarlari.size > 0) {
+    const idlerByTip = { KIS: [] as string[], COP: [] as string[], TEMIZLIK: [] as string[] };
+    for (const { tip, routeId } of dispatchRotaAnahtarlari.values()) idlerByTip[tip].push(routeId);
+    const [kisR, copR, temizlikR] = await Promise.all([
+      idlerByTip.KIS.length
+        ? prisma.winterRoute.findMany({ where: { id: { in: idlerByTip.KIS } }, select: { id: true, koordinatlar: true } })
+        : [],
+      idlerByTip.COP.length
+        ? prisma.wasteRoute.findMany({ where: { id: { in: idlerByTip.COP } }, select: { id: true, koordinatlar: true } })
+        : [],
+      idlerByTip.TEMIZLIK.length
+        ? prisma.cleaningRoute.findMany({ where: { id: { in: idlerByTip.TEMIZLIK } }, select: { id: true, koordinatlar: true } })
+        : [],
+    ]);
+    for (const r of kisR) rotaKoordinatlari.set(`KIS:${r.id}`, r.koordinatlar as LatLng[]);
+    for (const r of copR) rotaKoordinatlari.set(`COP:${r.id}`, r.koordinatlar as LatLng[]);
+    for (const r of temizlikR) rotaKoordinatlari.set(`TEMIZLIK:${r.id}`, r.koordinatlar as LatLng[]);
+  }
+  const esik = rotaKoordinatlari.size > 0 ? await analizEsikleri() : null;
+
+  const aracDtos: KomutaAracDto[] = araclar.map((v) => {
+    let rotaUzaklikM: number | null = null;
+    let rotada: boolean | null = null;
+    const dj = v.tasks[0]?.dispatchJob;
+    if (dj && v.sonKonumLat != null && v.sonKonumLng != null && esik) {
+      const koordinatlar = rotaKoordinatlari.get(`${dj.tip}:${dj.routeId}`);
+      if (koordinatlar && koordinatlar.length >= 2) {
+        rotaUzaklikM = Math.round(
+          rotayaUzaklikM([v.sonKonumLat, v.sonKonumLng], koordinatlar),
+        );
+        rotada = rotaUzaklikM <= esik.sapmaUyariM;
+      }
+    }
+    return {
+      id: v.id,
+      plaka: v.plaka,
+      tip: v.vehicleType?.name ?? null,
+      lat: v.sonKonumLat,
+      lng: v.sonKonumLng,
+      konumZamani: v.sonKonumZamani?.toISOString() ?? null,
+      taze:
+        !!v.sonKonumZamani && now - v.sonKonumZamani.getTime() <= KONUM_TAZELIK_MS,
+      aktifGorev: v.tasks[0]
+        ? {
+            gorevNo: v.tasks[0].gorevNo,
+            tanim: v.tasks[0].gorevTanimi ?? v.tasks[0].gorevYeri ?? null,
+          }
+        : null,
+      rotaUzaklikM,
+      rotada,
+    };
+  });
 
   const sikayetPinleri: KomutaSikayetPinDto[] = sikayetler
     .filter((s) => s.lat != null && s.lng != null)

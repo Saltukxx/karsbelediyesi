@@ -53,6 +53,7 @@ export const ACTION_ROLES = {
   harita: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
   kis: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
   cop: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
+  temizlik: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
   dispatch: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
 } as const;
 

@@ -31,6 +31,14 @@ import {
 const AUTH_DIR = path.join(__dirname, "../data/auth");
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
+/** Panelden kuyruğa atılan giden mesaj (web tarafındaki tanımla senkron tutulmalı) */
+export type OutboundJob = {
+  telefon: string;
+  text: string;
+  complaintId?: string;
+  sentByUserId?: string;
+};
+
 async function main() {
   await mkdir(AUTH_DIR, { recursive: true });
   await mkdir(MEDIA_DIR, { recursive: true });
@@ -143,6 +151,28 @@ async function main() {
         await sendText(job.data.telefon, result.reply);
       }
       return result;
+    },
+    { connection, concurrency: 1 },
+  );
+
+  // Panelden vatandaşa gönderilen mesajlar (personel cevapları)
+  new Worker<OutboundJob>(
+    "whatsapp-outbound",
+    async (job) => {
+      const { telefon, text, complaintId, sentByUserId } = job.data;
+      if (!sock) throw new Error("Socket yok");
+      const temiz = telefon.replace(/\D/g, "");
+      const jid = `${temiz}@s.whatsapp.net`;
+      await sock.sendMessage(jid, { text });
+      await prisma.whatsAppMessage.create({
+        data: {
+          telefon: temiz,
+          yon: "GIDEN",
+          icerik: text,
+          complaintId,
+          sentByUserId,
+        },
+      });
     },
     { connection, concurrency: 1 },
   );

@@ -150,6 +150,124 @@ export async function sikayetDurumGuncelle(formData: FormData) {
   revalidatePath("/");
 }
 
+export async function sikayetMudurlukAta(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.whatsapp); // ADMIN, CALL_CENTER
+
+  const id = String(formData.get("id"));
+  const departmentId = (formData.get("departmentId") as string) || null;
+
+  const mevcut = await loadComplaintForAccess(id);
+  if (!mevcut) throw new Error("Şikayet bulunamadı");
+  if (mevcut.departmentId === departmentId) return;
+
+  await prisma.complaint.update({
+    where: { id },
+    data: {
+      departmentId,
+      events: {
+        create: {
+          userId: session.user.id,
+          tip: "MUDURLUK_ATAMA",
+          detay: { eski: mevcut.departmentId, yeni: departmentId },
+        },
+      },
+    },
+  });
+
+  await auditKaydet(session, "SIKAYET_MUDURLUK_ATA", {
+    varlik: "Complaint",
+    varlikId: id,
+    detay: { sikayetNo: mevcut.sikayetNo, departmentId },
+  });
+
+  if (departmentId) {
+    const yoneticiler = await kullaniciIdleri(["DEPARTMENT_MANAGER"], departmentId);
+    await bildirimGonder(
+      yoneticiler.filter((uid) => uid !== session.user.id),
+      {
+        tip: "ATAMA",
+        baslik: `${mevcut.sikayetNo} müdürlüğünüze yönlendirildi`,
+        mesaj: `${session.user.name} şikayeti müdürlüğünüze atadı.`,
+        href: `/sikayetler/${id}`,
+      },
+    );
+  }
+
+  revalidatePath(`/sikayetler/${id}`);
+  revalidatePath("/sikayetler");
+}
+
+export async function sikayetPersonelAta(formData: FormData) {
+  const session = await requireRoles(["ADMIN", "DEPARTMENT_MANAGER"]);
+
+  const id = String(formData.get("id"));
+  const personnelIds = formData.getAll("personnelIds").map(String).filter(Boolean);
+  if (personnelIds.length === 0) throw new Error("En az bir personel seçin");
+
+  const mevcut = await loadComplaintForAccess(id);
+  if (!mevcut || !canAccessComplaint(toAccessUser(session.user), mevcut)) {
+    throw new Error("Yetkisiz");
+  }
+
+  // Müdür yalnızca kendi müdürlüğündeki personeli atayabilir
+  const personeller = await prisma.personnel.findMany({
+    where: {
+      id: { in: personnelIds },
+      durum: "AKTIF",
+      ...(session.user.role === "DEPARTMENT_MANAGER"
+        ? { departmentId: session.user.departmentId ?? "-" }
+        : {}),
+    },
+    select: { id: true, adSoyad: true, userId: true },
+  });
+  if (personeller.length !== personnelIds.length) {
+    throw new Error("Seçilen personel bulunamadı veya müdürlüğünüze bağlı değil");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.complaintPersonnel.createMany({
+      data: personnelIds.map((personnelId) => ({ complaintId: id, personnelId })),
+      skipDuplicates: true,
+    });
+    await tx.complaint.update({
+      where: { id },
+      data: {
+        ...(mevcut.durum === "ACIK" ? { durum: "DEVAM_EDIYOR" } : {}),
+        events: {
+          create: {
+            userId: session.user.id,
+            tip: "GOREVLENDIRME",
+            detay: { personnelIds, personel: personeller.map((p) => p.adSoyad) },
+          },
+        },
+      },
+    });
+  });
+
+  await auditKaydet(session, "SIKAYET_PERSONEL_ATA", {
+    varlik: "Complaint",
+    varlikId: id,
+    detay: { sikayetNo: mevcut.sikayetNo, personnelIds },
+  });
+
+  const personelUserIds = personeller
+    .map((p) => p.userId)
+    .filter((uid): uid is string => !!uid);
+  await bildirimGonder(
+    personelUserIds.filter((uid) => uid !== session.user.id),
+    {
+      tip: "ATAMA",
+      baslik: `${mevcut.sikayetNo} size atandı`,
+      mesaj: `${session.user.name} şikayeti size görevlendirdi.`,
+      href: `/islerim`,
+    },
+  );
+
+  revalidatePath(`/sikayetler/${id}`);
+  revalidatePath("/sikayetler");
+  revalidatePath("/islerim");
+}
+
 export async function sikayetAta(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.complaints);
 

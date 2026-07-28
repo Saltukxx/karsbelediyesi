@@ -14,7 +14,24 @@ export const OTOMATIK_ATAMA_KEY = "dispatchOtomatikAtama";
 const TIP_REGEX: Record<DispatchTip, RegExp> = {
   KIS: /kar|tuz|grey|k[üu]re|kep[çc]e|greyder|dozer/i,
   COP: /[çc][öo]p|s[ıi]k[ıi][şs]t[ıi]rma|hidrolik/i,
+  TEMIZLIK: /s[üu]p[üu]rge|temizlik|vakum|ar[oa]z[öo]z/i,
 };
+
+/** Dispatch tipinin kullanıcıya görünen adı */
+export function tipLabel(tip: DispatchTip): string {
+  switch (tip) {
+    case "KIS":
+      return "Kış operasyonu";
+    case "COP":
+      return "Çöp toplama";
+    case "TEMIZLIK":
+      return "Yol temizliği";
+    default: {
+      const _exhaustive: never = tip;
+      return _exhaustive;
+    }
+  }
+}
 
 /** Ağırlıklar — toplam 1.0 */
 const AGIRLIK = {
@@ -89,16 +106,31 @@ async function rotaYukle(
   tip: DispatchTip,
   routeId: string,
 ): Promise<{ ad: string; baslangic: [number, number] } | null> {
-  const route =
-    tip === "KIS"
-      ? await prisma.winterRoute.findUnique({
-          where: { id: routeId },
-          select: { ad: true, koordinatlar: true },
-        })
-      : await prisma.wasteRoute.findUnique({
-          where: { id: routeId },
-          select: { ad: true, koordinatlar: true },
-        });
+  let route: { ad: string; koordinatlar: unknown } | null;
+  switch (tip) {
+    case "KIS":
+      route = await prisma.winterRoute.findUnique({
+        where: { id: routeId },
+        select: { ad: true, koordinatlar: true },
+      });
+      break;
+    case "COP":
+      route = await prisma.wasteRoute.findUnique({
+        where: { id: routeId },
+        select: { ad: true, koordinatlar: true },
+      });
+      break;
+    case "TEMIZLIK":
+      route = await prisma.cleaningRoute.findUnique({
+        where: { id: routeId },
+        select: { ad: true, koordinatlar: true },
+      });
+      break;
+    default: {
+      const _exhaustive: never = tip;
+      return _exhaustive;
+    }
+  }
   if (!route) return null;
   const koordinatlar = route.koordinatlar as [number, number][];
   if (!Array.isArray(koordinatlar) || koordinatlar.length === 0) return null;
@@ -450,7 +482,7 @@ export async function dispatchAta(
   if (!job.vehicle) throw new Error("Öneride araç yok");
 
   const arac = job.vehicle;
-  const tipLabel = job.tip === "KIS" ? "Kış operasyonu" : "Çöp toplama";
+  const etiket = tipLabel(job.tip);
   const cikis = new Date();
 
   const created = await withSerialRetry(prisma, async (tx) => {
@@ -470,7 +502,7 @@ export async function dispatchAta(
         sira,
         vehicleId: arac.id,
         gorevYeri: job.routeAd,
-        gorevTanimi: `${tipLabel}: ${job.routeAd}`,
+        gorevTanimi: `${etiket}: ${job.routeAd}`,
         cikisTarihi: cikis,
         driverId: arac.atananSoforId ?? undefined,
         durum: "DEVAM_EDIYOR",
@@ -494,7 +526,7 @@ export async function dispatchAta(
   ].filter((uid) => uid !== atayan.id);
   await bildirimGonder(bildirilecekler, {
     tip: "ATAMA",
-    baslik: `${tipLabel} ataması: ${created.gorevNo}`,
+    baslik: `${etiket} ataması: ${created.gorevNo}`,
     mesaj: `${arac.plaka} → ${job.routeAd} (tahmini varış ${job.sureDk ?? "?"} dk)`,
     href: "/gorevler",
   });

@@ -30,6 +30,7 @@ export type NavIconName =
   | "LandPlot"
   | "Snowflake"
   | "Trash2"
+  | "Brush"
   | "ShieldCheck"
   | "Settings";
 
@@ -74,7 +75,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/parsel", label: "Parsel Sorgu", icon: "LandPlot", group: "genel", roles: TUM_ROLLER },
   { href: "/kis", label: "Kış Operasyonu", icon: "Snowflake", group: "genel", roles: TUM_ROLLER },
   { href: "/cop", label: "Çöp Toplama", icon: "Trash2", group: "genel", roles: TUM_ROLLER },
+  { href: "/temizlik", label: "Yol Temizliği", icon: "Brush", group: "genel", roles: TUM_ROLLER },
   { href: "/sikayetler", label: "Şikayet Kayıt & Takip", icon: "PhoneCall", group: "cagri", roles: ["ADMIN", "CALL_CENTER", "DEPARTMENT_MANAGER", "APPROVER"] },
+  { href: "/islerim", label: "İşlerim", icon: "ClipboardList", group: "cagri", roles: ["ADMIN", ...SAHA] },
   { href: "/whatsapp", label: "WhatsApp Kuyruğu", icon: "MessageCircle", group: "cagri", roles: ["ADMIN", "CALL_CENTER"] },
   { href: "/gorevler", label: "Görevlendirme", icon: "ClipboardList", group: "cagri", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },
   { href: "/kontrol-listeleri", label: "Kontrol Listeleri", icon: "CheckSquare", group: "cagri", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },
@@ -98,8 +101,8 @@ const FAVORITES: Record<Rol, string[]> = {
   CALL_CENTER: ["/sikayetler", "/sikayetler/yeni", "/whatsapp"],
   DEPARTMENT_MANAGER: ["/", "/sikayetler", "/gorevler", "/araclar"],
   APPROVER: ["/sikayetler", "/gorevler", "/raporlar"],
-  DRIVER: ["/", "/gorevler", "/gunluk-calisma"],
-  FIELD_WORKER: ["/", "/gorevler", "/kontrol-listeleri", "/gunluk-calisma"],
+  DRIVER: ["/islerim", "/gorevler", "/gunluk-calisma"],
+  FIELD_WORKER: ["/islerim", "/gorevler", "/kontrol-listeleri", "/gunluk-calisma"],
 };
 
 /** Varsayılan landing (layout redirect) */
@@ -107,8 +110,9 @@ export function landingPathForRole(role: Rol): string {
   switch (role) {
     case "CALL_CENTER":
       return "/sikayetler";
-    case "DRIVER":
     case "FIELD_WORKER":
+      return "/islerim";
+    case "DRIVER":
       return "/";
     default:
       return "/";
@@ -116,12 +120,7 @@ export function landingPathForRole(role: Rol): string {
 }
 
 export function navForRole(role: Rol): NavItem[] {
-  return NAV_ITEMS.filter((i) => i.roles.includes(role)).map((i) => {
-    if (i.href === "/" && (role === "DRIVER" || role === "FIELD_WORKER")) {
-      return { ...i, label: "İşlerim" };
-    }
-    return i;
-  });
+  return NAV_ITEMS.filter((i) => i.roles.includes(role));
 }
 
 export function favoritesForRole(role: Rol): NavItem[] {
@@ -140,13 +139,7 @@ export function favoritesForRole(role: Rol): NavItem[] {
   return hrefs
     .map((h) => byHref.get(h) ?? extras[h])
     .filter((i): i is NavItem => Boolean(i) && i.roles.includes(role))
-    .slice(0, 4)
-    .map((i) => {
-      if (i.href === "/" && (role === "DRIVER" || role === "FIELD_WORKER")) {
-        return { ...i, label: "İşlerim" };
-      }
-      return i;
-    });
+    .slice(0, 4);
 }
 
 export function groupedNav(items: NavItem[]): Array<{ group: NavGroup; items: NavItem[] }> {
