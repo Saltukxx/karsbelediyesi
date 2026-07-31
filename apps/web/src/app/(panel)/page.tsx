@@ -1,23 +1,18 @@
-import { prisma } from "@kars/db";
 import {
-  OPERASYON_DURUM_LABELS,
   ENVANTER_DURUM_LABELS,
-  toplamOperasyonMaliyeti,
-  mevcutStok,
-  stokDurumu,
-  betonGuncelStok,
-  betonStokDurumu,
   GOREV_DURUM_LABELS,
+  OPERASYON_DURUM_LABELS,
 } from "@kars/shared";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
+  ClipboardList,
   MessageCircle,
   Package,
   Wrench,
-  ClipboardList,
 } from "lucide-react";
+import { prisma } from "@kars/db";
 import { auth } from "@/auth";
 import { landingPathForRole } from "@/lib/nav";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -25,10 +20,24 @@ import { StatCard } from "@/components/ui/StatCard";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { btnPrimary, btnSecondary, sectionTitleCls } from "@/lib/ui";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { buttonCls, cardCls, sectionTitleCls } from "@/lib/ui";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
 import { gorevBaslat, gorevKapat } from "@/lib/actions/tasks";
 import { computeSlaSummary } from "@/lib/sla";
+import { computeDashboard } from "@/lib/dashboard";
+import { resolveRange, trDayKey } from "@/lib/dashboard-range";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { RangePicker } from "@/components/dashboard/RangePicker";
+import { KB } from "@/components/charts/theme";
+import {
+  ComplaintTrendChart,
+  CostTrendChart,
+  DepartmentChart,
+  SlaChart,
+  TypeChart,
+  VehicleStatusChart,
+} from "@/components/dashboard/DashboardCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +80,42 @@ function ActionCard({
   );
 }
 
-export default async function DashboardPage() {
+/** Grafiklerin altındaki sayısal kırılımlar — varsayılan olarak kapalı. */
+function DetailSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className={`${cardCls} group`}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 text-sm font-semibold text-kb-ink">
+        <span>
+          {title}
+          {description && (
+            <span className="ml-2 font-normal text-kb-muted">{description}</span>
+          )}
+        </span>
+        <span className="text-xs font-medium text-kb-navy group-open:hidden">
+          Aç
+        </span>
+        <span className="hidden text-xs font-medium text-kb-navy group-open:inline">
+          Kapat
+        </span>
+      </summary>
+      <div className="border-t border-kb-border">{children}</div>
+    </details>
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requirePageAccess("/");
   const session = await auth();
   if (!session) redirect("/giris");
@@ -82,6 +126,7 @@ export default async function DashboardPage() {
     redirect(landing);
   }
 
+  // ── Şoför / saha personeli: sade görev listesi ──────────────────────────
   if (role === "DRIVER" || role === "FIELD_WORKER") {
     const myTasks = await prisma.vehicleTask.findMany({
       where: {
@@ -99,7 +144,7 @@ export default async function DashboardPage() {
           title="İşlerim"
           description="Size atanan açık ve devam eden görevler."
           actions={
-            <Link href="/gunluk-calisma" className={btnSecondary}>
+            <Link href="/gunluk-calisma" className={buttonCls("secondary")}>
               Günlük çalışma kaydı
             </Link>
           }
@@ -132,7 +177,10 @@ export default async function DashboardPage() {
             emptyTitle="Atanmış görev yok"
             emptyDescription="Yeni görev atandığında burada görünecek."
             emptyAction={
-              <Link href="/gorevler" className="text-sm font-semibold text-kb-navy underline">
+              <Link
+                href="/gorevler"
+                className="text-sm font-semibold text-kb-navy underline"
+              >
                 Tüm görevler
               </Link>
             }
@@ -159,17 +207,28 @@ export default async function DashboardPage() {
                     {g.durum === "PLANLANDI" ? (
                       <form action={gorevBaslat}>
                         <input type="hidden" name="id" value={g.id} />
-                        <button type="submit" className={`${btnPrimary} !py-1.5 !px-3 text-xs`}>
+                        <SubmitButton
+                          size="sm"
+                          className="text-xs"
+                          pendingLabel="Başlatılıyor…"
+                        >
                           Başlat
-                        </button>
+                        </SubmitButton>
                       </form>
                     ) : (
-                      <form action={gorevKapat} className="flex flex-wrap items-center gap-2">
+                      <form
+                        action={gorevKapat}
+                        className="flex flex-wrap items-center gap-2"
+                      >
                         <input type="hidden" name="id" value={g.id} />
                         <input type="hidden" name="durum" value="TAMAMLANDI" />
-                        <button type="submit" className={`${btnSecondary} !py-1.5 !px-3 text-xs`}>
+                        <SubmitButton
+                          variant="secondary"
+                          className="text-xs"
+                          pendingLabel="Kapatılıyor…"
+                        >
                           Kapat
-                        </button>
+                        </SubmitButton>
                       </form>
                     )}
                   </td>
@@ -182,271 +241,195 @@ export default async function DashboardPage() {
     );
   }
 
-  const in30 = new Date();
-  in30.setDate(in30.getDate() + 30);
-  const dept = departmentScope(session as never);
-  const sla = await computeSlaSummary(session as never);
+  // ── Yönetim görünümü ───────────────────────────────────────────────────
+  const sp = await searchParams;
+  const tek = (v: string | string[] | undefined) =>
+    Array.isArray(v) ? v[0] : v;
+  const range = resolveRange(tek(sp.aralik), tek(sp.bas), tek(sp.bit));
 
-  const [
-    toplamSikayet,
-    acik,
-    devamEden,
-    kapatilan,
-    cokAcil,
-    acil,
-    mudurlukDagilim,
-    turDagilim,
-    aracDurum,
-    envanterDurum,
-    bakimToplam,
-    yakitToplam,
-    yaklasanBakimlar,
-    onayBekleyenWhatsApp,
-    acilSikayet,
-    devamGorev,
-    yaklasanMuayene,
-    materials,
-    materialSums,
-    betonStocks,
-    betonCikis,
-    bitumSettings,
-    bitumDepots,
-    bitumMovements,
-  ] = await Promise.all([
-    prisma.complaint.count({ where: dept }),
-    prisma.complaint.count({ where: { durum: "ACIK", ...dept } }),
-    prisma.complaint.count({ where: { durum: "DEVAM_EDIYOR", ...dept } }),
-    prisma.complaint.count({ where: { durum: "KAPATILDI", ...dept } }),
-    prisma.complaint.count({
-      where: { oncelik: "COK_ACIL", durum: { not: "KAPATILDI" }, ...dept },
-    }),
-    prisma.complaint.count({
-      where: { oncelik: "ACIL", durum: { not: "KAPATILDI" }, ...dept },
-    }),
-    prisma.department.findMany({
-      where: {
-        aktif: true,
-        ...(dept.departmentId ? { id: dept.departmentId } : {}),
-      },
-      select: {
-        id: true,
-        name: true,
-        _count: { select: { complaints: true } },
-        complaints: { select: { durum: true, oncelik: true } },
-      },
-      orderBy: { name: "asc" },
-    }),
-    prisma.complaintType.findMany({
-      where: { aktif: true },
-      select: {
-        name: true,
-        complaints: {
-          where: dept,
-          select: { durum: true },
-        },
-      },
-    }),
-    prisma.vehicle.groupBy({
-      by: ["operasyonDurumu"],
-      where: dept,
-      _count: true,
-    }),
-    prisma.vehicle.groupBy({
-      by: ["envanterDurumu"],
-      where: dept,
-      _count: true,
-    }),
-    prisma.maintenanceRecord.aggregate({
-      where: dept.departmentId
-        ? { vehicle: { departmentId: dept.departmentId } }
-        : undefined,
-      _sum: { maliyet: true },
-      _count: true,
-    }),
-    prisma.fuelRecord.aggregate({
-      where: dept.departmentId
-        ? { vehicle: { departmentId: dept.departmentId } }
-        : undefined,
-      _sum: { litre: true, tutar: true },
-    }),
-    prisma.maintenanceRecord.findMany({
-      where: dept.departmentId
-        ? { vehicle: { departmentId: dept.departmentId } }
-        : undefined,
-      take: 10,
-      orderBy: { createdAt: "desc" },
-      include: { vehicle: { select: { plaka: true, ad: true } } },
-    }),
-    prisma.whatsAppMessage.count({ where: { onayDurumu: "ONAY_BEKLIYOR" } }),
-    prisma.complaint.count({
-      where: {
-        oncelik: { in: ["ACIL", "COK_ACIL"] },
-        durum: { in: ["ACIK", "DEVAM_EDIYOR"] },
-        ...dept,
-      },
-    }),
-    prisma.vehicleTask.count({
-      where: {
-        durum: "DEVAM_EDIYOR",
-        ...(dept.departmentId
-          ? {
-              OR: [
-                { talepEdenDepartmentId: dept.departmentId },
-                { vehicle: { departmentId: dept.departmentId } },
-              ],
-            }
-          : {}),
-      },
-    }),
-    prisma.vehicle.count({
-      where: {
-        OR: [
-          { muayeneTarihi: { lte: in30 } },
-          { sigortaBitis: { lte: in30 } },
-          { sonrakiBakimTarihi: { lte: in30 } },
-        ],
-        envanterDurumu: { not: "HURDAYA_AYRILDI" },
-        ...dept,
-      },
-    }),
-    prisma.material.findMany({ where: { aktif: true } }),
-    prisma.materialMovement.groupBy({
-      by: ["materialId", "tip"],
-      _sum: { miktar: true },
-    }),
-    prisma.concreteStock.findMany(),
-    prisma.concreteProduction.aggregate({
-      _sum: {
-        cimentoKg: true,
-        kumKg: true,
-        micir05Kg: true,
-        micir512Kg: true,
-        micir1219Kg: true,
-        suLt: true,
-        katkiKg: true,
-      },
-    }),
-    prisma.bitumSettings.findUnique({ where: { id: "default" } }),
-    prisma.bitumDepot.findMany({ where: { aktif: true } }),
-    prisma.bitumMovement.findMany({ select: { tip: true, depoId: true, kaynakDepoId: true, hedefDepoId: true, kullanimDepoId: true, miktarTon: true } }),
+  const dept = departmentScope(session as never);
+  const [data, sla] = await Promise.all([
+    computeDashboard(session as never, range),
+    computeSlaSummary(session as never),
   ]);
 
-  const kritikMalzeme = materials.filter((m) => {
-    const giris = Number(
-      materialSums.find((s) => s.materialId === m.id && s.tip === "GIRIS")?._sum.miktar ?? 0,
-    );
-    const cikis = Number(
-      materialSums.find((s) => s.materialId === m.id && s.tip === "CIKIS")?._sum.miktar ?? 0,
-    );
-    return stokDurumu(mevcutStok(giris, cikis), m.kritikStok) === "KRITIK";
-  }).length;
+  const { kpi, anlik } = data;
+  const kapsam =
+    "departmentId" in dept ? "Müdürlüğünüze ait kayıtlar" : "Tüm müdürlükler";
+  const araligiYaz = `${trDayKey(range.bas)} — ${trDayKey(range.bit)}`;
 
-  const sum = betonCikis._sum;
-  const cikisMap: Record<string, number> = {
-    Cimento: sum.cimentoKg ?? 0,
-    Kum: sum.kumKg ?? 0,
-    "Micir 0-5mm": sum.micir05Kg ?? 0,
-    "Micir 5-12mm": sum.micir512Kg ?? 0,
-    "Micir 12-19mm": sum.micir1219Kg ?? 0,
-    Su: sum.suLt ?? 0,
-    Katki: sum.katkiKg ?? 0,
+  const aracRenkleri: Record<string, string> = {
+    MUSAIT: KB.success,
+    GOREVDE: KB.info,
+    BAKIMDA: KB.warning,
+    ARIZALI: KB.danger,
+    PLANLI_BAKIM: KB.muted,
   };
-  const kritikBeton = betonStocks.filter((s) => {
-    const stok = betonGuncelStok(s.baslangicStok, s.toplamGiris, cikisMap[s.malzeme] ?? 0);
-    return betonStokDurumu(stok, s.kritikSeviye) === "KRITIK";
-  }).length;
+  // Grafik etiketlerinde emoji istemiyoruz
+  const aracDurumAdi: Record<string, string> = {
+    MUSAIT: "Müsait",
+    GOREVDE: "Görevde",
+    BAKIMDA: "Bakımda",
+    ARIZALI: "Arızalı",
+    PLANLI_BAKIM: "Planlı bakım",
+  };
 
-  // Bitüm depo doluluk — basit net stok (alış − taşıma çıkış − kullanım)
-  let kritikBitum = 0;
-  if (bitumSettings && bitumDepots.length) {
-    for (const d of bitumDepots) {
-      let stok = 0;
-      for (const h of bitumMovements) {
-        if (h.tip === "ALIS" && h.depoId === d.id) stok += h.miktarTon;
-        if (h.tip === "TASIMA" && h.kaynakDepoId === d.id) stok -= h.miktarTon;
-        if (h.tip === "TASIMA" && h.hedefDepoId === d.id) stok += h.miktarTon;
-        if (h.tip === "KULLANIM" && (h.kullanimDepoId === d.id || h.depoId === d.id)) {
-          stok -= h.miktarTon;
-        }
+  const aracGrafik = Object.keys(aracDurumAdi).map((k) => ({
+    name: aracDurumAdi[k],
+    value: anlik.aracOperasyon[k] ?? 0,
+    color: aracRenkleri[k],
+  }));
+
+  // Onaylayan rolü için WhatsApp onayı en öne alınır
+  const acilKart = (
+    <ActionCard
+      key="acil"
+      href="/sikayetler?sekme=aktif"
+      title="Acil şikayet"
+      count={anlik.acilSikayet}
+      hint="Açık / devam · acil & çok acil"
+      tone={anlik.acilSikayet > 0 ? "danger" : "navy"}
+      icon={AlertTriangle}
+    />
+  );
+  const whatsappKart = (
+    <ActionCard
+      key="whatsapp"
+      href="/whatsapp"
+      title="WhatsApp onay"
+      count={anlik.onayBekleyenWhatsApp}
+      hint="Onay bekleyen mesaj"
+      tone={anlik.onayBekleyenWhatsApp > 0 ? "warning" : "navy"}
+      icon={MessageCircle}
+    />
+  );
+  const digerKartlar = [
+    <ActionCard
+      key="stok"
+      href={
+        anlik.kritikBeton > 0
+          ? "/beton?tab=stok"
+          : anlik.kritikBitum > 0
+            ? "/bitum?tab=ozet"
+            : "/malzeme-depo?tab=stok"
       }
-      const oran = d.kapasite > 0 ? stok / d.kapasite : 0;
-      if (oran <= bitumSettings.kritikEsik) kritikBitum += 1;
-    }
-  }
-
-  const kritikStokToplam = kritikMalzeme + kritikBeton + kritikBitum;
-
-  const opDurum = Object.fromEntries(aracDurum.map((d) => [d.operasyonDurumu, d._count]));
-  const envDurum = Object.fromEntries(envanterDurum.map((d) => [d.envanterDurumu, d._count]));
-  const bakimTL = Number(bakimToplam._sum.maliyet ?? 0);
-  const yakitLt = Number(yakitToplam._sum.litre ?? 0);
-  const yakitTL = Number(yakitToplam._sum.tutar ?? 0);
-  const operasyonTL = toplamOperasyonMaliyeti(bakimTL, yakitTL);
-  const tarih = new Date().toLocaleDateString("tr-TR", { dateStyle: "long" });
+      title="Kritik stok"
+      count={anlik.kritikStokToplam}
+      hint="Malzeme / beton / bitüm"
+      tone={anlik.kritikStokToplam > 0 ? "danger" : "success"}
+      icon={Package}
+    />,
+    <ActionCard
+      key="bakim"
+      href="/bakim"
+      title="Yaklaşan bakım"
+      count={anlik.yaklasanMuayene}
+      hint="30 gün içinde muayene / sigorta / bakım"
+      tone={anlik.yaklasanMuayene > 0 ? "warning" : "navy"}
+      icon={Wrench}
+    />,
+    <ActionCard
+      key="gorev"
+      href="/gorevler?durum=DEVAM_EDIYOR"
+      title="Devam eden görev"
+      count={anlik.devamGorev}
+      hint="Sahada devam eden işler"
+      tone={anlik.devamGorev > 0 ? "warning" : "navy"}
+      icon={ClipboardList}
+    />,
+  ];
+  const aksiyonKartlari =
+    role === "APPROVER"
+      ? [whatsappKart, acilKart, ...digerKartlar]
+      : [acilKart, whatsappKart, ...digerKartlar];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description={`${tarih} — bugün ne yapılacak?`}
+        description={`${kapsam} · ${araligiYaz}`}
+        actions={<RangePicker range={range} />}
       />
+
+      <section className="space-y-3">
+        <h2 className={sectionTitleCls}>
+          Seçili dönem · önceki dönemle karşılaştırma
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <KpiCard label="Yeni şikayet" delta={kpi.yeniSikayet} />
+          <KpiCard label="Kapatılan şikayet" delta={kpi.kapatilanSikayet} />
+          <KpiCard
+            label="Ort. kapanış süresi"
+            delta={kpi.ortKapanisGun}
+            format="gun"
+            dusukIyi
+          />
+          <KpiCard label="Tamamlanan görev" delta={kpi.tamamlananGorev} />
+          <KpiCard
+            label="Operasyon maliyeti"
+            delta={kpi.operasyonMaliyeti}
+            format="tl"
+            dusukIyi
+            hint="Bakım + yakıt"
+          />
+        </div>
+      </section>
 
       <section className="space-y-3">
         <h2 className={sectionTitleCls}>Bugün yapılacaklar</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <ActionCard
-            href="/sikayetler?sekme=aktif"
-            title="Acil şikayet"
-            count={acilSikayet}
-            hint="Açık / devam · acil & çok acil"
-            tone={acilSikayet > 0 ? "danger" : "navy"}
-            icon={AlertTriangle}
-          />
-          <ActionCard
-            href="/whatsapp"
-            title="WhatsApp onay"
-            count={onayBekleyenWhatsApp}
-            hint="Onay bekleyen mesaj"
-            tone={onayBekleyenWhatsApp > 0 ? "warning" : "navy"}
-            icon={MessageCircle}
-          />
-          <ActionCard
-            href={kritikBeton > 0 ? "/beton?tab=stok" : kritikBitum > 0 ? "/bitum?tab=ozet" : "/malzeme-depo?tab=stok"}
-            title="Kritik stok"
-            count={kritikStokToplam}
-            hint="Malzeme / beton / bitüm"
-            tone={kritikStokToplam > 0 ? "danger" : "success"}
-            icon={Package}
-          />
-          <ActionCard
-            href="/bakim"
-            title="Yaklaşan bakım"
-            count={yaklasanMuayene}
-            hint="30 gün içinde muayene / sigorta / bakım"
-            tone={yaklasanMuayene > 0 ? "warning" : "navy"}
-            icon={Wrench}
-          />
-          <ActionCard
-            href="/gorevler?durum=DEVAM_EDIYOR"
-            title="Devam eden görev"
-            count={devamGorev}
-            hint="Sahada devam eden işler"
-            tone={devamGorev > 0 ? "warning" : "navy"}
-            icon={ClipboardList}
-          />
+          {aksiyonKartlari}
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard label="SLA 24 saatten az" value={sla.bucketLt24h} />
-          <StatCard label="SLA 1–3 gün" value={sla.bucket1to3d} tone="warning" />
+      </section>
+
+      <ComplaintTrendChart data={data.trend} />
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <DepartmentChart data={data.mudurlukDagilim} />
+        <TypeChart data={data.turDagilim} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <SlaChart
+          data={{
+            lt24h: sla.bucketLt24h,
+            d1to3: sla.bucket1to3d,
+            gt3d: sla.bucketGt3d,
+          }}
+        />
+        <VehicleStatusChart data={aracGrafik} />
+      </div>
+
+      <CostTrendChart data={data.maliyetTrend} />
+
+      <section className="space-y-3">
+        <h2 className={sectionTitleCls}>Anlık durum</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <StatCard label="Açık şikayet" value={anlik.acikSikayet} tone="navy" />
           <StatCard
-            label="SLA 3 günden fazla"
-            value={sla.bucketGt3d}
-            tone={sla.bucketGt3d > 0 ? "danger" : "navy"}
+            label="Devam eden"
+            value={anlik.devamEdenSikayet}
+            tone="warning"
+          />
+          <StatCard label="Çok acil" value={anlik.cokAcil} tone="danger" />
+          <StatCard label="Acil" value={anlik.acil} tone="warning" />
+          <StatCard
+            label="Kritik stok"
+            value={anlik.kritikStokToplam}
+            tone={anlik.kritikStokToplam > 0 ? "danger" : "success"}
+          />
+          <StatCard
+            label="Yaklaşan bakım"
+            value={anlik.yaklasanMuayene}
+            tone={anlik.yaklasanMuayene > 0 ? "warning" : "navy"}
           />
         </div>
         <p className="text-xs text-kb-muted">
           Detaylı SLA ve müdürlük KPI için{" "}
-          <Link href="/raporlar" className="font-semibold text-kb-navy underline">
+          <Link
+            href="/raporlar"
+            className="font-semibold text-kb-navy underline"
+          >
             Raporlar
           </Link>
           .
@@ -454,55 +437,18 @@ export default async function DashboardPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className={sectionTitleCls}>Şikayet özeti</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-          <StatCard label="Toplam" value={toplamSikayet} />
-          <StatCard label="Açık" value={acik} tone="navy" />
-          <StatCard label="Devam Eden" value={devamEden} tone="warning" />
-          <StatCard label="Kapatılan" value={kapatilan} tone="success" />
-          <StatCard label="Çok Acil" value={cokAcil} tone="danger" />
-          <StatCard label="Acil" value={acil} tone="warning" />
-        </div>
-      </section>
+        <h2 className={sectionTitleCls}>Sayısal kırılımlar</h2>
 
-      <section className="space-y-3">
-        <h2 className={sectionTitleCls}>Araç durumu</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-          <StatCard label={OPERASYON_DURUM_LABELS.MUSAIT} value={opDurum.MUSAIT ?? 0} tone="success" />
-          <StatCard label={OPERASYON_DURUM_LABELS.GOREVDE} value={opDurum.GOREVDE ?? 0} tone="danger" />
-          <StatCard label={OPERASYON_DURUM_LABELS.BAKIMDA} value={opDurum.BAKIMDA ?? 0} tone="warning" />
-          <StatCard label={OPERASYON_DURUM_LABELS.ARIZALI} value={opDurum.ARIZALI ?? 0} tone="danger" />
-          <StatCard label={OPERASYON_DURUM_LABELS.PLANLI_BAKIM} value={opDurum.PLANLI_BAKIM ?? 0} />
-        </div>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard label={`Envanter: ${ENVANTER_DURUM_LABELS.AKTIF}`} value={envDurum.AKTIF ?? 0} hint="Çalışır durumda" />
-          <StatCard label={ENVANTER_DURUM_LABELS.BAKIMDA} value={envDurum.BAKIMDA ?? 0} hint="Bakım / onarımda" />
-          <StatCard label={ENVANTER_DURUM_LABELS.ARIZALI} value={envDurum.ARIZALI ?? 0} hint="Arıza mevcut" />
-          <StatCard label={ENVANTER_DURUM_LABELS.HURDAYA_AYRILDI} value={envDurum.HURDAYA_AYRILDI ?? 0} />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className={sectionTitleCls}>Maliyetler</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard label="Bakım kayıt" value={bakimToplam._count} />
-          <StatCard label="Bakım maliyeti" value={`${bakimTL.toLocaleString("tr-TR")} ₺`} />
-          <StatCard label="Yakıt" value={`${yakitLt.toLocaleString("tr-TR")} Lt`} hint={`${yakitTL.toLocaleString("tr-TR")} ₺`} />
-          <StatCard
-            label="Operasyon toplamı"
-            value={`${operasyonTL.toLocaleString("tr-TR")} ₺`}
-            hint="Bakım + yakıt"
-            tone="navy"
-          />
-        </div>
-      </section>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card padding={false}>
-          <div className="p-5 pb-0">
-            <CardHeader title="Müdürlük bazlı şikayet dağılımı" />
-          </div>
-          <DataTable framed={false} minWidth="640px" empty={mudurlukDagilim.length === 0}>
+        <DetailSection
+          title="Müdürlük bazlı şikayet dağılımı"
+          description={araligiYaz}
+        >
+          <DataTable
+            framed={false}
+            minWidth="640px"
+            empty={data.mudurlukDagilim.length === 0}
+            emptyTitle="Seçili dönemde şikayet yok"
+          >
             <thead>
               <tr>
                 <th>Müdürlük</th>
@@ -515,38 +461,28 @@ export default async function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {mudurlukDagilim
-                .filter((m) => m.name !== "Diğer" || m._count.complaints > 0)
-                .map((m) => (
-                  <tr key={m.id}>
-                    <td>{m.name}</td>
-                    <td className="text-center font-semibold">{m._count.complaints}</td>
-                    <td className="text-center text-kb-info">
-                      {m.complaints.filter((c) => c.durum === "ACIK").length}
-                    </td>
-                    <td className="text-center text-kb-warning">
-                      {m.complaints.filter((c) => c.durum === "DEVAM_EDIYOR").length}
-                    </td>
-                    <td className="text-center text-kb-success">
-                      {m.complaints.filter((c) => c.durum === "KAPATILDI").length}
-                    </td>
-                    <td className="text-center text-kb-danger">
-                      {m.complaints.filter((c) => c.oncelik === "COK_ACIL").length}
-                    </td>
-                    <td className="text-center text-kb-accent">
-                      {m.complaints.filter((c) => c.oncelik === "ACIL").length}
-                    </td>
-                  </tr>
-                ))}
+              {data.mudurlukDagilim.map((m) => (
+                <tr key={m.id ?? "yok"}>
+                  <td>{m.name}</td>
+                  <td className="text-center font-semibold">{m.toplam}</td>
+                  <td className="text-center text-kb-info">{m.acik}</td>
+                  <td className="text-center text-kb-warning">{m.devam}</td>
+                  <td className="text-center text-kb-success">{m.kapatildi}</td>
+                  <td className="text-center text-kb-danger">{m.cokAcil}</td>
+                  <td className="text-center text-kb-accent">{m.acil}</td>
+                </tr>
+              ))}
             </tbody>
           </DataTable>
-        </Card>
+        </DetailSection>
 
-        <Card padding={false}>
-          <div className="p-5 pb-0">
-            <CardHeader title="Şikayet türü dağılımı" />
-          </div>
-          <DataTable framed={false} minWidth="420px" empty={turDagilim.length === 0}>
+        <DetailSection title="Şikayet türü dağılımı" description={araligiYaz}>
+          <DataTable
+            framed={false}
+            minWidth="420px"
+            empty={data.turDagilim.length === 0}
+            emptyTitle="Seçili dönemde şikayet yok"
+          >
             <thead>
               <tr>
                 <th>Tür</th>
@@ -556,56 +492,89 @@ export default async function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {turDagilim.map((t) => (
+              {data.turDagilim.map((t) => (
                 <tr key={t.name}>
                   <td>{t.name}</td>
-                  <td className="text-center font-semibold">{t.complaints.length}</td>
-                  <td className="text-center text-kb-info">
-                    {t.complaints.filter((c) => c.durum === "ACIK").length}
-                  </td>
-                  <td className="text-center text-kb-success">
-                    {t.complaints.filter((c) => c.durum === "KAPATILDI").length}
+                  <td className="text-center font-semibold">{t.toplam}</td>
+                  <td className="text-center text-kb-info">{t.acik}</td>
+                  <td className="text-center text-kb-success">{t.kapatildi}</td>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        </DetailSection>
+
+        <DetailSection title="Araç envanteri" description="Anlık durum">
+          <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-4">
+            <StatCard
+              label={`Envanter: ${ENVANTER_DURUM_LABELS.AKTIF}`}
+              value={anlik.aracEnvanter.AKTIF ?? 0}
+              hint="Çalışır durumda"
+            />
+            <StatCard
+              label={ENVANTER_DURUM_LABELS.BAKIMDA}
+              value={anlik.aracEnvanter.BAKIMDA ?? 0}
+              hint="Bakım / onarımda"
+            />
+            <StatCard
+              label={ENVANTER_DURUM_LABELS.ARIZALI}
+              value={anlik.aracEnvanter.ARIZALI ?? 0}
+              hint="Arıza mevcut"
+            />
+            <StatCard
+              label={ENVANTER_DURUM_LABELS.HURDAYA_AYRILDI}
+              value={anlik.aracEnvanter.HURDAYA_AYRILDI ?? 0}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3 px-4 pb-4 md:grid-cols-3 lg:grid-cols-5">
+            {(
+              Object.keys(OPERASYON_DURUM_LABELS) as Array<
+                keyof typeof OPERASYON_DURUM_LABELS
+              >
+            ).map((k) => (
+              <StatCard
+                key={k}
+                label={OPERASYON_DURUM_LABELS[k]}
+                value={anlik.aracOperasyon[k] ?? 0}
+              />
+            ))}
+          </div>
+        </DetailSection>
+
+        <DetailSection
+          title="Son bakım kayıtları"
+          description="En son girilen 10 kayıt"
+        >
+          <DataTable
+            framed={false}
+            minWidth="480px"
+            empty={data.sonBakimlar.length === 0}
+            emptyTitle="Henüz bakım kaydı yok"
+            emptyDescription="Bakım takip ekranından yeni kayıt ekleyebilirsiniz."
+          >
+            <thead>
+              <tr>
+                <th>Plaka</th>
+                <th>Araç</th>
+                <th>Sonraki bakım</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.sonBakimlar.map((b) => (
+                <tr key={b.id}>
+                  <td className="font-mono font-medium">{b.plaka}</td>
+                  <td>{b.ad ?? "—"}</td>
+                  <td>
+                    {b.sonrakiBakimTarihi
+                      ? new Date(b.sonrakiBakimTarihi).toLocaleDateString("tr-TR")
+                      : "—"}
                   </td>
                 </tr>
               ))}
             </tbody>
           </DataTable>
-        </Card>
-      </div>
-
-      <Card padding={false}>
-        <div className="p-5 pb-0">
-          <CardHeader title="Son bakım kayıtları" description="En son girilen 10 kayıt" />
-        </div>
-        <DataTable
-          framed={false}
-          minWidth="480px"
-          empty={yaklasanBakimlar.length === 0}
-          emptyTitle="Henüz bakım kaydı yok"
-          emptyDescription="Bakım takip ekranından yeni kayıt ekleyebilirsiniz."
-        >
-          <thead>
-            <tr>
-              <th>Plaka</th>
-              <th>Araç</th>
-              <th>Sonraki bakım</th>
-            </tr>
-          </thead>
-          <tbody>
-            {yaklasanBakimlar.map((b) => (
-              <tr key={b.id}>
-                <td className="font-mono font-medium">{b.vehicle.plaka}</td>
-                <td>{b.vehicle.ad ?? "—"}</td>
-                <td>
-                  {b.sonrakiBakimTarihi
-                    ? new Date(b.sonrakiBakimTarihi).toLocaleDateString("tr-TR")
-                    : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </DataTable>
-      </Card>
+        </DetailSection>
+      </section>
     </div>
   );
 }

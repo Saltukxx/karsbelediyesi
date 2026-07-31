@@ -20,6 +20,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.81.2",
     "date-fns": "^4.1.0",
+    "echarts": "^6.1.0",
     "exceljs": "^4.4.0",
     "ioredis": "^5.11.1",
     "leaflet": "^1.9.4",

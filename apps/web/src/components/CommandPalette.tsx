@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
+import { Modal } from "@/components/ui/Modal";
 
 type SearchHit = {
   type: string;
@@ -40,7 +41,6 @@ export function CommandPalette({
         e.preventDefault();
         onOpenChange(!open);
       }
-      if (e.key === "Escape" && open) onOpenChange(false);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -98,72 +98,69 @@ export function CommandPalette({
     [onOpenChange, router],
   );
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[70] print:hidden">
-      <div
-        className="absolute inset-0 bg-kb-ink/40"
-        onClick={() => onOpenChange(false)}
-      />
-      <div className="relative mx-auto mt-[12vh] w-[min(100%-1.5rem,32rem)] overflow-hidden rounded-lg border border-kb-border bg-white shadow-2xl">
-        <div className="flex items-center gap-2 border-b border-kb-border px-3">
-          <Search className="h-4 w-4 shrink-0 text-kb-muted" />
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                setActive((i) => Math.min(i + 1, list.length - 1));
-              } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                setActive((i) => Math.max(i - 1, 0));
-              } else if (e.key === "Enter") {
-                e.preventDefault();
-                go(list[active]?.href ?? "#");
-              }
-            }}
-            placeholder="Şikayet no, plaka, personel, görev…"
-            className="w-full border-0 bg-transparent py-3 text-sm outline-none placeholder:text-kb-muted"
-          />
-          <kbd className="hidden rounded border border-kb-border px-1.5 py-0.5 text-[0.65rem] text-kb-muted sm:inline">
-            Esc
-          </kbd>
-        </div>
-        <ul className="max-h-80 overflow-y-auto p-1">
-          {q.trim().length < 2 && (
-            <li className="px-3 py-1.5 text-[0.65rem] font-semibold uppercase tracking-wider text-kb-muted">
-              Kısayollar
-            </li>
-          )}
-          {loading && q.trim().length >= 2 && (
-            <li className="px-3 py-3 text-sm text-kb-muted">Aranıyor…</li>
-          )}
-          {list.map((item, i) => (
-            <li key={`${item.href}-${item.label}-${i}`}>
-              <button
-                type="button"
-                className={[
-                  "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm",
-                  i === active ? "bg-kb-navy/10 text-kb-navy" : "hover:bg-kb-surface",
-                ].join(" ")}
-                onMouseEnter={() => setActive(i)}
-                onClick={() => go(item.href)}
-              >
-                <span className="w-16 shrink-0 text-[0.65rem] font-semibold uppercase text-kb-muted">
-                  {item.type}
-                </span>
-                <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
-                {item.sub && (
-                  <span className="max-w-[40%] truncate text-xs text-kb-muted">{item.sub}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
+    <Modal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      align="top"
+      className="w-[min(100%-1.5rem,32rem)]"
+    >
+      <div className="flex items-center gap-2 border-b border-kb-border px-3">
+        <Search className="h-4 w-4 shrink-0 text-kb-muted" />
+        <input
+          ref={inputRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setActive((i) => Math.min(i + 1, list.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActive((i) => Math.max(i - 1, 0));
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              go(list[active]?.href ?? "#");
+            }
+          }}
+          placeholder="Şikayet no, plaka, personel, görev…"
+          className="w-full border-0 bg-transparent py-3 text-sm outline-none placeholder:text-kb-muted"
+        />
+        <kbd className="hidden rounded border border-kb-border px-1.5 py-0.5 text-[0.65rem] text-kb-muted sm:inline">
+          Esc
+        </kbd>
       </div>
-    </div>
+      <ul className="max-h-80 overflow-y-auto p-1">
+        {q.trim().length < 2 && (
+          <li className="px-3 py-1.5 text-[0.65rem] font-semibold uppercase tracking-wider text-kb-muted">
+            Kısayollar
+          </li>
+        )}
+        {loading && q.trim().length >= 2 && (
+          <li className="px-3 py-3 text-sm text-kb-muted">Aranıyor…</li>
+        )}
+        {list.map((item, i) => (
+          <li key={`${item.href}-${item.label}-${i}`}>
+            <button
+              type="button"
+              className={[
+                "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm",
+                i === active ? "bg-kb-navy/10 text-kb-navy" : "hover:bg-kb-surface",
+              ].join(" ")}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => go(item.href)}
+            >
+              <span className="w-16 shrink-0 text-[0.65rem] font-semibold uppercase text-kb-muted">
+                {item.type}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+              {item.sub && (
+                <span className="max-w-[40%] truncate text-xs text-kb-muted">{item.sub}</span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Modal>
   );
 }
