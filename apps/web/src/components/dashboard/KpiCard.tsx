@@ -1,6 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
-import { cardCls } from "@/lib/ui";
 import type { Delta } from "@/lib/dashboard-range";
+import { dashCardCls, numeralCls, toneChipCls, type Tone } from "./styles";
 
 type ValueFormat = "sayi" | "tl" | "gun";
 
@@ -23,7 +23,8 @@ function formatValue(value: number, format: ValueFormat): string {
  * Tek bir ölçüt: seçili dönemdeki değer ve önceki dönemle karşılaştırma.
  *
  * `dusukIyi` maliyet ve kapanış süresi gibi azalması istenen ölçütlerde
- * renk mantığını ters çevirir.
+ * çipin renk mantığını ters çevirir. Sol kenardaki lacivert çubuk bütün
+ * kartlarda aynıdır; anlam taşıyan renk yalnız çipte kalsın diye.
  */
 export function KpiCard({
   label,
@@ -41,39 +42,42 @@ export function KpiCard({
   const { current, previous, changePct } = delta;
   const artis = changePct !== null && changePct > 0;
   const azalis = changePct !== null && changePct < 0;
-  const iyi = dusukIyi ? azalis : artis;
-  const kotu = dusukIyi ? artis : azalis;
 
-  const tone = iyi
-    ? "text-kb-success"
-    : kotu
-      ? "text-kb-danger"
-      : "text-kb-muted";
+  const tone: Tone =
+    changePct === null || changePct === 0
+      ? "neutral"
+      : (dusukIyi ? azalis : artis)
+        ? "success"
+        : "danger";
 
   const Icon = artis ? ArrowUpRight : azalis ? ArrowDownRight : Minus;
 
   return (
-    <div className={`${cardCls} p-4`}>
-      <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-kb-muted">
-        {label}
-      </div>
-      <div className="mt-1.5 text-2xl font-semibold tabular-nums text-kb-ink">
-        {formatValue(current, format)}
-      </div>
-      <div className={`mt-1.5 flex items-center gap-1 text-xs ${tone}`}>
-        <Icon className="h-3.5 w-3.5 shrink-0" />
-        <span className="font-semibold tabular-nums">
+    <div
+      className={`${dashCardCls} border-l-2 border-l-kb-navy/70 p-4`}
+    >
+      <div className="text-[0.8rem] font-medium text-kb-muted">{label}</div>
+
+      <div className="mt-2 flex flex-wrap items-baseline gap-2">
+        <span className={`${numeralCls} text-[1.75rem] font-semibold leading-none text-kb-ink`}>
+          {formatValue(current, format)}
+        </span>
+        <span
+          className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold ${toneChipCls[tone]}`}
+        >
+          <Icon className="h-3 w-3 shrink-0" />
           {changePct === null
-            ? "önceki dönem yok"
+            ? "yeni"
             : `%${Math.abs(changePct).toLocaleString("tr-TR")}`}
         </span>
-        <span className="truncate text-kb-muted">
-          {changePct === null
-            ? ""
-            : `· önceki ${formatValue(previous, format)}`}
-        </span>
       </div>
-      {hint && <div className="mt-1 text-xs text-kb-muted">{hint}</div>}
+
+      <div className="mt-2 text-xs text-kb-muted">
+        {changePct === null
+          ? "Önceki dönemde kayıt yok"
+          : `Önceki dönem ${formatValue(previous, format)}`}
+        {hint && <span className="text-kb-muted/80"> · {hint}</span>}
+      </div>
     </div>
   );
 }

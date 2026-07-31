@@ -2,8 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { EChartsOption } from "echarts";
-import { Card, CardHeader } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
+import { BarChart3 } from "lucide-react";
 import {
   categoryAxis,
   formatTL,
@@ -12,6 +11,7 @@ import {
   valueAxis,
 } from "@/components/charts/theme";
 import { formatDayLabel, formatMonthLabel } from "@/lib/dashboard-range";
+import { dashCardCls } from "./styles";
 
 /**
  * ECharts canvas'a çizer ve yalnız tarayıcıda çalışır; sunucu render'ına
@@ -26,6 +26,19 @@ const EChart = dynamic(
     ),
   },
 );
+
+/**
+ * Veri yokken grafik yüksekliği rezerve edilmez; kart kendi kadar yer kaplar.
+ * Aksi halde boş bir dashboard baştan aşağı ölü alanla dolar.
+ */
+function ChartEmpty({ text }: { text: string }) {
+  return (
+    <div className="flex items-center gap-2.5 py-5 text-sm text-kb-muted">
+      <BarChart3 className="h-4 w-4 shrink-0 opacity-60" />
+      <span>{text}</span>
+    </div>
+  );
+}
 
 function ChartCard({
   title,
@@ -43,10 +56,22 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader title={title} description={description} action={action} />
-      {empty ? <EmptyState title={emptyText} /> : children}
-    </Card>
+    <section className={`${dashCardCls} p-5`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div>
+          <h3 className="font-brand text-[0.95rem] font-semibold text-kb-ink">
+            {title}
+          </h3>
+          {description && (
+            <p className="mt-0.5 text-[0.8rem] text-kb-muted">{description}</p>
+          )}
+        </div>
+        {action}
+      </div>
+      <div className="mt-4 border-t border-kb-border/70 pt-4">
+        {empty ? <ChartEmpty text={emptyText} /> : children}
+      </div>
+    </section>
   );
 }
 
