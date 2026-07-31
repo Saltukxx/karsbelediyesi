@@ -34,7 +34,13 @@ export async function bildirimGonder(
       skipDuplicates: true,
     });
   } catch (e) {
-    console.error("Bildirim oluşturulamadı:", e);
+    console.error("Bildirim oluşturulamadı:", {
+      tip: icerik.tip,
+      baslik: icerik.baslik,
+      anahtar: icerik.anahtar,
+      userIds: benzersiz,
+      hata: e,
+    });
   }
 }
 
@@ -53,7 +59,8 @@ export async function kullaniciIdleri(
       select: { id: true },
     });
     return users.map((u) => u.id);
-  } catch {
+  } catch (e) {
+    console.error("Bildirim alıcıları okunamadı:", { roles, departmentId, hata: e });
     return [];
   }
 }

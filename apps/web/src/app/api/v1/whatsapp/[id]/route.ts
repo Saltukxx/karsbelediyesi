@@ -29,10 +29,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (!msg) return json({ error: "Not found" }, 404);
 
   if (body.action === "reject") {
-    const updated = await prisma.whatsAppMessage.update({
-      where: { id },
+    // Onaylanıp şikayete dönüşmüş mesaj reddedilirse kuyruk ile şikayet çelişir
+    const red = await prisma.whatsAppMessage.updateMany({
+      where: { id, complaintId: null },
       data: { onayDurumu: "REDDEDILDI" },
     });
+    if (red.count === 0) return json({ error: "Bu mesaj onaylanmış" }, 409);
+    const updated = await prisma.whatsAppMessage.findUniqueOrThrow({ where: { id } });
     await auditKaydet({ user: auth.user }, "WHATSAPP_REDDET", {
       varlik: "WhatsAppMessage",
       varlikId: id,
@@ -63,7 +66,15 @@ export async function PATCH(req: Request, ctx: Ctx) {
       : null,
   ]);
 
-  await withSerialRetry(prisma, async (tx) => {
+  const olusan = await withSerialRetry(prisma, async (tx) => {
+    // Satırı transaction içinde sahiplen: eşzamanlı iki onay çift şikayet açardı.
+    // Kilit complaintId üzerinden alınır; onayDurumu boş olan mesajlar da onaylanabilir.
+    const claim = await tx.whatsAppMessage.updateMany({
+      where: { id, complaintId: null },
+      data: { onayDurumu: "ONAYLANDI" },
+    });
+    if (claim.count === 0) return null;
+
     const { yil, sira, sikayetNo } = await nextComplaintSerial(tx);
     const created = await tx.complaint.create({
       data: {
@@ -84,7 +95,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     });
     await tx.whatsAppMessage.update({
       where: { id },
-      data: { onayDurumu: "ONAYLANDI", complaintId: created.id },
+      data: { complaintId: created.id },
     });
     await tx.complaintEvent.create({
       data: {
@@ -94,7 +105,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
         detay: { messageId: id, kaynak: "api-v1" },
       },
     });
+    return created;
   });
+
+  if (!olusan) return json({ error: "Bu mesaj zaten onaylanmış" }, 409);
 
   await auditKaydet({ user: auth.user }, "WHATSAPP_ONAYLA", {
     varlik: "WhatsAppMessage",

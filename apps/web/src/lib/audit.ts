@@ -33,7 +33,13 @@ export async function auditKaydet(
       },
     });
   } catch (e) {
-    console.error("Audit kaydı yazılamadı:", e);
+    console.error("Audit kaydı yazılamadı:", {
+      islem,
+      varlik: ek.varlik,
+      varlikId: ek.varlikId,
+      userId: session.user.id,
+      hata: e,
+    });
   }
 }
 
@@ -55,6 +61,12 @@ export async function auditKaydetAnonim(
       },
     });
   } catch (e) {
-    console.error("Audit kaydı yazılamadı:", e);
+    console.error("Anonim audit kaydı yazılamadı:", {
+      islem,
+      varlik: ek.varlik,
+      varlikId: ek.varlikId,
+      userAd,
+      hata: e,
+    });
   }
 }

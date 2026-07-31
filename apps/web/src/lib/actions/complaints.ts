@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
-import { canAccessComplaint, loadComplaintForAccess, toAccessUser } from "@/lib/access";
+import {
+  canAccessComplaint,
+  loadComplaintForAccess,
+  loadVehicleForAccess,
+  toAccessUser,
+} from "@/lib/access";
 import { canTransitionComplaint } from "@/lib/domain/complaint-status";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
@@ -50,10 +55,20 @@ export async function sikayetOlustur(formData: FormData) {
     departmentId = tur?.defaultDepartmentId ?? undefined;
   }
 
+  if (
+    parsed.personnelIds.length > 0 &&
+    session.user.role !== "ADMIN" &&
+    session.user.role !== "DEPARTMENT_MANAGER"
+  ) {
+    throw new Error("Personel atama yetkiniz yok");
+  }
+  await gecerliPersonelleriGetir(session.user, parsed.personnelIds);
+
   // Plaka seçildiyse şoför bilgisi araç zimmetinden gelir (Excel VLOOKUP davranışı)
   let soforAdi: string | undefined;
   let soforTelefonu: string | undefined;
   if (parsed.vehicleId) {
+    await aracAtamaDogrula(session.user, parsed.vehicleId);
     const arac = await prisma.vehicle.findUnique({
       where: { id: parsed.vehicleId },
       include: { atananSofor: true },
@@ -197,6 +212,47 @@ export async function sikayetMudurlukAta(formData: FormData) {
   revalidatePath("/sikayetler");
 }
 
+/**
+ * Şikayete araç atanabilirliği: müdür yalnızca kendi müdürlüğünün aracını
+ * atayabilir (ADMIN/CALL_CENTER/APPROVER kurum genelinde çalışır).
+ */
+async function aracAtamaDogrula(
+  user: { role: string; departmentId: string | null },
+  vehicleId: string,
+) {
+  const arac = await loadVehicleForAccess(vehicleId);
+  if (!arac) throw new Error("Araç bulunamadı");
+  if (user.role === "DEPARTMENT_MANAGER" && arac.departmentId !== user.departmentId) {
+    throw new Error("Seçilen araç müdürlüğünüze bağlı değil");
+  }
+  return arac;
+}
+
+/**
+ * Atanabilir personelleri doğrular: hepsi AKTIF olmalı, müdür yalnızca kendi
+ * müdürlüğündeki personeli atayabilir. Eksik/yetkisiz id varsa hata fırlatır.
+ */
+async function gecerliPersonelleriGetir(
+  user: { role: string; departmentId: string | null },
+  personnelIds: string[],
+) {
+  if (personnelIds.length === 0) return [];
+  const personeller = await prisma.personnel.findMany({
+    where: {
+      id: { in: personnelIds },
+      durum: "AKTIF",
+      ...(user.role === "DEPARTMENT_MANAGER"
+        ? { departmentId: user.departmentId ?? "-" }
+        : {}),
+    },
+    select: { id: true, adSoyad: true, userId: true },
+  });
+  if (personeller.length !== new Set(personnelIds).size) {
+    throw new Error("Seçilen personel bulunamadı veya müdürlüğünüze bağlı değil");
+  }
+  return personeller;
+}
+
 export async function sikayetPersonelAta(formData: FormData) {
   const session = await requireRoles(["ADMIN", "DEPARTMENT_MANAGER"]);
 
@@ -209,20 +265,7 @@ export async function sikayetPersonelAta(formData: FormData) {
     throw new Error("Yetkisiz");
   }
 
-  // Müdür yalnızca kendi müdürlüğündeki personeli atayabilir
-  const personeller = await prisma.personnel.findMany({
-    where: {
-      id: { in: personnelIds },
-      durum: "AKTIF",
-      ...(session.user.role === "DEPARTMENT_MANAGER"
-        ? { departmentId: session.user.departmentId ?? "-" }
-        : {}),
-    },
-    select: { id: true, adSoyad: true, userId: true },
-  });
-  if (personeller.length !== personnelIds.length) {
-    throw new Error("Seçilen personel bulunamadı veya müdürlüğünüze bağlı değil");
-  }
+  const personeller = await gecerliPersonelleriGetir(session.user, personnelIds);
 
   await prisma.$transaction(async (tx) => {
     await tx.complaintPersonnel.createMany({
@@ -280,10 +323,21 @@ export async function sikayetAta(formData: FormData) {
     throw new Error("Yetkisiz");
   }
 
+  // Personel ataması müdürlük bağlamı gerektirir; çağrı merkezi yalnız araç atar
+  if (
+    personnelIds.length > 0 &&
+    session.user.role !== "ADMIN" &&
+    session.user.role !== "DEPARTMENT_MANAGER"
+  ) {
+    throw new Error("Personel atama yetkiniz yok");
+  }
+  await gecerliPersonelleriGetir(session.user, personnelIds);
+
   let soforAdi: string | null = null;
   let soforTelefonu: string | null = null;
   let soforUserId: string | null = null;
   if (vehicleId) {
+    await aracAtamaDogrula(session.user, vehicleId);
     const arac = await prisma.vehicle.findUnique({
       where: { id: vehicleId },
       include: { atananSofor: true },

@@ -154,6 +154,13 @@ enum WhatsAppYon {
   GIDEN
 }
 
+/// Panelden kuyruğa atılan giden mesajın teslim durumu
+enum WhatsAppGonderimDurum {
+  KUYRUKTA
+  GONDERILDI
+  BASARISIZ
+}
+
 /// WhatsApp çok turlu diyalogda beklenen vatandaş yanıtı
 enum WhatsAppAwaiting {
   ACIKLAMA
@@ -472,27 +479,36 @@ model ComplaintPhoto {
 
 /// WhatsApp ham mesaj + AI sınıflandırma sonucu
 model WhatsAppMessage {
-  id          String             @id @default(cuid())
-  telefon     String
-  yon         WhatsAppYon
-  icerik      String?
-  medyaUrl    String?
-  medyaTipi   String?
+  id              String                 @id @default(cuid())
+  telefon         String
+  yon             WhatsAppYon
+  icerik          String?
+  medyaUrl        String?
+  medyaTipi       String?
   /// Claude çıktısı: { intent, sikayet_turu, mahalle, adres, aciklama_ozeti, oncelik, guven }
-  aiSonuc     Json?
-  guven       Float?
-  onayDurumu  WhatsAppOnayDurum?
-  complaintId String?
-  complaint   Complaint?         @relation(fields: [complaintId], references: [id])
+  aiSonuc         Json?
+  guven           Float?
+  onayDurumu      WhatsAppOnayDurum?
+  complaintId     String?
+  complaint       Complaint?             @relation(fields: [complaintId], references: [id])
   /// Panelden gönderildiyse gönderen kullanıcı
-  sentByUserId String?
-  sentByUser   User?             @relation("WhatsAppGonderen", fields: [sentByUserId], references: [id])
-  waMessageId String?            @unique
-  createdAt   DateTime           @default(now())
+  sentByUserId    String?
+  sentByUser      User?                  @relation("WhatsAppGonderen", fields: [sentByUserId], references: [id])
+  waMessageId     String?                @unique
+  /// Giden mesaj: panel tarafında üretilen idempotency anahtarı (BullMQ jobId)
+  outboundKey     String?                @unique
+  /// Giden mesaj: kuyruk → gönderim teslim durumu
+  gonderimDurumu  WhatsAppGonderimDurum?
+  /// Gelen mesaj: bot'un üreteceği yanıt (retry'da tekrar üretilmez)
+  botYaniti       String?
+  /// Gelen mesaj: botYaniti vatandaşa ulaştı mı
+  yanitGonderildi Boolean                @default(false)
+  createdAt       DateTime               @default(now())
 
   @@index([telefon])
   @@index([onayDurumu])
   @@index([complaintId])
+  @@index([gonderimDurumu])
 }
 
 /// Telefon bazlı WhatsApp diyalog oturumu (mahalle/adres/açıklama toplama)
@@ -513,16 +529,16 @@ model WhatsAppSession {
 
 /// Excel: "Görev Formu" (18 sütun) + "Çıkış-Giriş Takip" (13 sütun) birleşik
 model VehicleTask {
-  id                    String             @id @default(cuid())
+  id                    String              @id @default(cuid())
   /// GRV-2026-0001
-  gorevNo               String             @unique
+  gorevNo               String              @unique
   yil                   Int
   sira                  Int
-  talepTarihi           DateTime           @default(now())
+  talepTarihi           DateTime            @default(now())
   vehicleId             String
-  vehicle               Vehicle            @relation(fields: [vehicleId], references: [id])
+  vehicle               Vehicle             @relation(fields: [vehicleId], references: [id])
   talepEdenDepartmentId String?
-  talepEdenDepartment   Department?        @relation("TalepEdenMudurluk", fields: [talepEdenDepartmentId], references: [id])
+  talepEdenDepartment   Department?         @relation("TalepEdenMudurluk", fields: [talepEdenDepartmentId], references: [id])
   gorevYeri             String?
   gorevTanimi           String?
   cikisTarihi           DateTime?
@@ -530,25 +546,31 @@ model VehicleTask {
   /// Saat cinsinden — server-side hesaplanır (gece devri destekli)
   sureSaat              Float?
   driverId              String?
-  driver                User?              @relation("GorevSoforu", fields: [driverId], references: [id])
+  driver                User?               @relation("GorevSoforu", fields: [driverId], references: [id])
   kmSayacCikis          Float?
   kmSayacGiris          Float?
   /// = kmSayacGiris - kmSayacCikis (server-side)
   kmFarki               Float?
   onaylayanId           String?
-  onaylayan             User?              @relation("GorevOnaylayan", fields: [onaylayanId], references: [id])
-  durum                 GorevDurum         @default(PLANLANDI)
+  onaylayan             User?               @relation("GorevOnaylayan", fields: [onaylayanId], references: [id])
+  durum                 GorevDurum          @default(PLANLANDI)
   not                   String?
   /// Manuel girilen / diğer maliyet — hesaplanan kırılıma "diğer" olarak eklenir
-  maliyet               Decimal?           @db.Decimal(12, 2)
+  maliyet               Decimal?            @db.Decimal(12, 2)
   /// Dispatch motorundan doğduysa (rota bilgisi mobile buradan gider)
-  dispatchJobId         String?            @unique
-  dispatchJob           DispatchJob?       @relation(fields: [dispatchJobId], references: [id])
+  dispatchJobId         String?             @unique
+  dispatchJob           DispatchJob?        @relation(fields: [dispatchJobId], references: [id])
   trackAnalysis         RouteTrackAnalysis?
+  /// Canlı sapma takibi: aracın rota dışına çıktığı an (rotaya dönünce null)
+  rotaDisiBaslangic     DateTime?
+  /// Bu sapma olayı için uyarı gönderildi mi (rotaya dönünce false)
+  rotaDisiUyarildi      Boolean             @default(false)
+  /// Son sapma kontrolünün yapıldığı an (offline taraması bunu kullanır)
+  sonSapmaKontrol       DateTime?
   fuelRecords           FuelRecord[]
   materialMovements     MaterialMovement[]
-  createdAt             DateTime           @default(now())
-  updatedAt             DateTime           @updatedAt
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   @@unique([yil, sira])
   @@index([vehicleId])
@@ -1106,26 +1128,32 @@ enum DispatchDurum {
 
 /// Dispatch motoru önerisi/ataması — en yakın aracın bir servis rotasına yönlendirilmesi
 model DispatchJob {
-  id        String        @id @default(cuid())
-  tip       DispatchTip
+  id                 String        @id @default(cuid())
+  tip                DispatchTip
   /// tip'e göre WinterRoute, WasteRoute veya CleaningRoute id'si (polimorfik — FK yok)
-  routeId   String
+  routeId            String
   /// Rota adı snapshot'ı (listelemede join'siz gösterim için)
-  routeAd   String
-  vehicleId String?
-  vehicle   Vehicle?      @relation("DispatchArac", fields: [vehicleId], references: [id])
-  durum     DispatchDurum @default(ONERILDI)
+  routeAd            String
+  vehicleId          String?
+  vehicle            Vehicle?      @relation("DispatchArac", fields: [vehicleId], references: [id])
+  durum              DispatchDurum @default(ONERILDI)
   /// OSRM gidiş rotası [[lat,lng], ...] (araç konumu → rota başlangıcı)
-  rota      Json?
-  mesafeKm  Float?
-  sureDk    Float?
+  rota               Json?
+  /// Servis edilecek rotanın atama anındaki geometrisi [[lat,lng], ...] —
+  /// rota sonradan düzenlense/silinse de analiz ve rapor bununla üretilir
+  rotaSnapshot       Json?
+  /// ONERILDI iken "{tip}:{routeId}", sonuçlanınca null — aynı rotaya
+  /// eşzamanlı çift öneri üretilmesini engeller (partial unique yerine)
+  aktifOneriAnahtari String?       @unique
+  mesafeKm           Float?
+  sureDk             Float?
   /// OSRM alınamayıp kuş uçuşu tahmini kullanıldıysa
-  tahmini   Boolean       @default(false)
+  tahmini            Boolean       @default(false)
   /// Skor kırılımı snapshot: { skor, kirilim, etiketler }
-  gerekce   Json?
-  task      VehicleTask?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  gerekce            Json?
+  task               VehicleTask?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@index([durum])
   @@index([tip, routeId, createdAt])
@@ -1237,13 +1265,13 @@ model RouteTrackAnalysis {
   sureDk    Float?
 
   /// Buffer içindeki ping oranı — rotada kalma sadakati (0-100)
-  uyumYuzde     Float @default(0)
+  uyumYuzde    Float  @default(0)
   /// Rotanın kat edilen kısmı (0-100)
-  kapsamaYuzde  Float @default(0)
-  maxSapmaM     Float?
-  ortSapmaM     Float?
+  kapsamaYuzde Float  @default(0)
+  maxSapmaM    Float?
+  ortSapmaM    Float?
   /// Rota dışı olaylar: [{baslangic,bitis,sureDk,maxMesafeM,lat,lng,izler}]
-  sapmalar      Json?
+  sapmalar     Json?
 
   ortalamaHizKmh Float?
   maxHizKmh      Float?

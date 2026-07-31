@@ -89,6 +89,34 @@ async function rotaPolyline(
   return { ad: route.ad, koordinatlar };
 }
 
+export type DispatchRotaKaynak = "snapshot" | "canli";
+
+export type DispatchRota = {
+  ad: string;
+  koordinatlar: LatLng[];
+  kaynak: DispatchRotaKaynak;
+};
+
+/**
+ * Görevin servis rotası: önce atama anındaki anlık görüntü (rotaSnapshot),
+ * yoksa güncel rota. Rota sonradan düzenlenirse rapor ile metrikler
+ * birbirinden ayrışmasın diye snapshot önceliklidir.
+ */
+export async function dispatchRotasi(job: {
+  tip: DispatchTip;
+  routeId: string;
+  routeAd: string;
+  rotaSnapshot: unknown;
+}): Promise<DispatchRota | null> {
+  const snapshot = job.rotaSnapshot as LatLng[] | null;
+  if (Array.isArray(snapshot) && snapshot.length >= 2) {
+    return { ad: job.routeAd, koordinatlar: snapshot, kaynak: "snapshot" };
+  }
+  const canli = await rotaPolyline(job.tip, job.routeId);
+  if (!canli) return null;
+  return { ...canli, kaynak: "canli" };
+}
+
 // ── Görev sonrası analiz ──
 
 function sonucHukmu(
@@ -124,7 +152,10 @@ export async function gorevIziAnalizEt(taskId: string) {
   });
   if (!task?.dispatchJob || !task.cikisTarihi) return null;
 
-  const rota = await rotaPolyline(task.dispatchJob.tip, task.dispatchJob.routeId);
+  // Görev kapandığında canlı sapma cache'i bayat kalmasın
+  rotaCache.delete(task.vehicleId);
+
+  const rota = await dispatchRotasi(task.dispatchJob);
   if (!rota) return null;
 
   const esik = await analizEsikleri();
@@ -139,7 +170,17 @@ export async function gorevIziAnalizEt(taskId: string) {
     select: { lat: true, lng: true, hiz: true, zaman: true, driverId: true },
   });
 
-  const izler: IzNokta[] = pingler.map((p) => ({
+  // Atanan şoför dışında bir kullanıcıdan gelen ping analizi bozar; cihaz
+  // kaynaklı (driverId boş) ping'ler dahil kalır.
+  const yabanciPing =
+    task.driverId != null &&
+    pingler.some((p) => p.driverId != null && p.driverId !== task.driverId);
+  const gecerliPingler =
+    task.driverId == null
+      ? pingler
+      : pingler.filter((p) => p.driverId == null || p.driverId === task.driverId);
+
+  const izler: IzNokta[] = gecerliPingler.map((p) => ({
     lat: p.lat,
     lng: p.lng,
     zamanMs: p.zaman.getTime(),
@@ -159,11 +200,6 @@ export async function gorevIziAnalizEt(taskId: string) {
   const ortAralik = ortPingAraligiSn(izler);
   const girisCikis = rotaGirisCikis(rota.koordinatlar, izler, esik.rotaBufferM);
   const hiz = hizIstatistik(izler);
-
-  // Atanan şoför dışında ping var mı?
-  const yabanciPing =
-    task.driverId != null &&
-    pingler.some((p) => p.driverId != null && p.driverId !== task.driverId);
 
   const data = {
     tip: task.dispatchJob.tip,
@@ -192,7 +228,7 @@ export async function gorevIziAnalizEt(taskId: string) {
       object[],
     eksikSegmentler: kapsama.eksikSegmentler as unknown as object[],
     notlar: yabanciPing
-      ? "Atanan şoför dışında bir kullanıcıdan konum verisi alındı."
+      ? "Atanan şoför dışında bir kullanıcıdan konum verisi alındı; bu ping'ler analiz dışı bırakıldı."
       : null,
   };
 
@@ -203,12 +239,22 @@ export async function gorevIziAnalizEt(taskId: string) {
   });
 }
 
-/** Görev kapanış akışlarını bozmadan analiz dener (hata yutar, loglar) */
+/** Görev kapanış akışlarını bozmadan analiz dener (hata yutar, loglar, bildirir) */
 export async function gorevIziAnalizDene(taskId: string): Promise<void> {
   try {
     await gorevIziAnalizEt(taskId);
   } catch (e) {
     console.error("Rota takip analizi başarısız:", taskId, e);
+    const adminler = await kullaniciIdleri(["ADMIN"]);
+    await bildirimGonder(adminler, {
+      tip: "SISTEM",
+      baslik: "Rota takip analizi başarısız",
+      mesaj: `Görev ${taskId} için analiz üretilemedi: ${
+        e instanceof Error ? e.message : String(e)
+      }`.slice(0, 200),
+      href: `/gorevler/${taskId}/takip`,
+      anahtar: `analiz-hata:${taskId}`,
+    });
   }
 }
 
@@ -222,11 +268,8 @@ type AktifRotaCache = {
   yuklendiMs: number;
 } | null;
 
-type SapmaDurumu = { offSinceMs: number | null; uyarildi: boolean };
-
 const ROTA_CACHE_TTL_MS = 60_000;
 const rotaCache = new Map<string, AktifRotaCache>(); // vehicleId → cache
-const sapmaDurumlari = new Map<string, SapmaDurumu>(); // taskId → durum
 
 async function aktifRotaYukle(vehicleId: string): Promise<AktifRotaCache> {
   const cached = rotaCache.get(vehicleId);
@@ -247,7 +290,7 @@ async function aktifRotaYukle(vehicleId: string): Promise<AktifRotaCache> {
     setTimeout(() => rotaCache.delete(vehicleId), ROTA_CACHE_TTL_MS).unref?.();
     return null;
   }
-  const rota = await rotaPolyline(task.dispatchJob.tip, task.dispatchJob.routeId);
+  const rota = await dispatchRotasi(task.dispatchJob);
   if (!rota) {
     rotaCache.set(vehicleId, null);
     setTimeout(() => rotaCache.delete(vehicleId), ROTA_CACHE_TTL_MS).unref?.();
@@ -264,9 +307,34 @@ async function aktifRotaYukle(vehicleId: string): Promise<AktifRotaCache> {
   return sonuc;
 }
 
+/** Sapma uyarısını ilgili yönetici ve müdürlere gönderir */
+async function sapmaUyar(params: {
+  taskId: string;
+  gorevNo: string;
+  departmentId: string | null;
+  baslangic: Date;
+  sureDk: number;
+  uzaklikM: number | null;
+}): Promise<void> {
+  const yoneticiler = await kullaniciIdleri(["ADMIN"]);
+  const mudurler = params.departmentId
+    ? await kullaniciIdleri(["DEPARTMENT_MANAGER"], params.departmentId)
+    : [];
+  const mesafe =
+    params.uzaklikM != null ? `~${Math.round(params.uzaklikM)} m sapmayla ` : "";
+  await bildirimGonder([...yoneticiler, ...mudurler], {
+    tip: "SLA",
+    baslik: `${params.gorevNo}: araç rotanın dışında`,
+    mesaj: `Araç ${mesafe}${Math.round(params.sureDk)} dk'dır rota dışında.`,
+    href: `/gorevler/${params.taskId}/takip`,
+    anahtar: `sapma:${params.taskId}:${params.baslangic.getTime()}`,
+  });
+}
+
 /**
  * Her konum ping'inde çağrılır: araç aktif dispatch görevindeyse rotaya
  * uzaklık kontrol edilir; eşik üstü sapma sürerse yöneticilere bildirim gider.
+ * Sapma durumu görev satırında tutulur (çok instance'lı çalışmada tutarlı).
  * Ping kaydını bozmamak için hata fırlatmaz.
  */
 export async function canliSapmaKontrol(
@@ -280,40 +348,132 @@ export async function canliSapmaKontrol(
 
     const esik = await analizEsikleri();
     const uzaklikM = rotayaUzaklikM([lat, lng], aktif.koordinatlar);
-    const durum = sapmaDurumlari.get(aktif.taskId) ?? {
-      offSinceMs: null,
-      uyarildi: false,
-    };
+    const simdi = new Date();
+    const durum = await prisma.vehicleTask.findUnique({
+      where: { id: aktif.taskId },
+      select: { rotaDisiBaslangic: true, rotaDisiUyarildi: true, durum: true },
+    });
+    if (!durum) return;
+    // Görev cache ömrü içinde kapandıysa eski rotayla karşılaştırma yapılmaz
+    if (durum.durum !== "DEVAM_EDIYOR") {
+      rotaCache.delete(vehicleId);
+      return;
+    }
 
     if (uzaklikM <= esik.sapmaUyariM) {
       // Rotaya döndü — sonraki çıkış yeni olay sayılır
-      sapmaDurumlari.set(aktif.taskId, { offSinceMs: null, uyarildi: false });
-      return;
-    }
-
-    const simdi = Date.now();
-    if (durum.offSinceMs === null) {
-      sapmaDurumlari.set(aktif.taskId, { offSinceMs: simdi, uyarildi: false });
-      return;
-    }
-
-    const sureDk = (simdi - durum.offSinceMs) / 60000;
-    if (sureDk >= esik.sapmaUyariDk && !durum.uyarildi) {
-      sapmaDurumlari.set(aktif.taskId, { ...durum, uyarildi: true });
-      const yoneticiler = await kullaniciIdleri(["ADMIN"]);
-      const mudurler = aktif.departmentId
-        ? await kullaniciIdleri(["DEPARTMENT_MANAGER"], aktif.departmentId)
-        : [];
-      await bildirimGonder([...yoneticiler, ...mudurler], {
-        tip: "SLA",
-        baslik: `${aktif.gorevNo}: araç rotanın dışında`,
-        mesaj: `Araç ~${Math.round(uzaklikM)} m sapmayla ${Math.round(sureDk)} dk'dır rota dışında.`,
-        href: `/gorevler/${aktif.taskId}/takip`,
-        anahtar: `sapma:${aktif.taskId}:${durum.offSinceMs}`,
+      await prisma.vehicleTask.update({
+        where: { id: aktif.taskId },
+        data: {
+          rotaDisiBaslangic: null,
+          rotaDisiUyarildi: false,
+          sonSapmaKontrol: simdi,
+        },
       });
+      return;
     }
+
+    if (!durum.rotaDisiBaslangic) {
+      await prisma.vehicleTask.update({
+        where: { id: aktif.taskId },
+        data: {
+          rotaDisiBaslangic: simdi,
+          rotaDisiUyarildi: false,
+          sonSapmaKontrol: simdi,
+        },
+      });
+      return;
+    }
+
+    const sureDk = (simdi.getTime() - durum.rotaDisiBaslangic.getTime()) / 60000;
+    if (sureDk < esik.sapmaUyariDk || durum.rotaDisiUyarildi) {
+      await prisma.vehicleTask.update({
+        where: { id: aktif.taskId },
+        data: { sonSapmaKontrol: simdi },
+      });
+      return;
+    }
+
+    await prisma.vehicleTask.update({
+      where: { id: aktif.taskId },
+      data: { rotaDisiUyarildi: true, sonSapmaKontrol: simdi },
+    });
+    await sapmaUyar({
+      taskId: aktif.taskId,
+      gorevNo: aktif.gorevNo,
+      departmentId: aktif.departmentId,
+      baslangic: durum.rotaDisiBaslangic,
+      sureDk,
+      uzaklikM,
+    });
   } catch (e) {
     console.error("Canlı sapma kontrolü hatası:", vehicleId, e);
+  }
+}
+
+/**
+ * Ping akışından bağımsız tarama: araç rota dışına çıkıp ping göndermeyi
+ * kesse bile eşiği aşan sapmalar uyarılır. Komuta ekranından best-effort ve
+ * dışarıdan cron ile tetiklenir.
+ */
+export async function sapmaTaramasi(): Promise<{ uyarilan: number }> {
+  const esik = await analizEsikleri();
+  const sinir = new Date(Date.now() - esik.sapmaUyariDk * 60_000);
+
+  const gorevler = await prisma.vehicleTask.findMany({
+    where: {
+      durum: "DEVAM_EDIYOR",
+      dispatchJobId: { not: null },
+      rotaDisiUyarildi: false,
+      rotaDisiBaslangic: { not: null, lte: sinir },
+    },
+    select: {
+      id: true,
+      gorevNo: true,
+      rotaDisiBaslangic: true,
+      talepEdenDepartmentId: true,
+      vehicle: { select: { departmentId: true } },
+    },
+    take: 100,
+  });
+
+  let uyarilan = 0;
+  for (const g of gorevler) {
+    if (!g.rotaDisiBaslangic) continue;
+    // Yalnız hâlâ uyarılmamış olanı sahiplen (eşzamanlı tarama çift uyarmasın)
+    const claim = await prisma.vehicleTask.updateMany({
+      where: { id: g.id, rotaDisiUyarildi: false },
+      data: { rotaDisiUyarildi: true },
+    });
+    if (claim.count === 0) continue;
+
+    await sapmaUyar({
+      taskId: g.id,
+      gorevNo: g.gorevNo,
+      departmentId: g.talepEdenDepartmentId ?? g.vehicle?.departmentId ?? null,
+      baslangic: g.rotaDisiBaslangic,
+      sureDk: (Date.now() - g.rotaDisiBaslangic.getTime()) / 60000,
+      uzaklikM: null,
+    });
+    uyarilan += 1;
+  }
+
+  return { uyarilan };
+}
+
+/** Tarama en fazla bu sıklıkla çalışır (ayrı cron zorunlu olmasın diye) */
+const SAPMA_TARAMA_ARALIGI_MS = 60_000;
+let sonSapmaTaramasi = 0;
+
+/** Komuta yenilemesinden best-effort tetikleme: throttle'lı ve hata yutar */
+export async function sapmaTaramasiDene(): Promise<void> {
+  const simdi = Date.now();
+  if (simdi - sonSapmaTaramasi < SAPMA_TARAMA_ARALIGI_MS) return;
+  sonSapmaTaramasi = simdi;
+  try {
+    await sapmaTaramasi();
+  } catch (e) {
+    console.error("Sapma taraması hatası:", e);
   }
 }
 

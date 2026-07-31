@@ -18,15 +18,41 @@ const ASFALT_DURUM_LABELS: Record<string, string> = {
   TAMAMLANDI: "Tamamlandı",
 };
 
+const GOREV_DURUM_LABELS: Record<string, string> = {
+  PLANLANDI: "Planlandı",
+  DEVAM_EDIYOR: "Devam Ediyor",
+  TAMAMLANDI: "Tamamlandı",
+  IPTAL_EDILDI: "İptal",
+};
+
 export default async function IslerimPage() {
   const session = await requirePageAccess("/islerim");
 
-  const personel = await prisma.personnel.findFirst({
-    where: { userId: session.user.id },
-    select: { id: true, adSoyad: true, department: { select: { name: true } } },
-  });
+  const [personel, aracGorevleri] = await Promise.all([
+    prisma.personnel.findFirst({
+      where: { userId: session.user.id },
+      select: { id: true, adSoyad: true, department: { select: { name: true } } },
+    }),
+    // Şoför olarak üzerine atanan araç görevleri (personel kaydı olmasa da görünür)
+    prisma.vehicleTask.findMany({
+      where: { driverId: session.user.id },
+      orderBy: [{ durum: "asc" }, { talepTarihi: "desc" }],
+      take: 20,
+      select: {
+        id: true,
+        gorevNo: true,
+        durum: true,
+        gorevYeri: true,
+        gorevTanimi: true,
+        cikisTarihi: true,
+        girisTarihi: true,
+        dispatchJobId: true,
+        vehicle: { select: { plaka: true } },
+      },
+    }),
+  ]);
 
-  if (!personel) {
+  if (!personel && aracGorevleri.length === 0) {
     return (
       <div className="max-w-3xl space-y-6">
         <PageHeader title="İşlerim" description="Size atanan şikayetler ve asfalt rotaları" />
@@ -38,27 +64,29 @@ export default async function IslerimPage() {
     );
   }
 
-  const [sikayetAtamalari, rotaAtamalari] = await Promise.all([
-    prisma.complaintPersonnel.findMany({
-      where: { personnelId: personel.id },
-      include: {
-        complaint: {
+  const [sikayetAtamalari, rotaAtamalari] = personel
+    ? await Promise.all([
+        prisma.complaintPersonnel.findMany({
+          where: { personnelId: personel.id },
           include: {
-            complaintType: true,
-            neighborhood: true,
-            department: true,
+            complaint: {
+              include: {
+                complaintType: true,
+                neighborhood: true,
+                department: true,
+              },
+            },
           },
-        },
-      },
-    }),
-    prisma.asphaltRoadPersonnel.findMany({
-      where: { personnelId: personel.id },
-      include: {
-        asphaltRoad: { include: { department: { select: { name: true } } } },
-      },
-      orderBy: { createdAt: "desc" },
-    }),
-  ]);
+        }),
+        prisma.asphaltRoadPersonnel.findMany({
+          where: { personnelId: personel.id },
+          include: {
+            asphaltRoad: { include: { department: { select: { name: true } } } },
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+      ])
+    : [[], []];
 
   const sikayetler = sikayetAtamalari
     .map((a) => a.complaint)
@@ -70,6 +98,9 @@ export default async function IslerimPage() {
     (s) => s.durum === "KAPATILDI" || s.durum === "IPTAL",
   );
   const rotalar = rotaAtamalari.map((a) => a.asphaltRoad);
+  const aktifGorevler = aracGorevleri.filter(
+    (g) => g.durum === "PLANLANDI" || g.durum === "DEVAM_EDIYOR",
+  );
 
   const inputCls = "rounded-md border border-kb-border px-3 py-2 text-sm";
 
@@ -105,68 +136,121 @@ export default async function IslerimPage() {
     <div className="max-w-5xl space-y-8">
       <PageHeader
         title="İşlerim"
-        description={`${personel.adSoyad}${personel.department ? ` — ${personel.department.name}` : ""} · size atanan şikayetler ve asfalt rotaları`}
+        description={`${personel?.adSoyad ?? session.user.name}${personel?.department ? ` — ${personel.department.name}` : ""} · size atanan işler`}
       />
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase text-kb-muted">
-          Açık Şikayetler ({acikSikayetler.length})
-        </h2>
-        {acikSikayetler.length === 0 ? (
-          <p className="rounded-lg border border-kb-border bg-white p-4 text-sm text-kb-muted shadow-sm">
-            Size atanmış açık şikayet yok.
-          </p>
-        ) : (
+      {aracGorevleri.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase text-kb-muted">
+            Araç Görevleri ({aktifGorevler.length} aktif)
+          </h2>
           <div className="grid gap-3 md:grid-cols-2">
-            {acikSikayetler.map((s) => (
-              <SikayetKart key={s.id} s={s} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase text-kb-muted">
-          Asfalt Rotaları ({rotalar.length})
-        </h2>
-        {rotalar.length === 0 ? (
-          <p className="rounded-lg border border-kb-border bg-white p-4 text-sm text-kb-muted shadow-sm">
-            Size atanmış asfalt rotası yok.
-          </p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {rotalar.map((r) => (
+            {aracGorevleri.map((g) => (
               <div
-                key={r.id}
+                key={g.id}
                 className="rounded-lg border border-kb-border bg-white p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-kb-ink">{r.ad}</span>
-                  <StatusBadge label={ASFALT_DURUM_LABELS[r.durum] ?? r.durum} />
+                  <span className="font-semibold text-kb-ink">{g.gorevNo}</span>
+                  <StatusBadge label={GOREV_DURUM_LABELS[g.durum] ?? g.durum} />
+                  <span className="text-xs text-kb-muted">{g.vehicle.plaka}</span>
                 </div>
-                <div className="mt-1.5 text-xs text-kb-muted">
-                  {r.department?.name ?? "Müdürlük atanmadı"}
-                  {r.dokumTarihi
-                    ? ` · Döküm: ${r.dokumTarihi.toLocaleDateString("tr-TR")}`
-                    : ""}
+                <div className="mt-1.5 text-sm text-kb-muted">
+                  {[g.gorevTanimi, g.gorevYeri].filter(Boolean).join(" · ") || "—"}
                 </div>
-                {r.notlar && <p className="mt-1.5 text-sm text-kb-ink">{r.notlar}</p>}
-                <form action={islerimAsfaltDurum} className="mt-3 flex gap-2">
-                  <input type="hidden" name="id" value={r.id} />
-                  <select name="durum" defaultValue={r.durum} className={inputCls}>
-                    <option value="PLANLANDI">Planlandı</option>
-                    <option value="DEVAM_EDIYOR">Devam Ediyor</option>
-                    <option value="TAMAMLANDI">Tamamlandı</option>
-                  </select>
-                  <button className="rounded-md bg-kb-navy px-4 py-2 text-sm text-white hover:bg-kb-navy-soft">
-                    Güncelle
-                  </button>
-                </form>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-kb-muted">
+                  <span>
+                    {g.cikisTarihi
+                      ? `Çıkış: ${g.cikisTarihi.toLocaleString("tr-TR", { dateStyle: "short", timeStyle: "short" })}`
+                      : "Çıkış yapılmadı"}
+                  </span>
+                  {g.girisTarihi && (
+                    <span>
+                      Dönüş:{" "}
+                      {g.girisTarihi.toLocaleString("tr-TR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                  )}
+                  {g.dispatchJobId && (
+                    <Link
+                      href={`/gorevler/${g.id}/takip`}
+                      className="font-medium text-kb-navy hover:underline"
+                    >
+                      Takip raporu →
+                    </Link>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
+
+      {personel && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase text-kb-muted">
+            Açık Şikayetler ({acikSikayetler.length})
+          </h2>
+          {acikSikayetler.length === 0 ? (
+            <p className="rounded-lg border border-kb-border bg-white p-4 text-sm text-kb-muted shadow-sm">
+              Size atanmış açık şikayet yok.
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {acikSikayetler.map((s) => (
+                <SikayetKart key={s.id} s={s} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {personel && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase text-kb-muted">
+            Asfalt Rotaları ({rotalar.length})
+          </h2>
+          {rotalar.length === 0 ? (
+            <p className="rounded-lg border border-kb-border bg-white p-4 text-sm text-kb-muted shadow-sm">
+              Size atanmış asfalt rotası yok.
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {rotalar.map((r) => (
+                <div
+                  key={r.id}
+                  className="rounded-lg border border-kb-border bg-white p-4 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-kb-ink">{r.ad}</span>
+                    <StatusBadge label={ASFALT_DURUM_LABELS[r.durum] ?? r.durum} />
+                  </div>
+                  <div className="mt-1.5 text-xs text-kb-muted">
+                    {r.department?.name ?? "Müdürlük atanmadı"}
+                    {r.dokumTarihi
+                      ? ` · Döküm: ${r.dokumTarihi.toLocaleDateString("tr-TR")}`
+                      : ""}
+                  </div>
+                  {r.notlar && <p className="mt-1.5 text-sm text-kb-ink">{r.notlar}</p>}
+                  <form action={islerimAsfaltDurum} className="mt-3 flex gap-2">
+                    <input type="hidden" name="id" value={r.id} />
+                    <select name="durum" defaultValue={r.durum} className={inputCls}>
+                      <option value="PLANLANDI">Planlandı</option>
+                      <option value="DEVAM_EDIYOR">Devam Ediyor</option>
+                      <option value="TAMAMLANDI">Tamamlandı</option>
+                    </select>
+                    <button className="rounded-md bg-kb-navy px-4 py-2 text-sm text-white hover:bg-kb-navy-soft">
+                      Güncelle
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {kapaliSikayetler.length > 0 && (
         <section className="space-y-3">

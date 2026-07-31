@@ -3,11 +3,27 @@
  * whatsapp-outbound kuyruğu → GIDEN kaydı simülasyonu.
  * Çalıştırma: npx tsx scripts/smoke-atama.ts
  */
+import { randomUUID } from "crypto";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 import { prisma } from "../packages/db/src/index";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
+
+/** Test yarıda kalırsa bot gerçek gönderim denemesin diye job izlenir */
+let acikJob: { remove: () => Promise<unknown> } | null = null;
+let acikQueue: Queue | null = null;
+
+async function kuyrukTemizle() {
+  try {
+    await acikJob?.remove();
+  } catch {
+    // job zaten silinmiş olabilir
+  }
+  acikJob = null;
+  await acikQueue?.close();
+  acikQueue = null;
+}
 
 async function main() {
   // 1) Müdürlük + personel + kullanıcı bağı
@@ -94,19 +110,8 @@ async function main() {
   );
   if (!sikayetVar || !rotaVar) process.exitCode = 1;
 
-  // 5) whatsapp-outbound kuyruğuna cevap ekle (bot kapalıysa bekler)
-  const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
-  const queue = new Queue("whatsapp-outbound", { connection });
-  const job = await queue.add("outbound", {
-    telefon: complaint.telefon,
-    text: "Smoke test cevabı",
-    complaintId: complaint.id,
-    sentByUserId: user.id,
-  });
-  const counts = await queue.getJobCounts("waiting", "active", "completed", "failed");
-  console.log("✓ Kuyruğa eklendi. Kuyruk durumu:", counts);
-
-  // 6) Bot davranışını simüle et: GIDEN mesaj kaydı
+  // 5) Panel akışı: önce KUYRUKTA kaydı, sonra kuyruk (jobId = outboundKey)
+  const outboundKey = randomUUID();
   const giden = await prisma.whatsAppMessage.create({
     data: {
       telefon: complaint.telefon!,
@@ -114,20 +119,58 @@ async function main() {
       icerik: "Smoke test cevabı",
       complaintId: complaint.id,
       sentByUserId: user.id,
+      outboundKey,
+      gonderimDurumu: "KUYRUKTA",
     },
   });
+
+  const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+  const queue = new Queue("whatsapp-outbound", { connection });
+  acikQueue = queue;
+  const payload = {
+    telefon: complaint.telefon!,
+    text: "Smoke test cevabı",
+    complaintId: complaint.id,
+    sentByUserId: user.id,
+    outboundKey,
+  };
+  const job = await queue.add("outbound", payload, { jobId: outboundKey });
+  acikJob = job;
+  // Aynı anahtarla ikinci ekleme yeni job üretmemeli (BullMQ jobId tekilliği)
+  const ikinci = await queue.add("outbound", payload, { jobId: outboundKey });
+  console.log(
+    ikinci.id === job.id
+      ? "✓ Aynı outboundKey ile ikinci kuyruk kaydı oluşmadı"
+      : "✗ outboundKey idempotency çalışmadı!",
+  );
+  if (ikinci.id !== job.id) process.exitCode = 1;
+  const counts = await queue.getJobCounts("waiting", "active", "completed", "failed");
+  console.log("✓ Kuyruğa eklendi. Kuyruk durumu:", counts);
+
+  // 6) Bot davranışını simüle et: gönderim sonrası KUYRUKTA → GONDERILDI
+  await prisma.whatsAppMessage.update({
+    where: { outboundKey },
+    data: { gonderimDurumu: "GONDERILDI", waMessageId: `SMOKE-${outboundKey}` },
+  });
+  // Retry: satır GONDERILDI olduğu için worker gönderim yapmadan çıkar
+  const tekrar = await prisma.whatsAppMessage.findUnique({ where: { outboundKey } });
+  if (tekrar?.gonderimDurumu !== "GONDERILDI") {
+    throw new Error("Gönderim durumu GONDERILDI'ye geçmedi");
+  }
+
   const thread = await prisma.whatsAppMessage.findMany({
     where: { complaintId: complaint.id },
     include: { sentByUser: { select: { name: true } } },
   });
   console.log(
     thread.length === 1 && thread[0].sentByUser?.name === user.name
-      ? "✓ GIDEN kaydı complaintId + sentByUser ile okunuyor"
+      ? "✓ Tek GIDEN kaydı: çift gönderim denemesi yeni mesaj üretmedi"
       : "✗ GIDEN kaydı doğrulanamadı!",
   );
+  if (thread.length !== 1) process.exitCode = 1;
 
   // 7) Temizlik
-  await job.remove();
+  await kuyrukTemizle();
   await prisma.whatsAppMessage.delete({ where: { id: giden.id } });
   await prisma.asphaltRoad.delete({ where: { id: road.id } });
   await prisma.complaint.delete({ where: { id: complaint.id } });
@@ -135,13 +178,13 @@ async function main() {
   await prisma.user.delete({ where: { id: user.id } });
   console.log("✓ Test verileri temizlendi");
 
-  await queue.close();
   connection.disconnect();
   await prisma.$disconnect();
 }
 
 main().catch(async (e) => {
   console.error("✗ Smoke test hatası:", e);
+  await kuyrukTemizle();
   await prisma.$disconnect();
   process.exit(1);
 });

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
 
@@ -7,6 +8,8 @@ export type OutboundJob = {
   text: string;
   complaintId?: string;
   sentByUserId?: string;
+  /** WhatsAppMessage satırıyla eşleşen idempotency anahtarı (BullMQ jobId) */
+  outboundKey: string;
 };
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -26,14 +29,24 @@ function getQueue(): Queue<OutboundJob> {
   return globalForQueue.whatsappOutboundQueue;
 }
 
+export function yeniOutboundKey(): string {
+  return randomUUID();
+}
+
 /**
  * Vatandaşa gönderilecek mesajı kuyruğa ekler. Bot bağlı değilse mesaj
  * kuyrukta bekler; bot ayağa kalkınca gönderilir (BullMQ retry/backoff).
+ * jobId = outboundKey olduğu için aynı anahtar iki kez kuyruğa girmez.
+ *
+ * Deneme planı ~1,5 saati kapsar (10s'den katlanarak): bot kısa süreli
+ * kopmalarda mesajı kaybetmez. Tüm denemeler tükenirse bot satırı
+ * BASARISIZ işaretler ve operatör panelden yeniden gönderebilir.
  */
 export async function whatsappMesajKuyrugaEkle(job: OutboundJob): Promise<void> {
   await getQueue().add("outbound", job, {
-    attempts: 5,
-    backoff: { type: "exponential", delay: 5000 },
+    jobId: job.outboundKey,
+    attempts: 10,
+    backoff: { type: "exponential", delay: 10_000 },
     removeOnComplete: 200,
     removeOnFail: 100,
   });

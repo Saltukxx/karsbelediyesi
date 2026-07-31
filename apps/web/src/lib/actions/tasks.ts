@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { nextTaskSerial, prisma, withSerialRetry } from "@kars/db";
 import { gorevSuresiSaatTarihli, kmFarki } from "@kars/shared";
-import { canAccessTask, loadTaskForAccess, toAccessUser } from "@/lib/access";
+import {
+  canAccessTask,
+  gorevOlusturmaKapsami,
+  loadTaskForAccess,
+  toAccessUser,
+} from "@/lib/access";
 import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
@@ -47,6 +52,13 @@ export async function gorevOlustur(formData: FormData) {
   const kmCheck = validateKmPair(kmCikis, kmGiris);
   if (!kmCheck.ok) throw new Error(kmCheck.error);
 
+  const kapsam = await gorevOlusturmaKapsami(toAccessUser(session.user), {
+    vehicleId,
+    talepEdenDepartmentId: bos(formData.get("talepEdenDepartmentId")) ?? null,
+    driverId: bos(formData.get("driverId")) ?? null,
+  });
+  if (!kapsam.ok) throw new Error(kapsam.error);
+
   const arac = await prisma.vehicle.findUniqueOrThrow({
     where: { id: vehicleId },
     include: { atananSofor: true },
@@ -61,13 +73,13 @@ export async function gorevOlustur(formData: FormData) {
         yil,
         sira,
         vehicleId,
-        talepEdenDepartmentId: bos(formData.get("talepEdenDepartmentId")),
+        talepEdenDepartmentId: kapsam.talepEdenDepartmentId ?? undefined,
         gorevYeri: bos(formData.get("gorevYeri")),
         gorevTanimi: bos(formData.get("gorevTanimi")),
         cikisTarihi: cikis,
         girisTarihi: giris,
         sureSaat: cikis && giris ? gorevSuresiSaatTarihli(cikis, giris) : undefined,
-        driverId: bos(formData.get("driverId")) ?? arac.atananSoforId ?? undefined,
+        driverId: kapsam.driverId ?? undefined,
         kmSayacCikis: kmCikis,
         kmSayacGiris: kmGiris,
         kmFarki: kmCikis != null && kmGiris != null ? kmFarki(kmCikis, kmGiris) : undefined,

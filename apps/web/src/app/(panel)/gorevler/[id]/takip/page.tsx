@@ -7,6 +7,7 @@ import { assertTaskPageAccess } from "@/lib/access";
 import { requirePageAccess } from "@/lib/authz";
 import { gorevYenidenAnalizEt } from "@/lib/actions/track";
 import { tipLabel } from "@/lib/dispatch";
+import { dispatchRotasi } from "@/lib/route-analysis";
 import { btnPrimary, btnSecondary, cardCls } from "@/lib/ui";
 import type {
   DuraklamaDto,
@@ -69,6 +70,9 @@ export default async function GorevTakipPage({
         cikisTarihi: true,
         girisTarihi: true,
         dispatchJobId: true,
+        dispatchJob: {
+          select: { tip: true, routeId: true, routeAd: true, rotaSnapshot: true },
+        },
         vehicle: { select: { plaka: true } },
         driver: { select: { name: true } },
       },
@@ -151,42 +155,11 @@ export default async function GorevTakipPage({
       }
     : null;
 
-  // Planlanan rota polyline'ı güncel halinden yüklenir
-  if (analiz && mapData) {
-    let koordinatlar: unknown = null;
-    switch (analiz.tip) {
-      case "KIS":
-        koordinatlar = (
-          await prisma.winterRoute.findUnique({
-            where: { id: analiz.routeId },
-            select: { koordinatlar: true },
-          })
-        )?.koordinatlar;
-        break;
-      case "COP":
-        koordinatlar = (
-          await prisma.wasteRoute.findUnique({
-            where: { id: analiz.routeId },
-            select: { koordinatlar: true },
-          })
-        )?.koordinatlar;
-        break;
-      case "TEMIZLIK":
-        koordinatlar = (
-          await prisma.cleaningRoute.findUnique({
-            where: { id: analiz.routeId },
-            select: { koordinatlar: true },
-          })
-        )?.koordinatlar;
-        break;
-      default: {
-        const _exhaustive: never = analiz.tip;
-        koordinatlar = _exhaustive;
-      }
-    }
-    if (Array.isArray(koordinatlar)) {
-      mapData.planlanan = koordinatlar as [number, number][];
-    }
+  // Haritadaki planlanan rota, metrikleri üreten geometriyle aynı olmalı:
+  // atama anındaki snapshot varsa o, yoksa güncel rota kullanılır.
+  if (mapData && detay?.dispatchJob) {
+    const rota = await dispatchRotasi(detay.dispatchJob);
+    if (rota) mapData.planlanan = rota.koordinatlar as [number, number][];
   }
 
   const sonucBadge = analiz ? SONUC_LABEL[analiz.sonuc] : null;

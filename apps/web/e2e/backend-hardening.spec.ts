@@ -1,29 +1,21 @@
-import { test, expect } from "@playwright/test";
-
-async function login(page: import("@playwright/test").Page, phone: string, password: string) {
-  await page.goto("/giris");
-  await page.locator('input[name="phone"]').fill(phone);
-  await page.locator('input[name="password"]').fill(password);
-  await page.getByRole("button", { name: /giriş/i }).click();
-  await page.waitForURL((url) => !url.pathname.includes("/giris"), { timeout: 15_000 });
-}
+import { test, expect, type APIRequestContext } from "@playwright/test";
+import { KULLANICILAR, OTURUM } from "./auth-states";
 
 async function apiLogin(
-  request: import("@playwright/test").APIRequestContext,
-  phone: string,
-  password: string,
+  request: APIRequestContext,
+  kullanici: { phone: string; password: string },
 ) {
-  const res = await request.post("/api/v1/auth/login", {
-    data: { phone, password },
-  });
+  const res = await request.post("/api/v1/auth/login", { data: kullanici });
   expect(res.status()).toBe(200);
   const body = (await res.json()) as { token: string };
   return body.token;
 }
 
 test.describe("Backend hardening", () => {
+  test.use({ storageState: OTURUM.mudur });
+
   test("manager başka müdürlük şikayet detayına giremez", async ({ page, request }) => {
-    const adminToken = await apiLogin(request, "05000000000", "admin123");
+    const adminToken = await apiLogin(request, KULLANICILAR.admin);
     const list = await request.get("/api/v1/complaints?sekme=aktif", {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
@@ -32,14 +24,13 @@ test.describe("Backend hardening", () => {
     const foreign = rows.find((r) => r.arayanKisi === "E2E-DEPT-B");
     expect(foreign).toBeTruthy();
 
-    await login(page, "05000000020", "mudur123");
     await page.goto(`/sikayetler/${foreign!.id}`);
     await expect(page.getByText("E2E-DEPT-B")).toHaveCount(0);
     await expect(page.getByText(/404|bulunamadı|not found/i).first()).toBeVisible({
       timeout: 10_000,
     });
 
-    const mudurToken = await apiLogin(request, "05000000020", "mudur123");
+    const mudurToken = await apiLogin(request, KULLANICILAR.mudur);
     const apiRes = await request.get(`/api/v1/complaints/${foreign!.id}`, {
       headers: { Authorization: `Bearer ${mudurToken}` },
     });
@@ -47,7 +38,7 @@ test.describe("Backend hardening", () => {
   });
 
   test("mobil complaints listesi müdür için E2E-DEPT-B içermez", async ({ request }) => {
-    const token = await apiLogin(request, "05000000020", "mudur123");
+    const token = await apiLogin(request, KULLANICILAR.mudur);
     const res = await request.get("/api/mobile/complaints", {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -58,7 +49,7 @@ test.describe("Backend hardening", () => {
   });
 
   test("yabancı görev start 403", async ({ request }) => {
-    const adminToken = await apiLogin(request, "05000000000", "admin123");
+    const adminToken = await apiLogin(request, KULLANICILAR.admin);
     const vehiclesRes = await request.get("/api/v1/vehicles", {
       headers: { Authorization: `Bearer ${adminToken}` },
     });
@@ -73,7 +64,7 @@ test.describe("Backend hardening", () => {
     expect(created.status()).toBe(201);
     const task = (await created.json()) as { id: string };
 
-    const ccToken = await apiLogin(request, "05000000010", "cc123");
+    const ccToken = await apiLogin(request, KULLANICILAR.cagriMerkezi);
     const start = await request.patch(`/api/v1/tasks/${task.id}`, {
       headers: { Authorization: `Bearer ${ccToken}` },
       data: { action: "start" },
@@ -82,7 +73,7 @@ test.describe("Backend hardening", () => {
   });
 
   test("geçersiz durum geçişi 400", async ({ request }) => {
-    const token = await apiLogin(request, "05000000000", "admin123");
+    const token = await apiLogin(request, KULLANICILAR.admin);
     const create = await request.post("/api/v1/complaints", {
       headers: { Authorization: `Bearer ${token}` },
       data: { arayanKisi: "E2E Status", telefon: "05001110000" },
@@ -95,7 +86,7 @@ test.describe("Backend hardening", () => {
       data: { durum: "KAPATILDI", cozumNotu: "kapandı" },
     });
 
-    const reopenAsCc = await apiLogin(request, "05000000010", "cc123");
+    const reopenAsCc = await apiLogin(request, KULLANICILAR.cagriMerkezi);
     const bad = await request.patch(`/api/v1/complaints/${created.id}`, {
       headers: { Authorization: `Bearer ${reopenAsCc}` },
       data: { durum: "ACIK" },

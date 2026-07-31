@@ -38,7 +38,7 @@ export async function kontrolFormuOlustur(formData: FormData) {
 }
 
 export async function kontrolKalemKaydet(formData: FormData) {
-  const session = await requireRoles(ACTION_ROLES.checklists);
+  await requireRoles(ACTION_ROLES.checklists);
 
   const submissionId = String(formData.get("submissionId"));
   const templateItemId = String(formData.get("templateItemId"));

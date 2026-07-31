@@ -3,9 +3,21 @@ import { KONUM_TAZELIK_MS } from "@/lib/location";
 import { gerekceOzeti, type DispatchGerekce } from "@/lib/dispatch";
 import { gecikenCopRotalari, gecikenKisRotalari } from "@/lib/sla-notify";
 import { rotayaUzaklikM, type LatLng } from "@/lib/geo-track";
-import { analizEsikleri } from "@/lib/route-analysis";
+import { analizEsikleri, sapmaTaramasiDene } from "@/lib/route-analysis";
 
 export type KomutaSlaBucket = "lt24" | "d1to3" | "gt3";
+
+/**
+ * Oturum kullanıcısına göre komuta kapsamı: müdür yalnızca kendi müdürlüğünü
+ * görür (müdürlüğü tanımsızsa hiçbir şey), diğer yetkili roller kurum genelini.
+ */
+export function komutaFiltresi(user: {
+  role: string;
+  departmentId: string | null;
+}): { departmentId?: string | null } {
+  if (user.role !== "DEPARTMENT_MANAGER") return {};
+  return { departmentId: user.departmentId ?? "-" };
+}
 
 export interface KomutaAracDto {
   id: string;
@@ -100,11 +112,26 @@ function slaBucket(kayitTarihi: Date, now: number): KomutaSlaBucket {
  * Komuta ekranının tek toplama noktası: canlı araçlar, açık şikayetler,
  * bekleyen dispatch önerileri, geciken rotalar ve günlük KPI'lar.
  * Salt okunur — bildirim/atama tetiklemez.
+ *
+ * departmentId verilirse araç/şikayet/öneri/görev verisi o müdürlükle
+ * sınırlanır. Rota tanımları (kış/çöp güzergahları) kurum geneli olduğu için
+ * gecikme listesi ve günlük operasyon sayaçları filtrelenmez.
  */
-export async function komutaVerisiGetir(): Promise<KomutaVeri> {
+export async function komutaVerisiGetir(
+  filtre: { departmentId?: string | null } = {},
+): Promise<KomutaVeri> {
+  // Araç ping göndermeyi kesse bile sapma uyarısı düşsün (throttle'lı)
+  await sapmaTaramasiDene();
+
   const now = Date.now();
   const bugunBasi = new Date(now);
   bugunBasi.setHours(0, 0, 0, 0);
+
+  const dep = filtre.departmentId ?? null;
+  const aracFiltre = dep ? { departmentId: dep } : {};
+  const gorevFiltre = dep
+    ? { OR: [{ talepEdenDepartmentId: dep }, { vehicle: { departmentId: dep } }] }
+    : {};
 
   const [
     araclar,
@@ -117,7 +144,7 @@ export async function komutaVerisiGetir(): Promise<KomutaVeri> {
     bugunCop,
   ] = await Promise.all([
     prisma.vehicle.findMany({
-      where: { envanterDurumu: { not: "HURDAYA_AYRILDI" } },
+      where: { envanterDurumu: { not: "HURDAYA_AYRILDI" }, ...aracFiltre },
       orderBy: { plaka: "asc" },
       select: {
         id: true,
@@ -134,13 +161,18 @@ export async function komutaVerisiGetir(): Promise<KomutaVeri> {
             gorevNo: true,
             gorevTanimi: true,
             gorevYeri: true,
-            dispatchJob: { select: { tip: true, routeId: true } },
+            dispatchJob: {
+              select: { tip: true, routeId: true, rotaSnapshot: true },
+            },
           },
         },
       },
     }),
     prisma.complaint.findMany({
-      where: { durum: { in: ["ACIK", "DEVAM_EDIYOR"] } },
+      where: {
+        durum: { in: ["ACIK", "DEVAM_EDIYOR"] },
+        ...(dep ? { departmentId: dep } : {}),
+      },
       select: {
         id: true,
         sikayetNo: true,
@@ -152,7 +184,7 @@ export async function komutaVerisiGetir(): Promise<KomutaVeri> {
       },
     }),
     prisma.dispatchJob.findMany({
-      where: { durum: "ONERILDI" },
+      where: { durum: "ONERILDI", ...(dep ? { vehicle: { departmentId: dep } } : {}) },
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
@@ -163,18 +195,31 @@ export async function komutaVerisiGetir(): Promise<KomutaVeri> {
     }),
     gecikenKisRotalari(now),
     gecikenCopRotalari(now),
-    prisma.vehicleTask.count({ where: { durum: "DEVAM_EDIYOR" } }),
+    prisma.vehicleTask.count({ where: { durum: "DEVAM_EDIYOR", ...gorevFiltre } }),
     prisma.winterOperation.count({ where: { baslangic: { gte: bugunBasi } } }),
     prisma.wasteCollection.count({ where: { baslangic: { gte: bugunBasi } } }),
   ]);
 
-  // Aktif dispatch görevi olan araçlar için rota polyline'larını toplu yükle
-  const dispatchRotaAnahtarlari = new Map<string, { tip: "KIS" | "COP" | "TEMIZLIK"; routeId: string }>();
+  // Araç başına rota geometrisi: atama anındaki snapshot varsa o kullanılır,
+  // böylece rozet ile takip raporu/analiz aynı rotayı ölçer. Snapshot yoksa
+  // (eski görevler) güncel rota polyline'ları toplu yüklenir.
+  const aracRotalari = new Map<string, LatLng[]>();
+  const dispatchRotaAnahtarlari = new Map<
+    string,
+    { tip: "KIS" | "COP" | "TEMIZLIK"; routeId: string }
+  >();
+  const canliBekleyen: { vehicleId: string; anahtar: string }[] = [];
   for (const v of araclar) {
     const dj = v.tasks[0]?.dispatchJob;
-    if (dj && v.sonKonumLat != null && v.sonKonumLng != null) {
-      dispatchRotaAnahtarlari.set(`${dj.tip}:${dj.routeId}`, dj);
+    if (!dj || v.sonKonumLat == null || v.sonKonumLng == null) continue;
+    const snapshot = dj.rotaSnapshot as LatLng[] | null;
+    if (Array.isArray(snapshot) && snapshot.length >= 2) {
+      aracRotalari.set(v.id, snapshot);
+      continue;
     }
+    const anahtar = `${dj.tip}:${dj.routeId}`;
+    dispatchRotaAnahtarlari.set(anahtar, { tip: dj.tip, routeId: dj.routeId });
+    canliBekleyen.push({ vehicleId: v.id, anahtar });
   }
   const rotaKoordinatlari = new Map<string, LatLng[]>();
   if (dispatchRotaAnahtarlari.size > 0) {
@@ -194,15 +239,20 @@ export async function komutaVerisiGetir(): Promise<KomutaVeri> {
     for (const r of kisR) rotaKoordinatlari.set(`KIS:${r.id}`, r.koordinatlar as LatLng[]);
     for (const r of copR) rotaKoordinatlari.set(`COP:${r.id}`, r.koordinatlar as LatLng[]);
     for (const r of temizlikR) rotaKoordinatlari.set(`TEMIZLIK:${r.id}`, r.koordinatlar as LatLng[]);
+    for (const { vehicleId, anahtar } of canliBekleyen) {
+      const koordinatlar = rotaKoordinatlari.get(anahtar);
+      if (koordinatlar && koordinatlar.length >= 2) {
+        aracRotalari.set(vehicleId, koordinatlar);
+      }
+    }
   }
-  const esik = rotaKoordinatlari.size > 0 ? await analizEsikleri() : null;
+  const esik = aracRotalari.size > 0 ? await analizEsikleri() : null;
 
   const aracDtos: KomutaAracDto[] = araclar.map((v) => {
     let rotaUzaklikM: number | null = null;
     let rotada: boolean | null = null;
-    const dj = v.tasks[0]?.dispatchJob;
-    if (dj && v.sonKonumLat != null && v.sonKonumLng != null && esik) {
-      const koordinatlar = rotaKoordinatlari.get(`${dj.tip}:${dj.routeId}`);
+    if (v.sonKonumLat != null && v.sonKonumLng != null && esik) {
+      const koordinatlar = aracRotalari.get(v.id);
       if (koordinatlar && koordinatlar.length >= 2) {
         rotaUzaklikM = Math.round(
           rotayaUzaklikM([v.sonKonumLat, v.sonKonumLng], koordinatlar),

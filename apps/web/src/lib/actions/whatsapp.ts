@@ -5,7 +5,7 @@ import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
 import { ACTION_ROLES, requireRoles, requireSession } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
-import { whatsappMesajKuyrugaEkle } from "@/lib/whatsapp-outbound";
+import { whatsappMesajKuyrugaEkle, yeniOutboundKey } from "@/lib/whatsapp-outbound";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -51,6 +51,14 @@ export async function whatsappOnayla(formData: FormData) {
   ]);
 
   const complaint = await withSerialRetry(prisma, async (tx) => {
+    // Satırı transaction içinde sahiplen: eşzamanlı iki onay çift şikayet açardı.
+    // Kilit complaintId üzerinden alınır; onayDurumu boş olan mesajlar da onaylanabilir.
+    const claim = await tx.whatsAppMessage.updateMany({
+      where: { id, complaintId: null },
+      data: { onayDurumu: "ONAYLANDI" },
+    });
+    if (claim.count === 0) return null;
+
     const { yil, sira, sikayetNo } = await nextComplaintSerial(tx);
     const created = await tx.complaint.create({
       data: {
@@ -71,7 +79,7 @@ export async function whatsappOnayla(formData: FormData) {
     });
     await tx.whatsAppMessage.update({
       where: { id },
-      data: { onayDurumu: "ONAYLANDI", complaintId: created.id },
+      data: { complaintId: created.id },
     });
     await tx.complaintEvent.create({
       data: {
@@ -83,6 +91,8 @@ export async function whatsappOnayla(formData: FormData) {
     });
     return created;
   });
+
+  if (!complaint) throw new Error("Bu mesaj zaten onaylanmış");
 
   await auditKaydet(session, "WHATSAPP_ONAYLA", {
     varlik: "Complaint",
@@ -143,21 +153,47 @@ export async function whatsappCevapGonder(formData: FormData) {
     throw new Error("Bu şikayete cevap yazma yetkiniz yok");
   }
 
-  await whatsappMesajKuyrugaEkle({
-    telefon: complaint.telefon,
-    text,
-    complaintId: complaint.id,
-    sentByUserId: userId,
+  // Önce kayıt, sonra kuyruk: kuyruk hatası mesajın izini kaybettirmesin
+  const outboundKey = yeniOutboundKey();
+  const mesaj = await prisma.$transaction(async (tx) => {
+    const created = await tx.whatsAppMessage.create({
+      data: {
+        telefon: complaint.telefon!,
+        yon: "GIDEN",
+        icerik: text,
+        complaintId: complaint.id,
+        sentByUserId: userId,
+        outboundKey,
+        gonderimDurumu: "KUYRUKTA",
+      },
+    });
+    await tx.complaintEvent.create({
+      data: {
+        complaintId: complaint.id,
+        userId,
+        tip: "WHATSAPP_CEVAP",
+        detay: { mesaj: text.slice(0, 200), outboundKey },
+      },
+    });
+    return created;
   });
 
-  await prisma.complaintEvent.create({
-    data: {
+  try {
+    await whatsappMesajKuyrugaEkle({
+      telefon: complaint.telefon,
+      text,
       complaintId: complaint.id,
-      userId,
-      tip: "WHATSAPP_CEVAP",
-      detay: { mesaj: text.slice(0, 200) },
-    },
-  });
+      sentByUserId: userId,
+      outboundKey,
+    });
+  } catch (err) {
+    await prisma.whatsAppMessage.update({
+      where: { id: mesaj.id },
+      data: { gonderimDurumu: "BASARISIZ" },
+    });
+    console.error("WhatsApp kuyruğa eklenemedi", { outboundKey, err });
+    throw new Error("Mesaj kuyruğa alınamadı, lütfen tekrar deneyin");
+  }
 
   await auditKaydet(session, "WHATSAPP_CEVAP_GONDER", {
     varlik: "Complaint",
@@ -173,10 +209,12 @@ export async function whatsappCevapGonder(formData: FormData) {
 export async function whatsappReddet(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.whatsapp);
   const id = String(formData.get("id"));
-  await prisma.whatsAppMessage.update({
-    where: { id },
+  // Onaylanıp şikayete dönüşmüş mesaj reddedilirse kuyruk ile şikayet çelişir
+  const red = await prisma.whatsAppMessage.updateMany({
+    where: { id, complaintId: null },
     data: { onayDurumu: "REDDEDILDI" },
   });
+  if (red.count === 0) throw new Error("Bu mesaj onaylanmış, reddedilemez");
   await auditKaydet(session, "WHATSAPP_REDDET", {
     varlik: "WhatsAppMessage",
     varlikId: id,

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { prisma } from "@kars/db";
+import { canAccessVehicle, loadVehicleForAccess, toAccessUser } from "@/lib/access";
 import { locationPingSchema } from "@/lib/api-schemas";
 import { konumPingKaydet, soforunAraci } from "@/lib/location";
 import { requireMobileUser } from "@/lib/mobile-auth";
@@ -24,6 +26,12 @@ export async function POST(req: Request) {
   }
   const body = parsed.data;
 
+  // İstemcinin bildirdiği araç doğrulanmadan kabul edilirse başka aracın
+  // konumu sahtelenebilir (dispatch, komuta ve rota analizi bozulur).
+  if (body.vehicleId && !(await aracaPingYetkisi(user, body.vehicleId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const vehicleId = body.vehicleId ?? (await soforunAraci(user.id));
   if (!vehicleId) {
     return NextResponse.json(
@@ -42,4 +50,20 @@ export async function POST(req: Request) {
   });
 
   return NextResponse.json({ ok: true, vehicleId });
+}
+
+/** Zimmet/müdürlük erişimi ya da araç üzerinde devam eden görevi olan şoför */
+async function aracaPingYetkisi(
+  user: { id: string; role: string; departmentId: string | null },
+  vehicleId: string,
+): Promise<boolean> {
+  const arac = await loadVehicleForAccess(vehicleId);
+  if (!arac) return false;
+  if (canAccessVehicle(toAccessUser(user), arac)) return true;
+
+  const aktifGorev = await prisma.vehicleTask.findFirst({
+    where: { vehicleId, driverId: user.id, durum: "DEVAM_EDIYOR" },
+    select: { id: true },
+  });
+  return aktifGorev != null;
 }

@@ -25,3 +25,8 @@ apps/whatsapp-bot/data/training/val.jsonl
 apps/whatsapp-bot/data/training/last-tune-job.json
 apps/whatsapp-bot/data/training/last-eval.json
 apps/whatsapp-bot/data/training/smoke-*
+
+# Playwright oturum durumu ve raporlari
+apps/web/e2e/.auth/
+apps/web/test-results/
+apps/web/playwright-report/

@@ -3,6 +3,10 @@ import type { DispatchTip, Prisma } from "@kars/db";
 import { KONUM_TAZELIK_MS, kusUcusuKm } from "@/lib/location";
 import { yolRotasi, type YolRotasi } from "@/lib/routing";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
+import {
+  bekleyenOneriCakismasiMi,
+  oneriAnahtari,
+} from "@/lib/domain/dispatch-oneri";
 
 /**
  * Dispatch motoru: çok faktörlü skor (süre, tip, konum tazeliği, iş yükü, yakıt)
@@ -65,6 +69,8 @@ export interface DispatchAday {
   skor: number;
   kirilim: SkorKirilim;
   etiketler: string[];
+  /** Konumu tazelik eşiğini aşmış — listede kalır, otomatik seçilmez */
+  bayat: boolean;
   /** OSRM gidiş geometrisi — atamada DispatchJob'a yazılır */
   rota: [number, number][];
 }
@@ -105,7 +111,11 @@ export async function otomatikAtamaAyarla(acik: boolean): Promise<void> {
 async function rotaYukle(
   tip: DispatchTip,
   routeId: string,
-): Promise<{ ad: string; baslangic: [number, number] } | null> {
+): Promise<{
+  ad: string;
+  baslangic: [number, number];
+  koordinatlar: [number, number][];
+} | null> {
   let route: { ad: string; koordinatlar: unknown } | null;
   switch (tip) {
     case "KIS":
@@ -134,7 +144,7 @@ async function rotaYukle(
   if (!route) return null;
   const koordinatlar = route.koordinatlar as [number, number][];
   if (!Array.isArray(koordinatlar) || koordinatlar.length === 0) return null;
-  return { ad: route.ad, baslangic: koordinatlar[0] };
+  return { ad: route.ad, baslangic: koordinatlar[0], koordinatlar };
 }
 
 function normalizeTers(deger: number, max: number): number {
@@ -150,9 +160,13 @@ export async function adaylariSkorla(
   tip: DispatchTip,
   routeId: string,
   opts: { excludeVehicleIds?: string[] } = {},
-): Promise<{ routeAd: string; adaylar: DispatchAday[] }> {
+): Promise<{
+  routeAd: string;
+  adaylar: DispatchAday[];
+  rotaKoordinatlari: [number, number][];
+}> {
   const rota = await rotaYukle(tip, routeId);
-  if (!rota) return { routeAd: "", adaylar: [] };
+  if (!rota) return { routeAd: "", adaylar: [], rotaKoordinatlari: [] };
 
   const exclude = new Set(opts.excludeVehicleIds ?? []);
   const [hedefLat, hedefLng] = rota.baslangic;
@@ -178,7 +192,9 @@ export async function adaylariSkorla(
       vehicleType: { select: { name: true } },
     },
   });
-  if (adaylar.length === 0) return { routeAd: rota.ad, adaylar: [] };
+  if (adaylar.length === 0) {
+    return { routeAd: rota.ad, adaylar: [], rotaKoordinatlari: rota.koordinatlar };
+  }
 
   // Haversine ile en yakın 8'e indir (OSRM maliyeti)
   const yakin = adaylar
@@ -296,11 +312,11 @@ export async function adaylariSkorla(
         yakitSkor * AGIRLIK.yakit) *
       100;
 
+    const bayat = yasMs > KONUM_TAZELIK_MS;
     const etiketler: string[] = [];
     if (tipUyumlu) etiketler.push("tip uyumlu");
     else etiketler.push("tip zayıf");
-    if (yasMs <= KONUM_TAZELIK_MS) etiketler.push("taze konum");
-    else etiketler.push("bayat konum");
+    etiketler.push(bayat ? "bayat konum" : "taze konum");
     if (yuk === 0) etiketler.push("bugün boş");
     if (maliyet > 0 && yakitSkor >= 0.7) etiketler.push("düşük yakıt maliyeti");
     if (yol.tahmini) etiketler.push("kuş uçuşu tahmini");
@@ -315,6 +331,7 @@ export async function adaylariSkorla(
       skor: Math.round(skor * 10) / 10,
       kirilim,
       etiketler,
+      bayat,
       rota: yol.koordinatlar,
     };
   });
@@ -327,7 +344,11 @@ export async function adaylariSkorla(
     return b.skor - a.skor;
   });
 
-  return { routeAd: rota.ad, adaylar: skorlu.slice(0, MAX_ADAY) };
+  return {
+    routeAd: rota.ad,
+    adaylar: skorlu.slice(0, MAX_ADAY),
+    rotaKoordinatlari: rota.koordinatlar,
+  };
 }
 
 /**
@@ -367,14 +388,17 @@ export async function enYakinAracOner(
     };
   }
   if (mevcut && mevcut.vehicleId && exclude.has(mevcut.vehicleId)) {
-    await prisma.dispatchJob.update({
-      where: { id: mevcut.id },
-      data: { durum: "REDDEDILDI" },
-    });
+    await oneriSonlandir(mevcut.id, "REDDEDILDI");
   }
 
-  const { routeAd, adaylar } = await adaylariSkorla(tip, routeId, opts);
-  const secilen = adaylar[0];
+  const { routeAd, adaylar, rotaKoordinatlari } = await adaylariSkorla(
+    tip,
+    routeId,
+    opts,
+  );
+  // Bayat konumlu araç otomatik seçilmez: konumu 15 dk'dan eski araç
+  // gerçekte başka yerde olabilir. Listede kalır, operatör elle seçebilir.
+  const secilen = adaylar.find((a) => !a.bayat);
   if (!secilen) return null;
 
   const gerekce: DispatchGerekce = {
@@ -383,19 +407,13 @@ export async function enYakinAracOner(
     etiketler: secilen.etiketler,
   };
 
-  const job = await prisma.dispatchJob.create({
-    data: {
-      tip,
-      routeId,
-      routeAd,
-      vehicleId: secilen.vehicleId,
-      durum: "ONERILDI",
-      rota: secilen.rota,
-      mesafeKm: secilen.mesafeKm,
-      sureDk: secilen.sureDk,
-      tahmini: secilen.tahmini,
-      gerekce: gerekce as unknown as Prisma.InputJsonValue,
-    },
+  const job = await oneriKaydet({
+    tip,
+    routeId,
+    routeAd,
+    secilen,
+    gerekce,
+    rotaKoordinatlari,
   });
 
   return {
@@ -413,13 +431,61 @@ export async function enYakinAracOner(
   };
 }
 
+/**
+ * ONERILDI job'u yazar. aktifOneriAnahtari unique olduğu için aynı rota için
+ * eşzamanlı ikinci öneri denemesi burada yakalanır.
+ */
+async function oneriKaydet(params: {
+  tip: DispatchTip;
+  routeId: string;
+  routeAd: string;
+  secilen: DispatchAday;
+  gerekce: DispatchGerekce;
+  rotaKoordinatlari: [number, number][];
+}) {
+  const { tip, routeId, routeAd, secilen, gerekce, rotaKoordinatlari } = params;
+  try {
+    return await prisma.dispatchJob.create({
+      data: {
+        tip,
+        routeId,
+        routeAd,
+        vehicleId: secilen.vehicleId,
+        durum: "ONERILDI",
+        rota: secilen.rota,
+        // Rota sonradan değişse de analiz atama anındaki geometriyle yapılır
+        rotaSnapshot: rotaKoordinatlari,
+        mesafeKm: secilen.mesafeKm,
+        sureDk: secilen.sureDk,
+        tahmini: secilen.tahmini,
+        gerekce: gerekce as unknown as Prisma.InputJsonValue,
+        aktifOneriAnahtari: oneriAnahtari(tip, routeId),
+      },
+    });
+  } catch (err) {
+    if (bekleyenOneriCakismasiMi(err)) {
+      throw new Error("Bu rota için zaten bekleyen bir öneri var");
+    }
+    throw err;
+  }
+}
+
+/** Öneriyi sonuçlandırır ve tekillik anahtarını serbest bırakır */
+async function oneriSonlandir(jobId: string, durum: "REDDEDILDI"): Promise<number> {
+  const sonuc = await prisma.dispatchJob.updateMany({
+    where: { id: jobId, durum: "ONERILDI" },
+    data: { durum, aktifOneriAnahtari: null },
+  });
+  return sonuc.count;
+}
+
 /** Belirli bir adayı seçerek öneri/job oluştur (UI Ata butonu) */
 export async function aracOner(
   tip: DispatchTip,
   routeId: string,
   vehicleId: string,
 ): Promise<DispatchOneri | null> {
-  const { routeAd, adaylar } = await adaylariSkorla(tip, routeId);
+  const { routeAd, adaylar, rotaKoordinatlari } = await adaylariSkorla(tip, routeId);
   const secilen = adaylar.find((a) => a.vehicleId === vehicleId);
   if (!secilen) {
     // Listede yoksa (bayat/musait değişti) yeniden skorla ve o aracı zorla dene
@@ -429,7 +495,7 @@ export async function aracOner(
   // Aynı rota için eski ONERILDI varsa reddet (yenisi yazılacak)
   await prisma.dispatchJob.updateMany({
     where: { tip, routeId, durum: "ONERILDI" },
-    data: { durum: "REDDEDILDI" },
+    data: { durum: "REDDEDILDI", aktifOneriAnahtari: null },
   });
 
   const gerekce: DispatchGerekce = {
@@ -438,19 +504,13 @@ export async function aracOner(
     etiketler: secilen.etiketler,
   };
 
-  const job = await prisma.dispatchJob.create({
-    data: {
-      tip,
-      routeId,
-      routeAd,
-      vehicleId: secilen.vehicleId,
-      durum: "ONERILDI",
-      rota: secilen.rota,
-      mesafeKm: secilen.mesafeKm,
-      sureDk: secilen.sureDk,
-      tahmini: secilen.tahmini,
-      gerekce: gerekce as unknown as Prisma.InputJsonValue,
-    },
+  const job = await oneriKaydet({
+    tip,
+    routeId,
+    routeAd,
+    secilen,
+    gerekce,
+    rotaKoordinatlari,
   });
 
   return {
@@ -478,7 +538,6 @@ export async function dispatchAta(
       vehicle: { select: { id: true, plaka: true, atananSoforId: true } },
     },
   });
-  if (job.durum !== "ONERILDI") throw new Error("Öneri zaten sonuçlandırılmış");
   if (!job.vehicle) throw new Error("Öneride araç yok");
 
   const arac = job.vehicle;
@@ -486,6 +545,13 @@ export async function dispatchAta(
   const cikis = new Date();
 
   const created = await withSerialRetry(prisma, async (tx) => {
+    // Öneriyi transaction içinde sahiplen: iki eşzamanlı atama iki görev açardı
+    const claim = await tx.dispatchJob.updateMany({
+      where: { id: job.id, durum: "ONERILDI" },
+      data: { durum: "ATANDI", aktifOneriAnahtari: null },
+    });
+    if (claim.count === 0) throw new Error("Öneri zaten sonuçlandırılmış");
+
     const guncel = await tx.vehicle.findUniqueOrThrow({
       where: { id: arac.id },
       select: { operasyonDurumu: true },
@@ -513,10 +579,6 @@ export async function dispatchAta(
       where: { id: arac.id },
       data: { operasyonDurumu: "GOREVDE", sonCikisTarihi: cikis },
     });
-    await tx.dispatchJob.update({
-      where: { id: job.id },
-      data: { durum: "ATANDI" },
-    });
     return gorev;
   });
 
@@ -535,10 +597,8 @@ export async function dispatchAta(
 }
 
 export async function dispatchReddet(jobId: string): Promise<void> {
-  await prisma.dispatchJob.update({
-    where: { id: jobId, durum: "ONERILDI" },
-    data: { durum: "REDDEDILDI" },
-  });
+  const count = await oneriSonlandir(jobId, "REDDEDILDI");
+  if (count === 0) throw new Error("Öneri zaten sonuçlandırılmış");
 }
 
 export async function gorevRotasi(taskId: string): Promise<YolRotasi | null> {

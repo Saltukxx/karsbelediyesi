@@ -1,6 +1,6 @@
 import { nextTaskSerial, prisma, withSerialRetry } from "@kars/db";
 import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
-import { toAccessUser } from "@/lib/access";
+import { gorevOlusturmaKapsami, toAccessUser } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -172,10 +172,12 @@ export async function POST(req: Request) {
   };
   if (!body.vehicleId) return badRequest("vehicleId zorunlu");
 
-  const arac = await prisma.vehicle.findUnique({
-    where: { id: body.vehicleId },
+  const kapsam = await gorevOlusturmaKapsami(toAccessUser(auth.user), {
+    vehicleId: body.vehicleId,
+    talepEdenDepartmentId: body.talepEdenDepartmentId ?? null,
+    driverId: body.driverId ?? null,
   });
-  if (!arac) return badRequest("Araç bulunamadı");
+  if (!kapsam.ok) return badRequest(kapsam.error);
 
   const created = await withSerialRetry(prisma, async (tx) => {
     const { yil, sira, gorevNo } = await nextTaskSerial(tx);
@@ -187,8 +189,8 @@ export async function POST(req: Request) {
         vehicleId: body.vehicleId!,
         gorevTanimi: body.gorevTanimi,
         gorevYeri: body.gorevYeri,
-        talepEdenDepartmentId: body.talepEdenDepartmentId,
-        driverId: body.driverId ?? arac.atananSoforId ?? undefined,
+        talepEdenDepartmentId: kapsam.talepEdenDepartmentId ?? undefined,
+        driverId: kapsam.driverId ?? undefined,
         durum: "PLANLANDI",
       },
       include: { vehicle: { select: { id: true, plaka: true } } },

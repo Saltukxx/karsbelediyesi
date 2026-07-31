@@ -42,10 +42,21 @@ export async function dispatchAdaylariGetir(
 ): Promise<{ routeAd: string; adaylar: Omit<DispatchAday, "rota">[] }> {
   await requireRoles(ACTION_ROLES.dispatch);
   const { routeAd, adaylar } = await adaylariSkorla(tip, routeId);
-  // Geometriyi client'a göndermeye gerek yok
+  // Geometri (rota) client'a gönderilmez — alanlar açıkça seçilir
   return {
     routeAd,
-    adaylar: adaylar.map(({ rota: _r, ...rest }) => rest),
+    adaylar: adaylar.map((a) => ({
+      vehicleId: a.vehicleId,
+      plaka: a.plaka,
+      tip: a.tip,
+      sureDk: a.sureDk,
+      mesafeKm: a.mesafeKm,
+      tahmini: a.tahmini,
+      skor: a.skor,
+      kirilim: a.kirilim,
+      etiketler: a.etiketler,
+      bayat: a.bayat,
+    })),
   };
 }
 

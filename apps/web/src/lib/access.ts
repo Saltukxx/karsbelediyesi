@@ -163,6 +163,55 @@ export async function assertVehicleApiAccess(
   return { ok: true, row };
 }
 
+export type TaskCreateScope =
+  | { ok: true; talepEdenDepartmentId: string | null; driverId: string | null }
+  | { ok: false; error: string };
+
+/**
+ * Görev oluşturma kapsamı: müdür yalnızca kendi müdürlüğünün aracıyla,
+ * kendi müdürlüğü adına ve müdürlüğüne bağlı (ya da araca zimmetli) şoförle
+ * görev açabilir. Doğrulanmış alanları döner.
+ */
+export async function gorevOlusturmaKapsami(
+  user: AccessUser,
+  input: { vehicleId: string; talepEdenDepartmentId?: string | null; driverId?: string | null },
+): Promise<TaskCreateScope> {
+  const vehicle = await loadVehicleForAccess(input.vehicleId);
+  if (!vehicle) return { ok: false, error: "Araç bulunamadı" };
+
+  const mudur = user.role === "DEPARTMENT_MANAGER";
+  if (mudur) {
+    if (!user.departmentId) {
+      return { ok: false, error: "Hesabınıza bağlı müdürlük yok" };
+    }
+    if (vehicle.departmentId !== user.departmentId) {
+      return { ok: false, error: "Seçilen araç müdürlüğünüze bağlı değil" };
+    }
+  }
+
+  const talepEdenDepartmentId = mudur
+    ? user.departmentId
+    : (input.talepEdenDepartmentId ?? null);
+
+  const driverId = input.driverId ?? vehicle.atananSoforId ?? null;
+  if (driverId && driverId !== vehicle.atananSoforId) {
+    const sofor = await prisma.user.findFirst({
+      where: {
+        id: driverId,
+        aktif: true,
+        role: { in: ["DRIVER", "FIELD_WORKER"] },
+        ...(mudur ? { departmentId: user.departmentId ?? "-" } : {}),
+      },
+      select: { id: true },
+    });
+    if (!sofor) {
+      return { ok: false, error: "Seçilen şoför geçersiz veya müdürlüğünüze bağlı değil" };
+    }
+  }
+
+  return { ok: true, talepEdenDepartmentId, driverId };
+}
+
 /** Resolve personnel.userId for field assignment checks */
 export async function userPersonnelId(userId: string): Promise<string | null> {
   const p = await prisma.personnel.findFirst({

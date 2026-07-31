@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
 import type { AsfaltDurum, SikayetDurum } from "@kars/db";
+import { canTransitionAsfalt } from "@/lib/domain/asfalt-status";
 import { canTransitionComplaint } from "@/lib/domain/complaint-status";
 import { requireSession } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
@@ -104,6 +105,13 @@ export async function islerimAsfaltDurum(formData: FormData) {
   if (!atama) throw new Error("Bu rota size atanmamış");
 
   const durum = durumRaw as AsfaltDurum;
+  const gecis = canTransitionAsfalt(
+    atama.asphaltRoad.durum,
+    durum,
+    session.user.role,
+  );
+  if (!gecis.ok) throw new Error(gecis.error);
+
   await prisma.asphaltRoad.update({ where: { id }, data: { durum } });
 
   await auditKaydet(session, "ISLERIM_ASFALT_DURUM", {

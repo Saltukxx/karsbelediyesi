@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
+import { rotaSilVeyaPasifle } from "@/lib/route-delete";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -124,13 +125,19 @@ export async function copRotaSil(formData: FormData) {
 
   const id = bos(formData.get("id"));
   if (!id) throw new Error("Kayıt bulunamadı");
-  const silinen = await prisma.wasteRoute.delete({ where: { id } });
-  await auditKaydet(session, "COP_ROTA_SIL", {
+
+  const karar = await rotaSilVeyaPasifle("COP", id);
+  const ad = karar.silindi
+    ? (await prisma.wasteRoute.delete({ where: { id } })).ad
+    : undefined;
+
+  await auditKaydet(session, karar.silindi ? "COP_ROTA_SIL" : "COP_ROTA_PASIF", {
     varlik: "WasteRoute",
     varlikId: id,
-    detay: { ad: silinen.ad },
+    detay: karar.silindi ? { ad } : { sebep: karar.sebep },
   });
   revalidatePath("/cop");
+  if (!karar.silindi) throw new Error(karar.sebep);
 }
 
 // ── TOPLAMA ──────────────────────────────────────────────────────────

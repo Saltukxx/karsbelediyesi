@@ -14,7 +14,23 @@ import {
   type SessionDraft,
 } from "./session.js";
 
-const THRESHOLD = Number(process.env.WHATSAPP_AUTO_CONFIDENCE_THRESHOLD ?? "0.75");
+const THRESHOLD_VARSAYILAN = 0.75;
+
+/** Geçersiz env değeri eşiği NaN yapıp her şikayeti otomatik açardı */
+function esikOku(): number {
+  const ham = process.env.WHATSAPP_AUTO_CONFIDENCE_THRESHOLD;
+  if (ham == null || ham.trim() === "") return THRESHOLD_VARSAYILAN;
+  const n = Number(ham);
+  if (!Number.isFinite(n) || n < 0 || n > 1) {
+    console.error(
+      `WHATSAPP_AUTO_CONFIDENCE_THRESHOLD geçersiz ("${ham}") — ${THRESHOLD_VARSAYILAN} kullanılıyor`,
+    );
+    return THRESHOLD_VARSAYILAN;
+  }
+  return n;
+}
+
+const THRESHOLD = esikOku();
 
 export type InboundJob = {
   telefon: string;
@@ -31,13 +47,54 @@ export type ProcessResult = {
   complaintId?: string;
   classification: Classification;
   skipped?: boolean;
+  /** Yanıtın gönderildiğini işaretlemek için WhatsAppMessage.id */
+  messageId?: string;
 };
 
 function mediaErrorReply(code?: MediaErrorCode): string {
   if (code === "too_large") {
     return "Gönderdiğiniz dosya çok büyük (en fazla 8 MB). Lütfen daha küçük bir fotoğraf/ses gönderin veya şikayetinizi yazın.";
   }
+  if (code === "unsupported") {
+    return "Bu dosya türünü işleyemiyoruz. Lütfen fotoğraf veya sesli mesaj gönderin ya da şikayetinizi yazarak iletin.";
+  }
   return "Medya alınamadı. Lütfen fotoğraf veya sesli mesajı tekrar gönderin ya da şikayetinizi yazın.";
+}
+
+/**
+ * Üretilen yanıtı mesaj satırına yazar: gönderim başarısız olup job yeniden
+ * denenirse yanıt sıfırdan üretilmeden aynısı gönderilir.
+ */
+async function yanit(messageId: string, res: ProcessResult): Promise<ProcessResult> {
+  await prisma.whatsAppMessage.update({
+    where: { id: messageId },
+    data: { botYaniti: res.reply },
+  });
+  return { ...res, messageId };
+}
+
+const KARSILAMA =
+  "Kars Belediyesi WhatsApp hattına hoş geldiniz. Şikayet veya talebinizi mahalle ve adres bilgisiyle yazabilirsiniz; fotoğraf veya sesli mesaj da gönderebilirsiniz. Açık şikayet durumu için 'durum' yazın.";
+
+/** Şikayet olmayan / bağlam dışı mesajlar için bilgilendirme */
+async function karsilamaYaniti(
+  job: InboundJob,
+  turn: Classification,
+): Promise<ProcessResult> {
+  const msg = await prisma.whatsAppMessage.create({
+    data: {
+      telefon: job.telefon,
+      yon: "GELEN",
+      icerik: job.icerik,
+      medyaUrl: job.medyaUrl,
+      medyaTipi: job.medyaTipi,
+      waMessageId: job.waMessageId,
+      aiSonuc: turn,
+      guven: turn.guven,
+      botYaniti: KARSILAMA,
+    },
+  });
+  return { reply: KARSILAMA, classification: turn, messageId: msg.id };
 }
 
 function isFullNewComplaint(c: Classification): boolean {
@@ -60,6 +117,15 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
         intent: "diger",
         guven: existing.guven ?? 0,
       }) as Classification;
+      // Mesaj işlendi ama yanıt gönderilemeden düştüyse aynı yanıt tekrarlanır
+      if (!existing.yanitGonderildi && existing.botYaniti) {
+        return {
+          reply: existing.botYaniti,
+          complaintId: existing.complaintId ?? undefined,
+          classification,
+          messageId: existing.id,
+        };
+      }
       if (existing.complaint) {
         return {
           reply: `Şikayetiniz ${existing.complaint.sikayetNo} no ile daha önce kaydedildi.`,
@@ -86,7 +152,8 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
       oncelik: "NORMAL",
       guven: 0,
     };
-    await prisma.whatsAppMessage.create({
+    const reply = mediaErrorReply(job.mediaError);
+    const msg = await prisma.whatsAppMessage.create({
       data: {
         telefon: job.telefon,
         yon: "GELEN",
@@ -95,12 +162,10 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
         waMessageId: job.waMessageId,
         aiSonuc: classification,
         guven: 0,
+        botYaniti: reply,
       },
     });
-    return {
-      reply: mediaErrorReply(job.mediaError),
-      classification,
-    };
+    return { reply, classification, messageId: msg.id };
   }
 
   const session = await getSession(job.telefon);
@@ -116,7 +181,7 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
 
   // Interrupt intents — do not consume draft
   if (turn.intent === "durum_sorgu") {
-    await prisma.whatsAppMessage.create({
+    const msg = await prisma.whatsAppMessage.create({
       data: {
         telefon: job.telefon,
         yon: "GELEN",
@@ -137,20 +202,21 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
       include: { department: true },
     });
     if (!open) {
-      return {
+      return yanit(msg.id, {
         reply: "Açık şikayet kaydınız bulunamadı. Yeni bir talep iletebilirsiniz.",
         classification: turn,
-      };
+      });
     }
-    return {
+    return yanit(msg.id, {
       reply: `Şikayetiniz ${open.sikayetNo}: durum ${open.durum}${open.department ? `, ${open.department.name}` : ""}.`,
       complaintId: open.id,
       classification: turn,
-    };
+    });
   }
 
   if (turn.intent === "tesekkur") {
-    await prisma.whatsAppMessage.create({
+    const reply = "Rica ederiz. İyi günler dileriz.";
+    const msg = await prisma.whatsAppMessage.create({
       data: {
         telefon: job.telefon,
         yon: "GELEN",
@@ -160,9 +226,10 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
         waMessageId: job.waMessageId,
         aiSonuc: turn,
         guven: turn.guven,
+        botYaniti: reply,
       },
     });
-    return { reply: "Rica ederiz. İyi günler dileriz.", classification: turn };
+    return { reply, classification: turn, messageId: msg.id };
   }
 
   // Build / update draft
@@ -202,42 +269,10 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
       draft.sourceMessageIds = job.waMessageId ? [job.waMessageId] : [];
     } else {
       // Non-complaint outside active fill
-      await prisma.whatsAppMessage.create({
-        data: {
-          telefon: job.telefon,
-          yon: "GELEN",
-          icerik: job.icerik,
-          medyaUrl: job.medyaUrl,
-          medyaTipi: job.medyaTipi,
-          waMessageId: job.waMessageId,
-          aiSonuc: turn,
-          guven: turn.guven,
-        },
-      });
-      return {
-        reply:
-          "Kars Belediyesi WhatsApp hattına hoş geldiniz. Şikayet veya talebinizi mahalle ve adres bilgisiyle yazabilirsiniz; fotoğraf veya sesli mesaj da gönderebilirsiniz. Açık şikayet durumu için 'durum' yazın.",
-        classification: turn,
-      };
+      return karsilamaYaniti(job, turn);
     }
   } else {
-    await prisma.whatsAppMessage.create({
-      data: {
-        telefon: job.telefon,
-        yon: "GELEN",
-        icerik: job.icerik,
-        medyaUrl: job.medyaUrl,
-        medyaTipi: job.medyaTipi,
-        waMessageId: job.waMessageId,
-        aiSonuc: turn,
-        guven: turn.guven,
-      },
-    });
-    return {
-      reply:
-        "Kars Belediyesi WhatsApp hattına hoş geldiniz. Şikayet veya talebinizi mahalle ve adres bilgisiyle yazabilirsiniz; fotoğraf veya sesli mesaj da gönderebilirsiniz. Açık şikayet durumu için 'durum' yazın.",
-      classification: turn,
-    };
+    return karsilamaYaniti(job, turn);
   }
 
   const classification = { ...draft.classification, intent: "sikayet" as const };
@@ -264,43 +299,39 @@ export async function processInbound(job: InboundJob): Promise<ProcessResult> {
       draft = { ...draft, askedAdres: true };
     }
     await upsertSession(job.telefon, draft, awaiting);
-    return {
+    return yanit(msg.id, {
       reply: replyForAwaiting(awaiting),
       classification,
-    };
+    });
   }
 
   // Complete — create or operator queue
   await clearSession(job.telefon);
 
   if (classification.guven < THRESHOLD) {
+    const reply =
+      "Bilgileriniz alındı. Operatörümüz kısa süre içinde kontrol edip size dönüş yapacaktır.";
     await prisma.whatsAppMessage.update({
       where: { id: msg.id },
-      data: { onayDurumu: "ONAY_BEKLIYOR" },
+      data: { onayDurumu: "ONAY_BEKLIYOR", botYaniti: reply },
     });
-    return {
-      reply:
-        "Bilgileriniz alındı. Operatörümüz kısa süre içinde kontrol edip size dönüş yapacaktır.",
-      classification,
-    };
+    return { reply, classification, messageId: msg.id };
   }
 
   const complaint = await createComplaintFromAi(job.telefon, classification);
+  const reply = `Şikayetiniz ${complaint.sikayetNo} no ile kaydedildi${
+    complaint.departmentName ? `, ${complaint.departmentName}'ne iletildi` : ""
+  }.`;
   await prisma.whatsAppMessage.update({
     where: { id: msg.id },
     data: {
       complaintId: complaint.id,
       onayDurumu: "OTOMATIK",
+      botYaniti: reply,
     },
   });
 
-  return {
-    reply: `Şikayetiniz ${complaint.sikayetNo} no ile kaydedildi${
-      complaint.departmentName ? `, ${complaint.departmentName}'ne iletildi` : ""
-    }.`,
-    complaintId: complaint.id,
-    classification,
-  };
+  return { reply, complaintId: complaint.id, classification, messageId: msg.id };
 }
 
 async function createComplaintFromAi(

@@ -9,7 +9,7 @@ import { dispatchAtaAction, dispatchReddetAction } from "@/lib/actions/dispatch"
 import { btnSecondary, cardCls, sectionTitleCls } from "@/lib/ui";
 import { StatCard } from "@/components/ui/StatCard";
 import type { KomutaVeri } from "@/lib/komuta";
-import type { KomutaOdak } from "@/components/komuta/komuta-types";
+import { tipKisaLabel, type KomutaOdak } from "@/components/komuta/komuta-types";
 
 const KomutaMap = dynamic(() => import("@/components/komuta/KomutaMap"), {
   ssr: false,
@@ -190,7 +190,7 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
                       className="w-full rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-left hover:bg-red-100"
                     >
                       <span className="font-semibold text-red-800">
-                        {r.tip === "KIS" ? "Kış" : "Çöp"} · {r.ad}
+                        {tipKisaLabel(r.tip)} · {r.ad}
                       </span>
                       <span className="block text-xs text-red-700">
                         {r.tip === "KIS"
@@ -241,7 +241,7 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
                     className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5"
                   >
                     <span className="font-semibold text-kb-navy">
-                      {o.tip === "KIS" ? "Kış" : "Çöp"} · {o.routeAd}
+                      {tipKisaLabel(o.tip)} · {o.routeAd}
                     </span>
                     <span className="block text-xs text-kb-muted">
                       Önerilen: {o.plaka ?? "—"}

@@ -23,6 +23,8 @@ export interface AdayKart {
     yakit: number;
   };
   etiketler: string[];
+  /** Konumu bayat — otomatik önerilmez, elle seçilebilir */
+  bayat: boolean;
 }
 
 /** Rota seçilince / kaydedilince yan panelde skorlu araç adayları */

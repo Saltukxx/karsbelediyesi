@@ -6,7 +6,11 @@
  * Test verisi sonda temizlenir.
  */
 import { nextTaskSerial, prisma, withSerialRetry } from "@kars/db";
-import { canliSapmaKontrol, gorevIziAnalizEt } from "../src/lib/route-analysis";
+import {
+  canliSapmaKontrol,
+  gorevIziAnalizEt,
+  sapmaTaramasi,
+} from "../src/lib/route-analysis";
 
 const LAT0 = 40.6013;
 const LNG0 = 43.0975;
@@ -120,6 +124,35 @@ async function main() {
     console.log(`  ✓ ${ad}`);
   }
 
+  // 4b) Rota anlık görüntüsü: rota sonradan değişse de analiz snapshot ile üretilir
+  await prisma.dispatchJob.update({
+    where: { id: job.id },
+    data: {
+      rotaSnapshot: [
+        [LAT0, LNG0],
+        [LAT0, LNG0 + 1000 * M_LNG],
+      ],
+    },
+  });
+  await prisma.cleaningRoute.update({
+    where: { id: rota.id },
+    // Rota 5 km kuzeye taşınır: snapshot kullanılmazsa uyum çöker
+    data: {
+      koordinatlar: [
+        [LAT0 + 5000 * M_LAT, LNG0],
+        [LAT0 + 5000 * M_LAT, LNG0 + 1000 * M_LNG],
+      ],
+    },
+  });
+  const snapshotAnaliz = await gorevIziAnalizEt(task.id);
+  if (!snapshotAnaliz) throw new Error("Snapshot analizi üretilemedi");
+  if (snapshotAnaliz.uyumYuzde !== analiz.uyumYuzde) {
+    throw new Error(
+      `Snapshot yoksayıldı: uyum ${analiz.uyumYuzde} → ${snapshotAnaliz.uyumYuzde}`,
+    );
+  }
+  console.log("✓ Rota değişse de analiz snapshot geometrisiyle aynı kaldı");
+
   // 5) Canlı sapma bildirimi (eşik süresi geçici olarak 0.01 dk'ya indirilir)
   await prisma.appSetting.upsert({
     where: { key: "sapmaUyariDk" },
@@ -141,6 +174,50 @@ async function main() {
     where: { anahtar: { startsWith: `sapma:${task.id}:` } },
   });
   console.log(`✓ Bildirim tekrarı yok (olay başına kullanıcı başına 1): ${sayi} kayıt`);
+
+  // 5b) Sapma durumu bellekte değil görev satırında tutulur
+  const sapmali = await prisma.vehicleTask.findUniqueOrThrow({
+    where: { id: task.id },
+    select: { rotaDisiBaslangic: true, rotaDisiUyarildi: true, sonSapmaKontrol: true },
+  });
+  if (!sapmali.rotaDisiBaslangic || !sapmali.rotaDisiUyarildi) {
+    throw new Error("Sapma durumu DB'ye yazılmadı");
+  }
+  if (!sapmali.sonSapmaKontrol) throw new Error("sonSapmaKontrol güncellenmedi");
+  console.log("✓ Sapma durumu DB'de (rotaDisiBaslangic + rotaDisiUyarildi)");
+
+  await canliSapmaKontrol(vehicle.id, LAT0, LNG0 + 300 * M_LNG); // rotaya dönüş
+  const donen = await prisma.vehicleTask.findUniqueOrThrow({
+    where: { id: task.id },
+    select: { rotaDisiBaslangic: true, rotaDisiUyarildi: true },
+  });
+  if (donen.rotaDisiBaslangic || donen.rotaDisiUyarildi) {
+    throw new Error("Rotaya dönüşte sapma durumu sıfırlanmadı");
+  }
+  console.log("✓ Rotaya dönüşte sapma durumu sıfırlandı");
+
+  // 5c) Offline tarama: araç ping göndermeyi kesse de uyarı düşer
+  await prisma.notification.deleteMany({
+    where: { anahtar: { startsWith: `sapma:${task.id}:` } },
+  });
+  await prisma.vehicleTask.update({
+    where: { id: task.id },
+    data: {
+      rotaDisiBaslangic: new Date(Date.now() - 10 * 60000),
+      rotaDisiUyarildi: false,
+    },
+  });
+  const tarama = await sapmaTaramasi();
+  if (tarama.uyarilan < 1) throw new Error("Offline tarama uyarı üretmedi");
+  const offlineBildirim = await prisma.notification.findFirst({
+    where: { anahtar: { startsWith: `sapma:${task.id}:` } },
+  });
+  if (!offlineBildirim) throw new Error("Offline tarama bildirimi oluşmadı");
+  const ikinciTarama = await sapmaTaramasi();
+  if (ikinciTarama.uyarilan !== 0) {
+    throw new Error("Offline tarama aynı olayı ikinci kez uyardı");
+  }
+  console.log("✓ Offline sapma taraması: tek uyarı üretti, tekrarlamadı");
 
   // 6) Temizlik
   await prisma.notification.deleteMany({

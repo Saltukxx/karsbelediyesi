@@ -59,6 +59,12 @@ export default async function IslerimSikayetPage({
   const acikMi = s.durum === "ACIK" || s.durum === "DEVAM_EDIYOR";
   const inputCls = "w-full rounded-md border border-kb-border px-3 py-2 text-sm";
 
+  const GONDERIM_LABELS: Record<string, string> = {
+    KUYRUKTA: "gönderiliyor",
+    GONDERILDI: "iletildi",
+    BASARISIZ: "iletilemedi",
+  };
+
   function Alan({ ad, deger }: { ad: string; deger?: string | null }) {
     return (
       <div>
@@ -168,7 +174,15 @@ export default async function IslerimSikayetPage({
                     dateStyle: "short",
                     timeStyle: "short",
                   })}
+                  {m.yon === "GIDEN" && m.gonderimDurumu
+                    ? ` · ${GONDERIM_LABELS[m.gonderimDurumu] ?? m.gonderimDurumu}`
+                    : ""}
                 </p>
+                {m.gonderimDurumu === "BASARISIZ" && (
+                  <p className="mt-1 text-[10px] text-amber-200">
+                    Mesaj iletilemedi — tekrar göndermeyi deneyin.
+                  </p>
+                )}
               </div>
             ))}
           </div>

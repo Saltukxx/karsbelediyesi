@@ -48,28 +48,50 @@ export async function nextTaskSerial(tx: Tx): Promise<{
   return { yil, sira, gorevNo: gorevNoUret(yil, sira) };
 }
 
-export function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code: string }).code === "P2002"
-  );
+function hataKodu(err: unknown): string | null {
+  if (typeof err === "object" && err !== null && "code" in err) {
+    const code = (err as { code: unknown }).code;
+    return typeof code === "string" ? code : null;
+  }
+  return null;
 }
 
-/** Transaction + P2002 retry for serial creates */
+export function isUniqueViolation(err: unknown): boolean {
+  return hataKodu(err) === "P2002";
+}
+
+/**
+ * Yeniden denenebilir hatalar:
+ * P2002 sıra numarası çakışması, P2028 transaction başlatma/zaman aşımı
+ * (advisory lock kuyruğu uzadığında), P2034 write conflict / deadlock.
+ */
+const YENIDEN_DENENEBILIR = new Set(["P2002", "P2028", "P2034"]);
+
+function yenidenDenenebilirMi(err: unknown): boolean {
+  const code = hataKodu(err);
+  return code != null && YENIDEN_DENENEBILIR.has(code);
+}
+
+/**
+ * Sıra numarası üreten create'ler için transaction sarmalayıcı.
+ * Sıra numarası advisory lock ile seri üretildiği için eşzamanlı istekler
+ * kuyruğa girer; kuyruk beklemesi varsayılan 2 sn'yi aşabildiği için
+ * maxWait/timeout yükseltilir ve geçici hatalar artan bekleme ile denenir.
+ */
 export async function withSerialRetry<T>(
   prisma: PrismaClient,
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
-  maxAttempts = 3,
+  maxAttempts = 4,
 ): Promise<T> {
   let last: unknown;
   for (let i = 0; i < maxAttempts; i += 1) {
     try {
-      return await prisma.$transaction(fn);
+      return await prisma.$transaction(fn, { maxWait: 8_000, timeout: 20_000 });
     } catch (err) {
       last = err;
-      if (!isUniqueViolation(err) || i === maxAttempts - 1) throw err;
+      if (!yenidenDenenebilirMi(err) || i === maxAttempts - 1) throw err;
+      const bekle = 50 * 2 ** i + Math.floor(Math.random() * 50);
+      await new Promise((resolve) => setTimeout(resolve, bekle));
     }
   }
   throw last;

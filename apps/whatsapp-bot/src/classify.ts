@@ -315,6 +315,55 @@ export function normalizeClassification(raw: Partial<Classification> | null | un
   };
 }
 
+/** Gemini çağrısı için üst sınır — asılı kalan istek kuyruğu tıkamasın */
+const GEMINI_TIMEOUT_MS = 20_000;
+/** Prompt'un şişmemesi için few-shot örnek üst sınırı */
+const FEW_SHOT_MAX = 32;
+const FEW_SHOT_VARSAYILAN = 12;
+/** Bu boyutun üstündeki medya prompt'a eklenmez (metin-only istek yapılır) */
+const MAX_MEDYA_BYTES = 4 * 1024 * 1024;
+
+function fewShotSayisi(): number {
+  const ham = process.env.GEMINI_FEW_SHOT;
+  if (ham == null || ham.trim() === "") return FEW_SHOT_VARSAYILAN;
+  const n = Number(ham);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.error(`GEMINI_FEW_SHOT geçersiz ("${ham}") — ${FEW_SHOT_VARSAYILAN} kullanılıyor`);
+    return FEW_SHOT_VARSAYILAN;
+  }
+  return Math.min(Math.floor(n), FEW_SHOT_MAX);
+}
+
+function zamanSinirli<T>(p: Promise<T>, asama: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Gemini zaman aşımı (${asama}, ${GEMINI_TIMEOUT_MS} ms)`)),
+        GEMINI_TIMEOUT_MS,
+      ).unref?.(),
+    ),
+  ]);
+}
+
+/** Medyayı base64 parçaya çevirir; okunamaz/çok büyükse metin-only devam edilir */
+async function medyaPartYap(media: ClassifyMedia) {
+  try {
+    const buf = await readFile(media.filePath);
+    if (buf.length > MAX_MEDYA_BYTES) {
+      console.error(
+        `Medya prompt'a eklenmedi (${buf.length} bayt > ${MAX_MEDYA_BYTES}):`,
+        media.filePath,
+      );
+      return null;
+    }
+    return createPartFromBase64(buf.toString("base64"), media.mimeType);
+  } catch (err) {
+    console.error("Medya okunamadı, metin-only sınıflandırma:", media.filePath, err);
+    return null;
+  }
+}
+
 export async function classifyMessage(
   text: string,
   media?: ClassifyMedia | null,
@@ -344,10 +393,7 @@ export async function classifyMessage(
 
   const ai = new GoogleGenAI({ apiKey });
   const model = resolveModel();
-  const fewShotLimit = Number(process.env.GEMINI_FEW_SHOT ?? "12");
-  const fewShot = loadFewShotExamples(
-    Number.isFinite(fewShotLimit) && fewShotLimit > 0 ? fewShotLimit : 12,
-  );
+  const fewShot = loadFewShotExamples(fewShotSayisi());
 
   type Part = { text: string } | ReturnType<typeof createPartFromBase64>;
   const contents: Array<{ role: string; parts: Part[] }> = [];
@@ -364,69 +410,73 @@ export async function classifyMessage(
   }
 
   const userParts: Part[] = [{ text: userPromptText(text, media, priorDraft) }];
-  if (media) {
-    try {
-      const buf = await readFile(media.filePath);
-      userParts.push(
-        createPartFromBase64(buf.toString("base64"), media.mimeType),
-      );
-    } catch {
-      return heuristicClassify(text, true);
-    }
-  }
+  const medyaParcasi = media ? await medyaPartYap(media) : null;
+  if (medyaParcasi) userParts.push(medyaParcasi);
   contents.push({ role: "user", parts: userParts });
 
   try {
-    const res = await ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction: systemInstruction(),
-        temperature: 0.2,
-        responseMimeType: "application/json",
-        responseJsonSchema: RESPONSE_SCHEMA,
-      },
-    });
+    const res = await zamanSinirli(
+      ai.models.generateContent({
+        model,
+        contents,
+        config: {
+          systemInstruction: systemInstruction(),
+          temperature: 0.2,
+          responseMimeType: "application/json",
+          responseJsonSchema: RESPONSE_SCHEMA,
+        },
+      }),
+      "şema modu",
+    );
 
     const rawText = res.text;
-    if (!rawText) return heuristicClassify(text, Boolean(media));
+    if (!rawText) {
+      console.error("Gemini boş yanıt döndü (şema modu) — sezgisel sınıflandırma");
+      return heuristicClassify(text, Boolean(media));
+    }
     const parsed = JSON.parse(rawText) as Partial<Classification>;
     return refineWithLexicon(text, normalizeClassification(parsed), Boolean(media));
-  } catch {
+  } catch (err) {
+    console.error("Gemini sınıflandırma hatası (şema modu):", err);
     try {
       const fallbackParts: Part[] = [
         {
           text: `${systemInstruction()}\n\nMesaj: ${text}${priorDraftHint(priorDraft)}\n\nSadece geçerli JSON döndür.`,
         },
       ];
-      if (media) {
-        try {
-          const buf = await readFile(media.filePath);
-          fallbackParts.push(
-            createPartFromBase64(buf.toString("base64"), media.mimeType),
-          );
-        } catch {
-          /* text-only fallback */
-        }
-      }
-      const res = await ai.models.generateContent({
-        model,
-        contents: [{ role: "user", parts: fallbackParts }],
-        config: {
-          temperature: 0.2,
-          responseMimeType: "application/json",
-        },
-      });
+      if (medyaParcasi) fallbackParts.push(medyaParcasi);
+
+      const res = await zamanSinirli(
+        ai.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: fallbackParts }],
+          config: {
+            temperature: 0.2,
+            responseMimeType: "application/json",
+          },
+        }),
+        "serbest mod",
+      );
       const rawText = res.text;
-      if (!rawText) return heuristicClassify(text, Boolean(media));
+      if (!rawText) {
+        console.error("Gemini boş yanıt döndü (serbest mod) — sezgisel sınıflandırma");
+        return heuristicClassify(text, Boolean(media));
+      }
       const match = rawText.match(/\{[\s\S]*\}/);
-      if (!match) return heuristicClassify(text, Boolean(media));
+      if (!match) {
+        console.error("Gemini yanıtında JSON bulunamadı — sezgisel sınıflandırma");
+        return heuristicClassify(text, Boolean(media));
+      }
       return refineWithLexicon(
         text,
         normalizeClassification(JSON.parse(match[0]) as Partial<Classification>),
         Boolean(media),
       );
-    } catch {
+    } catch (fallbackErr) {
+      console.error(
+        "Gemini sınıflandırma hatası (serbest mod) — sezgisel sınıflandırma:",
+        fallbackErr,
+      );
       return heuristicClassify(text, Boolean(media));
     }
   }
