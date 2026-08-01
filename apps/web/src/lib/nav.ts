@@ -1,12 +1,11 @@
 import type { Rol } from "@kars/shared";
 
 export type NavGroupId =
-  | "genel"
-  | "cagri"
-  | "filo"
-  | "uretim"
-  | "insan"
-  | "yonetim";
+  | "operasyon"
+  | "vatandas"
+  | "saha"
+  | "filo_uretim"
+  | "kurum";
 
 export type NavIconName =
   | "LayoutDashboard"
@@ -42,6 +41,7 @@ export interface NavGroup {
 export interface NavItem {
   href: string;
   label: string;
+  description: string;
   icon: NavIconName;
   group: NavGroupId;
   roles: Rol[];
@@ -59,43 +59,42 @@ const TUM_ROLLER: Rol[] = [
 const SAHA: Rol[] = ["DRIVER", "FIELD_WORKER"];
 
 export const NAV_GROUPS: NavGroup[] = [
-  { id: "genel", label: "Genel" },
-  { id: "cagri", label: "Çağrı / İş" },
-  { id: "filo", label: "Filo" },
-  { id: "uretim", label: "Üretim / Depo" },
-  { id: "insan", label: "İnsan / Mesai" },
-  { id: "yonetim", label: "Yönetim" },
+  { id: "operasyon", label: "Operasyon" },
+  { id: "vatandas", label: "Vatandaş & Görev" },
+  { id: "saha", label: "Saha & Harita" },
+  { id: "filo_uretim", label: "Filo & Üretim" },
+  { id: "kurum", label: "Kurum Yönetimi" },
 ];
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: "LayoutDashboard", group: "genel", roles: TUM_ROLLER },
-  { href: "/komuta", label: "Komuta Ekranı", icon: "Radar", group: "genel", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/raporlar", label: "Raporlar", icon: "BarChart3", group: "genel", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"] },
-  { href: "/harita", label: "Yol Haritası", icon: "Map", group: "genel", roles: TUM_ROLLER },
-  { href: "/parsel", label: "Parsel Sorgu", icon: "LandPlot", group: "genel", roles: TUM_ROLLER },
-  { href: "/kis", label: "Kış Operasyonu", icon: "Snowflake", group: "genel", roles: TUM_ROLLER },
-  { href: "/cop", label: "Çöp Toplama", icon: "Trash2", group: "genel", roles: TUM_ROLLER },
-  { href: "/temizlik", label: "Yol Temizliği", icon: "Brush", group: "genel", roles: TUM_ROLLER },
-  { href: "/sikayetler", label: "Şikayet Kayıt & Takip", icon: "PhoneCall", group: "cagri", roles: ["ADMIN", "CALL_CENTER", "DEPARTMENT_MANAGER", "APPROVER"] },
-  { href: "/islerim", label: "İşlerim", icon: "ClipboardList", group: "cagri", roles: ["ADMIN", ...SAHA] },
-  { href: "/whatsapp", label: "WhatsApp Kuyruğu", icon: "MessageCircle", group: "cagri", roles: ["ADMIN", "CALL_CENTER"] },
-  { href: "/gorevler", label: "Görevlendirme", icon: "ClipboardList", group: "cagri", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },
-  { href: "/kontrol-listeleri", label: "Kontrol Listeleri", icon: "CheckSquare", group: "cagri", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },
-  { href: "/araclar", label: "Araç Envanteri", icon: "Truck", group: "filo", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/bakim", label: "Bakım Takip", icon: "Wrench", group: "filo", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/yakit", label: "Yakıt Takip", icon: "Fuel", group: "filo", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/akaryakit", label: "Akaryakıt Analizi", icon: "LineChart", group: "filo", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/malzeme-depo", label: "Malzeme / Depo", icon: "Package", group: "uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/beton", label: "Beton Reçeteleri", icon: "BrickWall", group: "uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/agrega", label: "Agrega Maliyet", icon: "Mountain", group: "uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/bitum", label: "Bitüm Takip", icon: "Droplets", group: "uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/personel", label: "Personel", icon: "Users", group: "insan", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
-  { href: "/gunluk-calisma", label: "Günlük Çalışma", icon: "Clock3", group: "insan", roles: ["ADMIN", "DEPARTMENT_MANAGER", ...SAHA] },
-  { href: "/tanimlar", label: "Tanımlar & Yönetim", icon: "Settings", group: "yonetim", roles: ["ADMIN"] },
-  { href: "/denetim", label: "Denetim İzi", icon: "ShieldCheck", group: "yonetim", roles: ["ADMIN"] },
+  { href: "/", label: "Dashboard", description: "Kritik göstergeler ve günlük operasyon özeti", icon: "LayoutDashboard", group: "operasyon", roles: TUM_ROLLER },
+  { href: "/komuta", label: "Komuta Ekranı", description: "Canlı saha durumu ve akıllı görevlendirme", icon: "Radar", group: "operasyon", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/raporlar", label: "Raporlar", description: "Performans, maliyet ve dönemsel analizler", icon: "BarChart3", group: "operasyon", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"] },
+  { href: "/sikayetler", label: "Şikayet Kayıt & Takip", description: "Vatandaş başvuruları ve çözüm süreçleri", icon: "PhoneCall", group: "vatandas", roles: ["ADMIN", "CALL_CENTER", "DEPARTMENT_MANAGER", "APPROVER"] },
+  { href: "/islerim", label: "İşlerim", description: "Size atanan açık ve devam eden işler", icon: "ClipboardList", group: "vatandas", roles: ["ADMIN", ...SAHA] },
+  { href: "/whatsapp", label: "WhatsApp Kuyruğu", description: "Gelen mesajları inceleme ve yanıtlama", icon: "MessageCircle", group: "vatandas", roles: ["ADMIN", "CALL_CENTER"] },
+  { href: "/gorevler", label: "Görevlendirme", description: "Araç, personel ve görev planlama", icon: "ClipboardList", group: "vatandas", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },
+  { href: "/kontrol-listeleri", label: "Kontrol Listeleri", description: "Saha kontrolleri, onay ve takip", icon: "CheckSquare", group: "vatandas", roles: ["ADMIN", "DEPARTMENT_MANAGER", "APPROVER", ...SAHA] },
+  { href: "/harita", label: "Yol Haritası", description: "Yollar, engeller ve şikayet katmanları", icon: "Map", group: "saha", roles: TUM_ROLLER },
+  { href: "/parsel", label: "Parsel Sorgu", description: "Ada, parsel ve konum bilgisi sorgulama", icon: "LandPlot", group: "saha", roles: TUM_ROLLER },
+  { href: "/kis", label: "Kış Operasyonu", description: "Kar küreme ve tuzlama rotaları", icon: "Snowflake", group: "saha", roles: TUM_ROLLER },
+  { href: "/cop", label: "Çöp Toplama", description: "Toplama rotaları ve operasyon kayıtları", icon: "Trash2", group: "saha", roles: TUM_ROLLER },
+  { href: "/temizlik", label: "Yol Temizliği", description: "Süpürme ve yıkama güzergahları", icon: "Brush", group: "saha", roles: TUM_ROLLER },
+  { href: "/araclar", label: "Araç Envanteri", description: "Araçlar, zimmetler ve durum takibi", icon: "Truck", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/bakim", label: "Bakım Takip", description: "Bakım, muayene ve arıza kayıtları", icon: "Wrench", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/yakit", label: "Yakıt Takip", description: "Araç bazlı tüketim ve dolum kayıtları", icon: "Fuel", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/akaryakit", label: "Akaryakıt Analizi", description: "Tüketim eğilimleri ve maliyet analizi", icon: "LineChart", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/malzeme-depo", label: "Malzeme / Depo", description: "Stok, hareket ve kritik seviye takibi", icon: "Package", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/beton", label: "Beton Reçeteleri", description: "Reçete, üretim ve malzeme stokları", icon: "BrickWall", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/agrega", label: "Agrega Maliyet", description: "Üretim parametreleri ve maliyet hesabı", icon: "Mountain", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/bitum", label: "Bitüm Takip", description: "Depo, stok ve bitüm hareketleri", icon: "Droplets", group: "filo_uretim", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/personel", label: "Personel", description: "Personel kayıtları ve görev bilgileri", icon: "Users", group: "kurum", roles: ["ADMIN", "DEPARTMENT_MANAGER"] },
+  { href: "/gunluk-calisma", label: "Günlük Çalışma", description: "Personel, araç ve mesai kayıtları", icon: "Clock3", group: "kurum", roles: ["ADMIN", "DEPARTMENT_MANAGER", ...SAHA] },
+  { href: "/tanimlar", label: "Tanımlar & Yönetim", description: "Kullanıcılar ve kurumsal tanımlar", icon: "Settings", group: "kurum", roles: ["ADMIN"] },
+  { href: "/denetim", label: "Denetim İzi", description: "Kullanıcı ve işlem geçmişi", icon: "ShieldCheck", group: "kurum", roles: ["ADMIN"] },
 ];
 
-/** Rol bazlı sık kullanılanlar (sidebar, max 4) */
+/** Rol bazlı hızlı erişim bağlantıları (mega menü, max 4) */
 const FAVORITES: Record<Rol, string[]> = {
   ADMIN: ["/", "/sikayetler", "/gorevler", "/araclar"],
   CALL_CENTER: ["/sikayetler", "/sikayetler/yeni", "/whatsapp"],
@@ -131,8 +130,9 @@ export function favoritesForRole(role: Rol): NavItem[] {
     "/sikayetler/yeni": {
       href: "/sikayetler/yeni",
       label: "Yeni Şikayet",
+      description: "Yeni vatandaş başvurusu oluştur",
       icon: "PhoneCall",
-      group: "cagri",
+      group: "vatandas",
       roles: ["ADMIN", "CALL_CENTER", "DEPARTMENT_MANAGER", "APPROVER"],
     },
   };
@@ -147,6 +147,19 @@ export function groupedNav(items: NavItem[]): Array<{ group: NavGroup; items: Na
     group,
     items: items.filter((i) => i.group === group.id),
   })).filter((g) => g.items.length > 0);
+}
+
+export function navGroupForPath(
+  pathname: string,
+  items: NavItem[] = NAV_ITEMS,
+): NavGroupId | null {
+  const match = items.find(
+    (item) =>
+      item.href === "/"
+        ? pathname === "/"
+        : pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
+  return match?.group ?? null;
 }
 
 export function pageTitleForPath(pathname: string): string {

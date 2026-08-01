@@ -18,8 +18,18 @@
   --kb-danger-bg: #fef3f2;
   --kb-info: #175cd3;
   --kb-info-bg: #eff4ff;
+  --kb-app-header-height: 56px;
+  --kb-map-height: calc(100dvh - var(--kb-app-header-height) - 164px);
+  --kb-komuta-map-height: calc(100dvh - var(--kb-app-header-height) - 264px);
+  --kb-komuta-list-height: calc(100dvh - var(--kb-app-header-height) - 204px);
   --background: var(--kb-surface);
   --foreground: var(--kb-ink);
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --kb-app-header-height: 108px;
+  }
 }
 
 @theme inline {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ClipboardList, PhoneCall, Search, Truck } from "lucide-react";
 import type { Rol } from "@kars/shared";
 
@@ -47,6 +48,7 @@ export function MobileQuickBar({
   role: Rol;
   onSearch: () => void;
 }) {
+  const pathname = usePathname();
   const items = itemsForRole(role);
 
   return (
@@ -60,7 +62,7 @@ export function MobileQuickBar({
                 <button
                   type="button"
                   onClick={onSearch}
-                  className="flex w-full flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium text-kb-muted"
+                  className="flex w-full flex-col items-center gap-0.5 rounded-md py-2 text-[0.65rem] font-medium text-kb-muted hover:bg-kb-surface"
                 >
                   <Icon className="h-5 w-5 text-kb-navy" />
                   {item.label}
@@ -68,14 +70,26 @@ export function MobileQuickBar({
               </li>
             );
           }
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <li key={item.href + item.label} className="flex-1">
               <Link
                 href={item.href}
-                className="flex flex-col items-center gap-0.5 py-2 text-[0.65rem] font-medium text-kb-muted"
+                aria-current={active ? "page" : undefined}
+                className={`relative flex flex-col items-center gap-0.5 rounded-md py-2 text-[0.65rem] font-medium transition-colors ${
+                  active
+                    ? "bg-kb-navy/8 text-kb-navy"
+                    : "text-kb-muted hover:bg-kb-surface"
+                }`}
               >
                 <Icon className="h-5 w-5 text-kb-navy" />
                 {item.label}
+                {active && (
+                  <span className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-kb-accent" />
+                )}
               </Link>
             </li>
           );

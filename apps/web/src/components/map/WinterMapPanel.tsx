@@ -11,7 +11,7 @@ import type {
 const WinterMap = dynamic(() => import("@/components/map/WinterMap"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[calc(100vh-220px)] min-h-[480px] items-center justify-center rounded-lg border border-kb-border bg-kb-surface text-sm text-kb-muted">
+    <div className="flex h-[var(--kb-map-height)] min-h-[480px] items-center justify-center rounded-lg border border-kb-border bg-kb-surface text-sm text-kb-muted">
       Harita yükleniyor…
     </div>
   ),
