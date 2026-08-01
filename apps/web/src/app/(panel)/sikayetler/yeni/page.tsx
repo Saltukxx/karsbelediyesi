@@ -2,6 +2,7 @@ import { prisma } from "@kars/db";
 import { sikayetOlustur } from "@/lib/actions/complaints";
 import { ONCELIK_LABELS } from "@kars/shared";
 import Link from "next/link";
+import { LocationPickerField } from "@/components/complaints/LocationPickerField";
 import { requirePageAccess } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
@@ -107,6 +108,8 @@ export default async function YeniSikayetPage() {
           <label className={labelCls}>Açıklama</label>
           <textarea name="aciklama" rows={3} className={inputCls} />
         </div>
+
+        <LocationPickerField mahalleler={mahalleler} />
 
         <div>
           <label className={labelCls}>Görevlendirilen Personel</label>

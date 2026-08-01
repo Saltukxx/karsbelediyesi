@@ -1,4 +1,5 @@
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
+import { geocodeKarsAdres } from "@kars/shared";
 import { classifyMessage, type Classification } from "./classify.js";
 import type { MediaErrorCode } from "./media.js";
 import {
@@ -352,6 +353,12 @@ async function createComplaintFromAi(
       : null,
   ]);
 
+  // Konum pini alınmaz (KVKK); mesajdan çıkan mahalle/adres geocode edilir
+  const geo = await geocodeKarsAdres({
+    mahalle: mahalle?.name ?? ai.mahalle,
+    adres: ai.adres,
+  });
+
   return withSerialRetry(prisma, async (tx) => {
     const { yil, sira, sikayetNo } = await nextComplaintSerial(tx);
     const created = await tx.complaint.create({
@@ -369,6 +376,7 @@ async function createComplaintFromAi(
         aciklama: ai.aciklama_ozeti ?? undefined,
         oncelik: ai.oncelik,
         durum: "ACIK",
+        ...(geo ? { lat: geo.lat, lng: geo.lng } : {}),
       },
       include: { department: true },
     });
@@ -376,7 +384,19 @@ async function createComplaintFromAi(
       data: {
         complaintId: created.id,
         tip: "WHATSAPP_AUTO",
-        detay: ai as object,
+        detay: {
+          ...(ai as object),
+          ...(geo
+            ? {
+                konum: {
+                  kaynak: "geocode",
+                  displayName: geo.displayName,
+                  lat: geo.lat,
+                  lng: geo.lng,
+                },
+              }
+            : {}),
+        },
       },
     });
     return {

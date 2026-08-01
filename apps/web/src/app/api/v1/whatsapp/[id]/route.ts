@@ -1,4 +1,5 @@
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
+import { geocodeKarsAdres } from "@kars/shared";
 import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
 import { auditKaydet } from "@/lib/audit";
 
@@ -66,6 +67,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
       : null,
   ]);
 
+  const geo = await geocodeKarsAdres({
+    mahalle: mahalle?.name ?? ai.mahalle,
+    adres: ai.adres,
+  });
+
   const olusan = await withSerialRetry(prisma, async (tx) => {
     // Satırı transaction içinde sahiplen: eşzamanlı iki onay çift şikayet açardı.
     // Kilit complaintId üzerinden alınır; onayDurumu boş olan mesajlar da onaylanabilir.
@@ -91,6 +97,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
         aciklama: ai.aciklama_ozeti ?? msg.icerik ?? "",
         oncelik: ai.oncelik ?? "NORMAL",
         durum: "ACIK",
+        ...(geo ? { lat: geo.lat, lng: geo.lng } : {}),
       },
     });
     await tx.whatsAppMessage.update({
@@ -102,7 +109,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
         complaintId: created.id,
         userId: auth.user.id,
         tip: "WHATSAPP_ONAY",
-        detay: { messageId: id, kaynak: "api-v1" },
+        detay: {
+          messageId: id,
+          kaynak: "api-v1",
+          ...(geo
+            ? {
+                konum: {
+                  kaynak: "geocode",
+                  displayName: geo.displayName,
+                  lat: geo.lat,
+                  lng: geo.lng,
+                },
+              }
+            : {}),
+        },
       },
     });
     return created;

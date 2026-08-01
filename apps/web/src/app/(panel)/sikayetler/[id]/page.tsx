@@ -4,6 +4,7 @@ import { prisma } from "@kars/db";
 import {
   sikayetDurumGuncelle,
   sikayetAta,
+  sikayetKonumGuncelle,
   sikayetMudurlukAta,
   sikayetPersonelAta,
 } from "@/lib/actions/complaints";
@@ -12,6 +13,7 @@ import {
   SIKAYET_DURUM_LABELS,
   KANAL_LABELS,
 } from "@kars/shared";
+import { LocationPickerField } from "@/components/complaints/LocationPickerField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { canAccessComplaint, toAccessUser } from "@/lib/access";
@@ -24,6 +26,9 @@ const EVENT_LABELS: Record<string, string> = {
   DURUM_DEGISTI: "Durum değiştirildi",
   GOREVLENDIRME: "Görevlendirme yapıldı",
   MUDURLUK_ATAMA: "Müdürlüğe yönlendirildi",
+  KONUM_GUNCELLENDI: "Konum güncellendi",
+  WHATSAPP_AUTO: "WhatsApp otomatik kayıt",
+  WHATSAPP_ONAY: "WhatsApp onayı",
   NOT: "Not eklendi",
 };
 
@@ -135,6 +140,14 @@ export default async function SikayetDetayPage({
               <Alan ad="Yönlendirilen Müdürlük" deger={s.department?.name} />
               <Alan ad="Mahalle" deger={s.neighborhood?.name} />
               <Alan ad="Açık Adres" deger={s.acikAdres} />
+              <Alan
+                ad="Konum"
+                deger={
+                  s.lat != null && s.lng != null
+                    ? `${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}`
+                    : null
+                }
+              />
               {s.durum === "KAPATILDI" && (
                 <>
                   <Alan ad="Kapanış Tarihi" deger={s.kapanisTarihi?.toLocaleDateString("tr-TR")} />
@@ -149,6 +162,42 @@ export default async function SikayetDetayPage({
               </div>
             )}
           </section>
+
+          {/* KONUM — manuel pin veya adresten bul */}
+          {acikMi && (
+            <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
+              <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
+                Konumu Güncelle
+              </h2>
+              <form action={sikayetKonumGuncelle} className="space-y-4">
+                <input type="hidden" name="id" value={s.id} />
+                {/* Adresten bul için mahalle/adres alanları (görünmez; mevcut kayıttan) */}
+                <input type="hidden" name="acikAdres" value={s.acikAdres ?? ""} />
+                <input
+                  type="hidden"
+                  name="neighborhoodId"
+                  value={s.neighborhoodId ?? ""}
+                />
+                <LocationPickerField
+                  initialLat={s.lat}
+                  initialLng={s.lng}
+                  mahalleler={
+                    s.neighborhood
+                      ? [{ id: s.neighborhood.id, name: s.neighborhood.name }]
+                      : []
+                  }
+                />
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="rounded-md bg-kb-navy hover:bg-kb-navy-soft px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Konumu kaydet
+                  </button>
+                </div>
+              </form>
+            </section>
+          )}
 
           {/* MÜDÜRLÜĞE YÖNLENDİRME (ADMIN / CALL_CENTER) */}
           {mudurlukAtayabilir && acikMi && (

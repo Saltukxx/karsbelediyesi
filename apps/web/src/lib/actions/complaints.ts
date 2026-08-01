@@ -15,6 +15,15 @@ import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
 
+const opsiyonelKoordinat = z
+  .union([z.string(), z.number(), z.null(), z.undefined()])
+  .transform((v) => {
+    if (v == null || v === "") return undefined;
+    const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+    return Number.isFinite(n) ? n : undefined;
+  })
+  .optional();
+
 const yeniSikayetSchema = z.object({
   arayanKisi: z.string().min(1, "Arayan kişi zorunlu"),
   telefon: z.string().optional(),
@@ -27,6 +36,8 @@ const yeniSikayetSchema = z.object({
   vehicleId: z.string().optional(),
   personnelIds: z.array(z.string()).default([]),
   kanal: z.enum(["TELEFON", "WHATSAPP", "WEB"]).default("TELEFON"),
+  lat: opsiyonelKoordinat.pipe(z.number().min(-90).max(90).optional()),
+  lng: opsiyonelKoordinat.pipe(z.number().min(-180).max(180).optional()),
 });
 
 export async function sikayetOlustur(formData: FormData) {
@@ -44,6 +55,8 @@ export async function sikayetOlustur(formData: FormData) {
     vehicleId: formData.get("vehicleId") || undefined,
     personnelIds: formData.getAll("personnelIds").map(String).filter(Boolean),
     kanal: "TELEFON",
+    lat: formData.get("lat") || undefined,
+    lng: formData.get("lng") || undefined,
   });
 
   // Tür seçilmiş ama müdürlük seçilmemişse: tür→müdürlük eşlemesi (Excel/AI yönlendirme kuralı)
@@ -77,6 +90,11 @@ export async function sikayetOlustur(formData: FormData) {
     soforTelefonu = arac?.atananSofor?.phone;
   }
 
+  const manuelKonum =
+    parsed.lat != null && parsed.lng != null
+      ? { lat: parsed.lat, lng: parsed.lng }
+      : null;
+
   const created = await withSerialRetry(prisma, async (tx) => {
     const { yil, sira, sikayetNo } = await nextComplaintSerial(tx);
     return tx.complaint.create({
@@ -96,6 +114,7 @@ export async function sikayetOlustur(formData: FormData) {
         vehicleId: parsed.vehicleId,
         soforAdi,
         soforTelefonu,
+        ...(manuelKonum ?? {}),
         personel: {
           create: parsed.personnelIds.map((personnelId) => ({ personnelId })),
         },
@@ -103,7 +122,12 @@ export async function sikayetOlustur(formData: FormData) {
           create: {
             userId: session.user.id,
             tip: "OLUSTURULDU",
-            detay: { kanal: parsed.kanal },
+            detay: {
+              kanal: parsed.kanal,
+              ...(manuelKonum
+                ? { konum: { kaynak: "manuel", ...manuelKonum } }
+                : {}),
+            },
           },
         },
       },
@@ -391,4 +415,68 @@ export async function sikayetAta(formData: FormData) {
 
   revalidatePath(`/sikayetler/${id}`);
   revalidatePath("/sikayetler");
+}
+
+const konumSchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+});
+
+/** Panel haritasından veya Adresten bul ile konum kaydı. */
+export async function sikayetKonumGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.complaints);
+  const id = String(formData.get("id"));
+  const { lat, lng } = konumSchema.parse({
+    lat: formData.get("lat"),
+    lng: formData.get("lng"),
+  });
+
+  const mevcut = await loadComplaintForAccess(id);
+  if (!mevcut || !canAccessComplaint(toAccessUser(session.user), mevcut)) {
+    throw new Error("Yetkisiz");
+  }
+
+  await prisma.complaint.update({
+    where: { id },
+    data: {
+      lat,
+      lng,
+      events: {
+        create: {
+          userId: session.user.id,
+          tip: "KONUM_GUNCELLENDI",
+          detay: {
+            kaynak: "manuel",
+            lat,
+            lng,
+            eski: { lat: mevcut.lat, lng: mevcut.lng },
+          },
+        },
+      },
+    },
+  });
+
+  await auditKaydet(session, "SIKAYET_KONUM_GUNCELLE", {
+    varlik: "Complaint",
+    varlikId: id,
+    detay: { sikayetNo: mevcut.sikayetNo, lat, lng },
+  });
+
+  revalidatePath(`/sikayetler/${id}`);
+  revalidatePath("/sikayetler");
+  revalidatePath("/");
+  revalidatePath("/harita");
+}
+
+/** Client "Adresten bul" — Nominatim; pin alanlarını doldurur, kaydetmez. */
+export async function adresGeocodeEt(girdi: {
+  adres?: string;
+  mahalle?: string;
+}): Promise<{ lat: number; lng: number; displayName: string } | null> {
+  await requireRoles(ACTION_ROLES.complaints);
+  const { geocodeKarsAdres } = await import("@kars/shared");
+  return geocodeKarsAdres({
+    adres: girdi.adres,
+    mahalle: girdi.mahalle,
+  });
 }

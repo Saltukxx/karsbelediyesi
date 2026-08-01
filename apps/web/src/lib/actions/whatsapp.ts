@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { nextComplaintSerial, prisma, withSerialRetry } from "@kars/db";
+import { geocodeKarsAdres } from "@kars/shared";
 import { ACTION_ROLES, requireRoles, requireSession } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
@@ -31,6 +32,7 @@ export async function whatsappOnayla(formData: FormData) {
 
   const turAdi = bos(formData.get("sikayetTuru")) ?? ai.sikayet_turu;
   const mahalleAdi = bos(formData.get("mahalle")) ?? ai.mahalle;
+  const acikAdres = bos(formData.get("adres")) ?? ai.adres;
   const oncelik = (bos(formData.get("oncelik")) ?? ai.oncelik ?? "NORMAL") as
     | "NORMAL"
     | "ACIL"
@@ -49,6 +51,12 @@ export async function whatsappOnayla(formData: FormData) {
         })
       : null,
   ]);
+
+  // Operatör mahalle/adresi değiştirdiyse güncel metinle geocode; konum pini alınmaz
+  const geo = await geocodeKarsAdres({
+    mahalle: mahalle?.name ?? mahalleAdi,
+    adres: acikAdres,
+  });
 
   const complaint = await withSerialRetry(prisma, async (tx) => {
     // Satırı transaction içinde sahiplen: eşzamanlı iki onay çift şikayet açardı.
@@ -69,12 +77,13 @@ export async function whatsappOnayla(formData: FormData) {
         arayanKisi: msg.telefon,
         telefon: msg.telefon,
         neighborhoodId: mahalle?.id,
-        acikAdres: ai.adres ?? bos(formData.get("adres")),
+        acikAdres,
         complaintTypeId: tur?.id,
         departmentId: tur?.defaultDepartmentId,
         aciklama,
         oncelik,
         durum: "ACIK",
+        ...(geo ? { lat: geo.lat, lng: geo.lng } : {}),
       },
     });
     await tx.whatsAppMessage.update({
@@ -86,7 +95,19 @@ export async function whatsappOnayla(formData: FormData) {
         complaintId: created.id,
         userId: session.user.id,
         tip: "WHATSAPP_ONAY",
-        detay: { messageId: id },
+        detay: {
+          messageId: id,
+          ...(geo
+            ? {
+                konum: {
+                  kaynak: "geocode",
+                  displayName: geo.displayName,
+                  lat: geo.lat,
+                  lng: geo.lng,
+                },
+              }
+            : {}),
+        },
       },
     });
     return created;
