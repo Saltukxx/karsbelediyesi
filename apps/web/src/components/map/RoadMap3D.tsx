@@ -288,7 +288,7 @@ export default function RoadMap3D({
   return (
     <div
       ref={containerRef}
-      className="h-[calc(100vh-220px)] min-h-[480px] w-full"
+      className="h-[var(--kb-map-height)] min-h-[480px] w-full"
     />
   );
 }

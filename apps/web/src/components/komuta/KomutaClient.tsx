@@ -177,7 +177,7 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_360px]">
-        <div className={`${tv ? "h-[calc(100vh-260px)]" : "h-[calc(100vh-320px)]"} min-h-[420px]`}>
+        <div className={`${tv ? "h-[calc(100vh-260px)]" : "h-[var(--kb-komuta-map-height)]"} min-h-[420px]`}>
           <KomutaMap
             araclar={veri.araclar}
             sikayetler={veri.sikayetler}
@@ -186,7 +186,7 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
           />
         </div>
 
-        <div className="flex max-h-[calc(100vh-260px)] min-h-0 flex-col gap-3 overflow-auto">
+        <div className="flex max-h-[var(--kb-komuta-list-height)] min-h-0 flex-col gap-3 overflow-auto">
           <section className={`${cardCls} p-3`}>
             <p className={`${sectionTitleCls} mb-2`}>
               Geciken işler ({veri.gecikenRotalar.length + gecikenSikayetler.length})
