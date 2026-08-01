@@ -9,6 +9,18 @@ settings:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
+  configs:
+    # Taban API adresi Info.plist'e (KBAPIBaseURL) gömülür; AppConfig okur.
+    Debug:
+      KB_API_BASE_URL: http://localhost:3000
+      # Debug derlemeleri APNs sandbox'ına kayıt olur (PushService de aynı
+      # ortamı sunucuya bildirir).
+      KB_APS_ENVIRONMENT: development
+    Release:
+      # Kurumun kendi alan adına (panel.kars.bel.tr) geçilene kadar panel bu
+      # adreste yayınlanıyor; kullanıcı Ayarlar'dan geçersiz kılabilir.
+      KB_API_BASE_URL: https://karsbelediyesi.gbsoftt.com
+      KB_APS_ENVIRONMENT: production
 targets:
   KarsPanel:
     type: application
@@ -27,17 +39,74 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES
+        ENABLE_TESTABILITY: YES
+      configs:
+        Release:
+          ENABLE_TESTABILITY: NO
+    entitlements:
+      path: KarsPanel/KarsPanel.entitlements
+      properties:
+        aps-environment: $(KB_APS_ENVIRONMENT)
     info:
       path: KarsPanel/Info.plist
       properties:
+        KBAPIBaseURL: $(KB_API_BASE_URL)
+        UILaunchScreen: {}
+        UIBackgroundModes:
+          - location
+          - remote-notification
+        NSLocationWhenInUseUsageDescription: >-
+          Göreve en yakın aracın belirlenebilmesi ve saha kayıtlarının konumla
+          eşleşmesi için konumunuz belediye paneline gönderilir.
+        NSLocationAlwaysAndWhenInUseUsageDescription: >-
+          Görev sırasında araç rotasının kesintisiz takip edilebilmesi için
+          konumunuz uygulama arka planda iken de gönderilir.
+        NSCameraUsageDescription: >-
+          Yol engeli, şikayet ve bakım kayıtlarına fotoğraf eklemek için
+          kameraya erişim gerekir.
+        NSPhotoLibraryUsageDescription: >-
+          Kayıtlara mevcut fotoğraflarınızı eklemek için fotoğraf
+          kütüphanesine erişim gerekir.
+        NSPhotoLibraryAddUsageDescription: >-
+          Oluşturulan rapor ve fotoğrafları cihazınıza kaydetmek için izin
+          gerekir.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Yerel geliştirme http://localhost:3000'e bağlanır. İstisna yalnızca
+        # localhost/yerel ağ içindir; Faz 7'de Release plist'inden kaldırılacak.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
             localhost:
               NSExceptionAllowsInsecureHTTPLoads: true
               NSIncludesSubdomains: true
-        UILaunchScreen: {}
-        UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
+
+  KarsPanelTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - KarsPanelTests
+    dependencies:
+      - target: KarsPanel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tr.gov.kars.panel.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  KarsPanel:
+    build:
+      targets:
+        KarsPanel: all
+        KarsPanelTests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - KarsPanelTests
+    run:
+      config: Debug
+    archive:
+      config: Release

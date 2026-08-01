@@ -8,9 +8,10 @@ enum UserRole: String, Codable, CaseIterable {
     case DRIVER
     case APPROVER
 
+    /// Web panelindeki `ROL_LABELS` ile birebir aynı metinler
     var label: String {
         switch self {
-        case .ADMIN: return "Sistem Yöneticisi"
+        case .ADMIN: return "Yönetici"
         case .CALL_CENTER: return "Çağrı Merkezi"
         case .DEPARTMENT_MANAGER: return "Müdürlük Yöneticisi"
         case .FIELD_WORKER: return "Saha Personeli"

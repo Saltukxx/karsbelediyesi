@@ -34,7 +34,7 @@ struct ComplaintsListView: View {
                     .listRowInsets(EdgeInsets())
                 } else {
                     ForEach(viewModel.complaints) { complaint in
-                        NavigationLink(value: complaint.id) {
+                        NavigationLink(value: PanelRoute.complaint(complaint.id)) {
                             ComplaintRow(complaint: complaint)
                         }
                         .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
@@ -47,9 +47,6 @@ struct ComplaintsListView: View {
         .kbScreenBackground()
         .navigationTitle("Şikayetler")
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: String.self) { id in
-            ComplaintDetailView(complaintId: id)
-        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {

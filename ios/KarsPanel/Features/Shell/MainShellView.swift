@@ -3,7 +3,9 @@ import SwiftUI
 struct MainShellView: View {
     @EnvironmentObject private var session: AppSession
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var locationService = LocationService.shared
+    @ObservedObject private var notifications = NotificationsStore.shared
 
     private var isFieldRole: Bool {
         session.user?.role == .DRIVER || session.user?.role == .FIELD_WORKER
@@ -24,9 +26,18 @@ struct MainShellView: View {
             if isFieldRole && locationService.preferenceEnabled {
                 locationService.start()
             }
+            notifications.pollingBaslat(phase: .active)
+        }
+        .onDisappear { notifications.pollingDurdur() }
+        .onChange(of: scenePhase) { _, yeni in
+            notifications.pollingBaslat(phase: KBAppPhase(yeni))
         }
         .onChange(of: session.user?.id) { _, newValue in
-            if newValue == nil { locationService.stop() }
+            if newValue == nil {
+                // Tercih korunur: aynı şoför tekrar girdiğinde paylaşım sürer
+                locationService.duraklat()
+                notifications.temizle()
+            }
         }
     }
 }
@@ -48,6 +59,11 @@ struct LocationShareMenuItem: View {
             )) {
                 Label("Konum paylaş", systemImage: "location.fill")
             }
+            if locationService.arkaPlandaCalisiyor {
+                Text("Arka planda da gönderiliyor")
+            } else if locationService.isSharing {
+                Text("Yalnızca uygulama açıkken — sürekli izin için Ayarlar")
+            }
             if locationService.authorizationDenied {
                 Text("Konum izni reddedildi — Ayarlar'dan açın")
             }
@@ -64,8 +80,11 @@ private enum PhoneTab: Hashable {
 
 private struct PhoneTabShellView: View {
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var navigator: AppNavigator
     @State private var selectedTab: PhoneTab = .more
     @State private var morePath = NavigationPath()
+    /// Ana sekmelerin kendi detay yığınları; deep link doğrudan buraya iter.
+    @State private var tabPaths: [NavDestination: NavigationPath] = [:]
 
     private var role: UserRole { session.user?.role ?? .ADMIN }
 
@@ -80,15 +99,12 @@ private struct PhoneTabShellView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             ForEach(primary, id: \.self) { destination in
-                NavigationStack {
+                NavigationStack(path: pathBinding(destination)) {
                     DestinationView(destination: destination)
                         .toolbar { accountMenu }
                 }
                 .tabItem {
-                    Label(
-                        NavItemCatalog.shortLabel(for: destination, role: role),
-                        systemImage: destination.icon
-                    )
+                    Label(destination.shortLabel, systemImage: destination.icon)
                 }
                 .tag(PhoneTab.module(destination))
             }
@@ -112,8 +128,37 @@ private struct PhoneTabShellView: View {
         .onAppear { applyLanding() }
         .onChange(of: session.user?.id) { _, _ in
             morePath = NavigationPath()
+            tabPaths = [:]
             applyLanding()
         }
+        .onChange(of: navigator.istek) { _, istek in
+            guard let istek else { return }
+            uygula(istek)
+            navigator.tamamlandi()
+        }
+    }
+
+    private func pathBinding(_ destination: NavDestination) -> Binding<NavigationPath> {
+        Binding(
+            get: { tabPaths[destination] ?? NavigationPath() },
+            set: { tabPaths[destination] = $0 }
+        )
+    }
+
+    /// Bildirimden gelen hedef: sekmeyi seç, detay yığınını sıfırdan kur.
+    private func uygula(_ hedef: KBDeepLink) {
+        var yol = NavigationPath()
+        if primary.contains(hedef.destination) {
+            if let route = hedef.route { yol.append(route) }
+            tabPaths[hedef.destination] = yol
+            selectedTab = .module(hedef.destination)
+        } else if moreItems.contains(hedef.destination) {
+            yol.append(hedef.destination)
+            if let route = hedef.route { yol.append(route) }
+            morePath = yol
+            selectedTab = .more
+        }
+        // Rolün erişemediği hedef sessizce yok sayılır.
     }
 
     private func applyLanding() {
@@ -127,6 +172,9 @@ private struct PhoneTabShellView: View {
 
     @ToolbarContentBuilder
     private var accountMenu: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            NotificationBellButton()
+        }
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 if let user = session.user {
@@ -151,11 +199,8 @@ private struct PhoneTabShellView: View {
 }
 
 private struct MoreModulesView: View {
-    @EnvironmentObject private var session: AppSession
     let moreItems: [NavDestination]
     var onSelect: (NavDestination) -> Void
-
-    private var role: UserRole { session.user?.role ?? .ADMIN }
 
     var body: some View {
         List {
@@ -172,7 +217,7 @@ private struct MoreModulesView: View {
                                         .font(.body.weight(.semibold))
                                         .foregroundStyle(KBTheme.accent)
                                         .frame(width: 28)
-                                    Text(NavItemCatalog.label(for: destination, role: role))
+                                    Text(destination.label)
                                         .foregroundStyle(KBTheme.navy)
                                         .multilineTextAlignment(.leading)
                                     Spacer()
@@ -201,7 +246,9 @@ private struct MoreModulesView: View {
 
 private struct PadSplitShellView: View {
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var navigator: AppNavigator
     @State private var selection: NavDestination?
+    @State private var detailPath = NavigationPath()
 
     var body: some View {
         NavigationSplitView {
@@ -216,15 +263,8 @@ private struct PadSplitShellView: View {
                     ForEach(NavItemCatalog.groupedItems(for: session.user?.role ?? .ADMIN), id: \.group) { section in
                         Section(section.group.label) {
                             ForEach(section.items) { item in
-                                Label {
-                                    Text(NavItemCatalog.label(
-                                        for: item.destination,
-                                        role: session.user?.role ?? .ADMIN
-                                    ))
-                                } icon: {
-                                    Image(systemName: item.icon)
-                                }
-                                .tag(Optional(item.destination))
+                                Label(item.label, systemImage: item.icon)
+                                    .tag(Optional(item.destination))
                             }
                         }
                     }
@@ -235,9 +275,14 @@ private struct PadSplitShellView: View {
             }
             .background(KBTheme.background)
         } detail: {
-            NavigationStack {
+            NavigationStack(path: $detailPath) {
                 if let selection {
                     DestinationView(destination: selection)
+                        .toolbar {
+                            ToolbarItem(placement: .primaryAction) {
+                                NotificationBellButton()
+                            }
+                        }
                 } else {
                     ContentUnavailableView("Menüden bir modül seçin", systemImage: "sidebar.left")
                 }
@@ -251,8 +296,29 @@ private struct PadSplitShellView: View {
         }
         .onChange(of: session.user?.role) { _, role in
             guard let role else { return }
+            detailPath = NavigationPath()
             selection = NavItemCatalog.landingDestination(for: role)
         }
+        // Modül değişince önceki modülün detay yığını taşınmasın
+        .onChange(of: selection) { _, _ in detailPath = NavigationPath() }
+        .onChange(of: navigator.istek) { _, istek in
+            guard let istek else { return }
+            uygula(istek)
+            navigator.tamamlandi()
+        }
+    }
+
+    private func uygula(_ hedef: KBDeepLink) {
+        let erisilebilir = NavItemCatalog
+            .items(for: session.user?.role ?? .ADMIN)
+            .contains { $0.destination == hedef.destination }
+        guard erisilebilir else { return }
+
+        selection = hedef.destination
+        var yol = NavigationPath()
+        if let route = hedef.route { yol.append(route) }
+        // Modül seçimi yığını sıfırlıyor; detay bir sonraki turda eklenir.
+        DispatchQueue.main.async { detailPath = yol }
     }
 
     private var padUserFooter: some View {
@@ -276,5 +342,16 @@ private struct PadSplitShellView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(KBTheme.card)
+    }
+}
+
+extension KBAppPhase {
+    init(_ phase: ScenePhase) {
+        switch phase {
+        case .active: self = .active
+        case .inactive: self = .inactive
+        case .background: self = .background
+        @unknown default: self = .inactive
+        }
     }
 }

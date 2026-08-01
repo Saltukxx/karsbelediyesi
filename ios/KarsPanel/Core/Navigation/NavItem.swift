@@ -22,8 +22,15 @@ enum NavGroupId: String, CaseIterable {
 
 enum NavDestination: String, Hashable, CaseIterable {
     case dashboard
+    case komuta
     case raporlar
+    case harita
+    case parsel
+    case kis
+    case cop
+    case temizlik
     case sikayetler
+    case islerim
     case whatsapp
     case gorevler
     case kontrol
@@ -38,12 +45,20 @@ enum NavDestination: String, Hashable, CaseIterable {
     case personel
     case gunlukCalisma
     case tanimlar
+    case denetim
 
     var label: String {
         switch self {
         case .dashboard: return "Dashboard"
+        case .komuta: return "Komuta Ekranı"
         case .raporlar: return "Raporlar"
+        case .harita: return "Yol Haritası"
+        case .parsel: return "Parsel Sorgu"
+        case .kis: return "Kış Operasyonu"
+        case .cop: return "Çöp Toplama"
+        case .temizlik: return "Yol Temizliği"
         case .sikayetler: return "Şikayet Kayıt & Takip"
+        case .islerim: return "İşlerim"
         case .whatsapp: return "WhatsApp Kuyruğu"
         case .gorevler: return "Görevlendirme"
         case .kontrol: return "Kontrol Listeleri"
@@ -58,6 +73,7 @@ enum NavDestination: String, Hashable, CaseIterable {
         case .personel: return "Personel"
         case .gunlukCalisma: return "Günlük Çalışma"
         case .tanimlar: return "Tanımlar & Yönetim"
+        case .denetim: return "Denetim İzi"
         }
     }
 
@@ -65,8 +81,15 @@ enum NavDestination: String, Hashable, CaseIterable {
     var shortLabel: String {
         switch self {
         case .dashboard: return "Özet"
+        case .komuta: return "Komuta"
         case .raporlar: return "Rapor"
+        case .harita: return "Harita"
+        case .parsel: return "Parsel"
+        case .kis: return "Kış"
+        case .cop: return "Çöp"
+        case .temizlik: return "Temizlik"
         case .sikayetler: return "Şikayet"
+        case .islerim: return "İşlerim"
         case .whatsapp: return "WhatsApp"
         case .gorevler: return "Görev"
         case .kontrol: return "Kontrol"
@@ -81,14 +104,22 @@ enum NavDestination: String, Hashable, CaseIterable {
         case .personel: return "Personel"
         case .gunlukCalisma: return "Mesai"
         case .tanimlar: return "Tanım"
+        case .denetim: return "Denetim"
         }
     }
 
     var icon: String {
         switch self {
         case .dashboard: return "square.grid.2x2"
+        case .komuta: return "dot.radiowaves.left.and.right"
         case .raporlar: return "chart.bar"
+        case .harita: return "map"
+        case .parsel: return "square.dashed"
+        case .kis: return "snowflake"
+        case .cop: return "trash"
+        case .temizlik: return "paintbrush"
         case .sikayetler: return "phone"
+        case .islerim: return "list.bullet.clipboard"
         case .whatsapp: return "message"
         case .gorevler: return "list.clipboard"
         case .kontrol: return "checkmark.square"
@@ -103,17 +134,51 @@ enum NavDestination: String, Hashable, CaseIterable {
         case .personel: return "person.3"
         case .gunlukCalisma: return "clock"
         case .tanimlar: return "gearshape"
+        case .denetim: return "checkmark.shield"
         }
     }
 
     var group: NavGroupId {
         switch self {
-        case .dashboard, .raporlar: return .genel
-        case .sikayetler, .whatsapp, .gorevler, .kontrol: return .cagri
+        case .dashboard, .komuta, .raporlar, .harita, .parsel, .kis, .cop, .temizlik:
+            return .genel
+        case .sikayetler, .islerim, .whatsapp, .gorevler, .kontrol: return .cagri
         case .araclar, .bakim, .yakit, .akaryakit: return .filo
         case .malzemeDepo, .beton, .agrega, .bitum: return .uretim
         case .personel, .gunlukCalisma: return .insan
-        case .tanimlar: return .yonetim
+        case .tanimlar, .denetim: return .yonetim
+        }
+    }
+
+    /// Web panelindeki karşılık gelen yol. Rol matrisi parite testi bu eşleme
+    /// üzerinden web `NAV_ITEMS` ile karşılaştırma yapar.
+    var webPath: String {
+        switch self {
+        case .dashboard: return "/"
+        case .komuta: return "/komuta"
+        case .raporlar: return "/raporlar"
+        case .harita: return "/harita"
+        case .parsel: return "/parsel"
+        case .kis: return "/kis"
+        case .cop: return "/cop"
+        case .temizlik: return "/temizlik"
+        case .sikayetler: return "/sikayetler"
+        case .islerim: return "/islerim"
+        case .whatsapp: return "/whatsapp"
+        case .gorevler: return "/gorevler"
+        case .kontrol: return "/kontrol-listeleri"
+        case .araclar: return "/araclar"
+        case .bakim: return "/bakim"
+        case .yakit: return "/yakit"
+        case .akaryakit: return "/akaryakit"
+        case .malzemeDepo: return "/malzeme-depo"
+        case .beton: return "/beton"
+        case .agrega: return "/agrega"
+        case .bitum: return "/bitum"
+        case .personel: return "/personel"
+        case .gunlukCalisma: return "/gunluk-calisma"
+        case .tanimlar: return "/tanimlar"
+        case .denetim: return "/denetim"
         }
     }
 }
@@ -134,8 +199,15 @@ enum NavItemCatalog {
 
     static let items: [NavItem] = [
         NavItem(destination: .dashboard, roles: allRoles),
+        NavItem(destination: .komuta, roles: [.ADMIN, .DEPARTMENT_MANAGER]),
         NavItem(destination: .raporlar, roles: [.ADMIN, .DEPARTMENT_MANAGER, .APPROVER]),
+        NavItem(destination: .harita, roles: allRoles),
+        NavItem(destination: .parsel, roles: allRoles),
+        NavItem(destination: .kis, roles: allRoles),
+        NavItem(destination: .cop, roles: allRoles),
+        NavItem(destination: .temizlik, roles: allRoles),
         NavItem(destination: .sikayetler, roles: [.ADMIN, .CALL_CENTER, .DEPARTMENT_MANAGER, .APPROVER]),
+        NavItem(destination: .islerim, roles: [.ADMIN] + saha),
         NavItem(destination: .whatsapp, roles: [.ADMIN, .CALL_CENTER]),
         NavItem(destination: .gorevler, roles: [.ADMIN, .DEPARTMENT_MANAGER, .APPROVER] + saha),
         NavItem(destination: .kontrol, roles: [.ADMIN, .DEPARTMENT_MANAGER, .APPROVER] + saha),
@@ -150,21 +222,11 @@ enum NavItemCatalog {
         NavItem(destination: .personel, roles: [.ADMIN, .DEPARTMENT_MANAGER]),
         NavItem(destination: .gunlukCalisma, roles: [.ADMIN, .DEPARTMENT_MANAGER] + saha),
         NavItem(destination: .tanimlar, roles: [.ADMIN]),
+        NavItem(destination: .denetim, roles: [.ADMIN]),
     ]
 
     static func items(for role: UserRole) -> [NavItem] {
-        items.filter { $0.roles.contains(role) }.map { item in
-            guard item.destination == .dashboard,
-                  role == .DRIVER || role == .FIELD_WORKER else { return item }
-            return NavItem(destination: .dashboard, roles: item.roles)
-        }
-    }
-
-    static func label(for destination: NavDestination, role: UserRole) -> String {
-        if destination == .dashboard, role == .DRIVER || role == .FIELD_WORKER {
-            return "İşlerim"
-        }
-        return destination.label
+        items.filter { $0.roles.contains(role) }
     }
 
     static func groupedItems(for role: UserRole) -> [(group: NavGroupId, items: [NavItem])] {
@@ -176,10 +238,13 @@ enum NavItemCatalog {
         }
     }
 
+    /// Web `landingPathForRole` ile aynı: saha personeli doğrudan İşlerim'e düşer,
+    /// şoför araç görevlerini dashboard'da görür.
     static func landingDestination(for role: UserRole) -> NavDestination {
         switch role {
         case .CALL_CENTER: return .sikayetler
-        default: return .dashboard
+        case .FIELD_WORKER: return .islerim
+        case .ADMIN, .DEPARTMENT_MANAGER, .APPROVER, .DRIVER: return .dashboard
         }
     }
 
@@ -197,9 +262,9 @@ enum NavItemCatalog {
         case .APPROVER:
             preferred = [.sikayetler, .gorevler, .raporlar]
         case .DRIVER:
-            preferred = [.dashboard, .gorevler, .gunlukCalisma]
+            preferred = [.islerim, .gorevler, .gunlukCalisma]
         case .FIELD_WORKER:
-            preferred = [.dashboard, .gorevler, .kontrol, .gunlukCalisma]
+            preferred = [.islerim, .gorevler, .kontrol, .gunlukCalisma]
         }
         return preferred.filter { allowed.contains($0) }
     }
@@ -211,12 +276,5 @@ enum NavItemCatalog {
         let primary = Array(fav.prefix(4))
         let more = all.filter { !primary.contains($0) }
         return (primary, more)
-    }
-
-    static func shortLabel(for destination: NavDestination, role: UserRole) -> String {
-        if destination == .dashboard, role == .DRIVER || role == .FIELD_WORKER {
-            return "İşlerim"
-        }
-        return destination.shortLabel
     }
 }

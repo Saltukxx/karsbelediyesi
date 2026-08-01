@@ -185,6 +185,22 @@ struct FormFieldLabel: View {
     }
 }
 
+extension StatusBadgeTone {
+    var badge: StatusBadge.Tone {
+        switch self {
+        case .neutral: return .neutral
+        case .success: return .success
+        case .warning: return .warning
+        case .danger: return .danger
+        case .info: return .info
+        case .accent: return .accent
+        }
+    }
+
+    /// Doluluk çubukları gibi etiket dışı göstergeler için renk.
+    var progressColor: Color { badge.foreground }
+}
+
 extension ComplaintStatus {
     var badgeTone: StatusBadge.Tone {
         switch self {

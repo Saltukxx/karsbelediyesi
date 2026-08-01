@@ -129,10 +129,7 @@ struct DashboardView: View {
         }
     }
 
-    private var dashboardTitle: String {
-        guard let role = session.user?.role else { return "Dashboard" }
-        return NavItemCatalog.label(for: .dashboard, role: role)
-    }
+    private var dashboardTitle: String { NavDestination.dashboard.label }
 
     private func durumLabel(_ raw: String) -> String {
         ComplaintStatus(rawValue: raw)?.label ?? raw

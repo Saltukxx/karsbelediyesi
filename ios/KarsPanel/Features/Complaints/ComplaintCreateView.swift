@@ -15,7 +15,7 @@ struct ComplaintCreateView: View {
     @State private var neighborhoodId: String?
     @State private var complaintTypeId: String?
     @State private var departmentId: String?
-    @State private var lookups: LookupsDTO?
+    @ObservedObject private var lookups = LookupStore.shared
 
     private enum Field { case name, phone, address, note }
 
@@ -43,19 +43,19 @@ struct ComplaintCreateView: View {
             Section {
                 Picker("Mahalle", selection: $neighborhoodId) {
                     Text("Seçiniz").tag(Optional<String>.none)
-                    ForEach(lookups?.mahalleler ?? [], id: \.id) { item in
+                    ForEach(lookups.mahalleler, id: \.id) { item in
                         Text(item.name ?? item.id).tag(Optional(item.id))
                     }
                 }
                 Picker("Şikayet Türü", selection: $complaintTypeId) {
                     Text("Seçiniz").tag(Optional<String>.none)
-                    ForEach(lookups?.sikayetTurleri ?? [], id: \.id) { item in
+                    ForEach(lookups.sikayetTurleri, id: \.id) { item in
                         Text(item.name ?? item.id).tag(Optional(item.id))
                     }
                 }
                 Picker("Müdürlük", selection: $departmentId) {
                     Text("Seçiniz").tag(Optional<String>.none)
-                    ForEach(lookups?.mudurlukler ?? [], id: \.id) { item in
+                    ForEach(lookups.mudurlukler, id: \.id) { item in
                         Text(item.name ?? item.id).tag(Optional(item.id))
                     }
                 }
@@ -79,9 +79,7 @@ struct ComplaintCreateView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Yeni Şikayet")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            lookups = try? await APIClient.shared.fetchLookups()
-        }
+        .task { await lookups.loadIfNeeded() }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("İptal") { dismiss() }

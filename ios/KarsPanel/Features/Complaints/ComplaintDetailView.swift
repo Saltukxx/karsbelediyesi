@@ -1,159 +1,388 @@
 import SwiftUI
-import UIKit
 
+/// `/sikayetler/[id]` — şikayet kartı, atama akışları, durum güncelleme,
+/// işlem geçmişi ve iş emri raporu (native PDF).
 struct ComplaintDetailView: View {
     let complaintId: String
-    @StateObject private var viewModel = ComplaintsViewModel()
-    @State private var cozumNotu = ""
-    @State private var selectedStatus: ComplaintStatus = .DEVAM_EDIYOR
-    @Environment(\.dismiss) private var dismiss
+
+    @EnvironmentObject private var session: AppSession
+    @StateObject private var viewModel: ComplaintDetailViewModel
+    @ObservedObject private var lookups = LookupStore.shared
+    @State private var raporGosteriliyor = false
+
+    init(complaintId: String, api: APIClient = .shared) {
+        self.complaintId = complaintId
+        _viewModel = StateObject(
+            wrappedValue: ComplaintDetailViewModel(complaintId: complaintId, api: api)
+        )
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if let error = viewModel.errorMessage {
-                    ErrorBanner(message: error)
+        List {
+            if let errorMessage = viewModel.errorMessage {
+                Section { ErrorBanner(message: errorMessage) }
+            }
+
+            if let sikayet = viewModel.sikayet {
+                Section {
+                    HStack(spacing: 8) {
+                        if let durum = sikayet.durum {
+                            StatusBadge(text: durum.label, tone: durum.badgeTone)
+                        }
+                        if let oncelik = sikayet.oncelik {
+                            StatusBadge(text: oncelik.label, tone: oncelik.badgeTone)
+                        }
+                        Spacer(minLength: 0)
+                    }
                 }
 
-                if let complaint = viewModel.selected {
-                    header(for: complaint)
-                    detailCard(for: complaint)
-                    updateCard
-                } else if !viewModel.isLoading {
-                    EmptyStateView(title: "Şikayet bulunamadı", systemImage: "phone")
+                bilgiSection(sikayet)
+
+                if let aciklama = sikayet.aciklama, !aciklama.isEmpty {
+                    Section("Şikayet Metni") {
+                        Text(aciklama).font(.subheadline).foregroundStyle(KBTheme.navy)
+                    }
+                }
+
+                if !sikayet.fotograflar.isEmpty {
+                    Section("Fotoğraflar (\(sikayet.fotograflar.count))") {
+                        ComplaintPhotoStrip(photos: sikayet.fotograflar)
+                            .listRowInsets(
+                                EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+                            )
+                    }
+                }
+
+                gorevlendirmeSection(sikayet)
+
+                if sikayet.acikMi, session.canRouteComplaintToDepartment {
+                    mudurlukSection(sikayet)
+                }
+
+                if sikayet.acikMi, session.canAssignComplaintPersonnel {
+                    personelSection(sikayet)
+                }
+
+                if sikayet.acikMi {
+                    atamaSection(sikayet)
+                    durumSection(sikayet)
+                }
+
+                gecmisSection(sikayet)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .hideScrollBackgroundIfAvailable()
+        .kbScreenBackground()
+        .navigationTitle(viewModel.sikayet?.sikayetNo ?? "Şikayet")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if viewModel.sikayet != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        raporGosteriliyor = true
+                    } label: {
+                        Label("İş Emri Raporu", systemImage: "doc.text")
+                    }
+                    .accessibilityLabel("İş emri raporu")
                 }
             }
-            .padding(16)
-            .padding(.bottom, 24)
         }
-        .kbScreenBackground()
-        .navigationTitle(viewModel.selected?.sikayetNo ?? "Detay")
-        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await viewModel.load() }
         .task {
-            await viewModel.loadDetail(id: complaintId)
-            if let status = viewModel.selected?.durum {
-                selectedStatus = status
+            await viewModel.load()
+            await lookups.loadIfNeeded()
+            viewModel.formuHazirla()
+        }
+        .sheet(isPresented: $raporGosteriliyor) {
+            if let sikayet = viewModel.sikayet {
+                PDFPreviewSheet(
+                    document: ComplaintWorkOrderPDF(complaint: sikayet),
+                    fileName: "is-emri-\(sikayet.sikayetNo ?? sikayet.id).pdf"
+                )
             }
-            cozumNotu = viewModel.selected?.cozumNotu ?? ""
         }
         .overlay {
-            if viewModel.isLoading && viewModel.selected == nil { LoadingOverlay() }
+            if viewModel.isLoading, viewModel.sikayet == nil { LoadingOverlay() }
         }
     }
 
-    private func header(for complaint: ComplaintDTO) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(complaint.arayanKisi ?? "—")
-                .font(.title3.weight(.bold))
-                .foregroundStyle(KBTheme.navy)
+    // MARK: - Bölümler
 
-            HStack(spacing: 8) {
-                if let durum = complaint.durum {
-                    StatusBadge(text: durum.label, tone: durum.badgeTone)
-                }
-                if let oncelik = complaint.oncelik {
-                    StatusBadge(text: oncelik.label, tone: oncelik.badgeTone)
-                }
-                Spacer()
+    @ViewBuilder
+    private func bilgiSection(_ sikayet: ComplaintDetailDTO) -> some View {
+        Section("Şikayet Bilgileri") {
+            KBDetailRow(label: "Kayıt tarihi", value: sikayet.kayitTarihi.kbAn)
+            KBDetailRow(label: "Kanal", value: ComplaintChannel.label(sikayet.kanal))
+            KBDetailRow(label: "Arayan kişi", value: sikayet.arayanKisi)
+            if let telefon = sikayet.telefon, !telefon.isEmpty {
+                KBPhoneRow(telefon: telefon)
             }
-
-            if let telefon = complaint.telefon, !telefon.isEmpty {
-                Button {
-                    let digits = telefon.filter { $0.isNumber || $0 == "+" }
-                    if let url = URL(string: "tel:\(digits)") {
-                        UIApplication.shared.open(url)
-                    }
-                } label: {
-                    Label(telefon, systemImage: "phone.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(KBTheme.accent)
-                        .frame(minHeight: KBTheme.touchMin)
-                }
-                .buttonStyle(.plain)
+            KBDetailRow(label: "Şikayet türü", value: sikayet.complaintType?.name)
+            KBDetailRow(label: "Yönlendirilen müdürlük", value: sikayet.department?.name)
+            KBDetailRow(label: "Mahalle", value: sikayet.neighborhood?.name)
+            KBDetailRow(label: "Açık adres", value: sikayet.acikAdres)
+            if sikayet.durum == .KAPATILDI {
+                KBDetailRow(label: "Kapanış tarihi", value: sikayet.kapanisTarihi.kbAn)
+                KBDetailRow(label: "Onaylayan", value: sikayet.onaylayanAdi)
+                KBDetailRow(label: "Çözüm notu", value: sikayet.cozumNotu)
             }
         }
-        .kbCard()
     }
 
-    private func detailCard(for complaint: ComplaintDTO) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeaderLabel(title: "Kayıt Bilgisi")
-            detailRow("Mahalle", complaint.neighborhood?.name)
-            detailRow("Adres", complaint.acikAdres)
-            detailRow("Tür", complaint.complaintType?.name)
-            detailRow("Müdürlük", complaint.department?.name)
-            detailRow("Açıklama", complaint.aciklama)
-            detailRow("Araç", complaint.vehicle?.plaka)
-            if let not = complaint.cozumNotu, !not.isEmpty {
-                detailRow("Çözüm Notu", not)
+    @ViewBuilder
+    private func gorevlendirmeSection(_ sikayet: ComplaintDetailDTO) -> some View {
+        Section("Görevlendirme") {
+            KBDetailRow(label: "Araç plakası", value: sikayet.vehicle?.plaka)
+            KBDetailRow(label: "Şoför adı", value: sikayet.soforAdi)
+            if let soforTelefonu = sikayet.soforTelefonu, !soforTelefonu.isEmpty {
+                KBPhoneRow(telefon: soforTelefonu)
+            }
+            if sikayet.personel.isEmpty {
+                KBDetailRow(label: "Görevlendirilen personel", value: nil)
+            } else {
+                ForEach(sikayet.personel) { personel in
+                    KBDetailRow(label: personel.adSoyad, value: personel.unvan)
+                }
             }
         }
-        .kbCard()
     }
 
-    private var updateCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeaderLabel(title: "Durum Güncelle", subtitle: "Değişiklik kayda işlenir")
+    @ViewBuilder
+    private func mudurlukSection(_ sikayet: ComplaintDetailDTO) -> some View {
+        Section("Müdürlüğe Yönlendir") {
+            KBPickerField(
+                title: "Müdürlük",
+                items: lookups.mudurlukler,
+                selection: $viewModel.departmentId,
+                placeholder: "— Müdürlük yok —",
+                label: { $0.name ?? $0.id }
+            )
+            KBFormActions(
+                saveTitle: "Yönlendir",
+                isSaving: viewModel.kaydedilenAtama == .mudurluk,
+                isEnabled: viewModel.kaydedilenAtama == nil
+            ) {
+                Task { await viewModel.mudurlukAta() }
+            }
+        }
+    }
 
-            Picker("Durum", selection: $selectedStatus) {
-                ForEach(ComplaintStatus.allCases, id: \.self) { status in
-                    Text(status.label).tag(status)
+    @ViewBuilder
+    private func personelSection(_ sikayet: ComplaintDetailDTO) -> some View {
+        Section("Personele Ata") {
+            KBMultiSelectField(
+                title: "Personel",
+                items: lookups.personeller,
+                selection: $viewModel.personnelIds,
+                label: \.etiket
+            )
+            KBFormActions(
+                saveTitle: "Personele Ata",
+                isSaving: viewModel.kaydedilenAtama == .personel,
+                isEnabled: viewModel.kaydedilenAtama == nil
+                    && !viewModel.personnelIds.isEmpty
+            ) {
+                Task { await viewModel.personelAta() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func atamaSection(_ sikayet: ComplaintDetailDTO) -> some View {
+        Section {
+            KBPickerField(
+                title: "Araç (Plaka)",
+                items: lookups.araclar,
+                selection: $viewModel.vehicleId,
+                placeholder: "— Araç yok —",
+                label: \.etiket
+            )
+            KBMultiSelectField(
+                title: "Personel",
+                items: lookups.personeller,
+                selection: $viewModel.atamaPersonnelIds,
+                label: \.etiket
+            )
+            KBFormActions(
+                saveTitle: "Görevlendir",
+                isSaving: viewModel.kaydedilenAtama == .arac,
+                isEnabled: viewModel.kaydedilenAtama == nil
+            ) {
+                Task { await viewModel.aracAta() }
+            }
+        } header: {
+            Text("Araç ve Personel Görevlendir")
+        } footer: {
+            Text("Görevlendirme mevcut personel listesini seçtiklerinizle değiştirir.")
+        }
+    }
+
+    @ViewBuilder
+    private func durumSection(_ sikayet: ComplaintDetailDTO) -> some View {
+        Section("Durum Güncelle / Kapat") {
+            Picker("Yeni durum", selection: $viewModel.hedefDurum) {
+                ForEach(ComplaintStatus.allCases, id: \.self) { durum in
+                    Text(durum.label).tag(durum)
                 }
             }
             .pickerStyle(.menu)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
-            .frame(minHeight: KBTheme.touchMin)
-            .background(KBTheme.background)
-            .clipShape(RoundedRectangle(cornerRadius: KBTheme.radiusSm))
 
-            TextField("Çözüm notu (opsiyonel)", text: $cozumNotu, axis: .vertical)
-                .lineLimit(3...8)
-                .padding(12)
-                .frame(minHeight: 88, alignment: .topLeading)
-                .background(KBTheme.background)
-                .clipShape(RoundedRectangle(cornerRadius: KBTheme.radiusSm))
-                .overlay(
-                    RoundedRectangle(cornerRadius: KBTheme.radiusSm)
-                        .stroke(KBTheme.border, lineWidth: 1)
-                )
+            KBTextField(
+                title: "Çözüm notu",
+                text: $viewModel.cozumNotu,
+                placeholder: "Kapatırken doldurulması önerilir",
+                multiline: true
+            )
 
-            Button {
-                Task {
-                    let ok = await viewModel.update(
-                        id: complaintId,
-                        request: UpdateComplaintRequestDTO(
-                            durum: selectedStatus,
-                            cozumNotu: cozumNotu.isEmpty ? nil : cozumNotu,
-                            lat: nil,
-                            lng: nil
-                        )
-                    )
-                    if ok { dismiss() }
-                }
-            } label: {
-                if viewModel.isSaving {
-                    ProgressView().tint(.white)
-                } else {
-                    Text("Kaydet")
-                }
+            KBFormActions(
+                saveTitle: "Durumu Güncelle",
+                isSaving: viewModel.isSaving,
+                isEnabled: viewModel.hedefDurum != sikayet.durum
+            ) {
+                Task { await viewModel.durumGuncelle() }
             }
-            .buttonStyle(KBPrimaryButtonStyle())
-            .disabled(viewModel.isSaving)
         }
-        .kbCard()
     }
 
-    private func detailRow(_ title: String, _ value: String?) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(KBTheme.muted)
-            Text((value?.isEmpty == false) ? value! : "—")
-                .font(.subheadline)
-                .foregroundStyle(KBTheme.navy)
-                .fixedSize(horizontal: false, vertical: true)
+    @ViewBuilder
+    private func gecmisSection(_ sikayet: ComplaintDetailDTO) -> some View {
+        Section("İşlem Geçmişi (\(sikayet.olaylar.count))") {
+            ForEach(sikayet.olaylar.reversed()) { olay in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(olay.label)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(KBTheme.navy)
+                    Text("\(olay.kullanici ?? "Sistem") · \(olay.createdAt.kbAn)")
+                        .font(.caption)
+                        .foregroundStyle(KBTheme.muted)
+                    if let degisim = olay.degisim {
+                        Text(degisim)
+                            .font(.caption)
+                            .foregroundStyle(KBTheme.muted)
+                    }
+                }
+                .padding(.leading, 10)
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(KBTheme.info.opacity(0.35))
+                        .frame(width: 2)
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+@MainActor
+final class ComplaintDetailViewModel: ObservableObject {
+    /// Aynı anda yalnız bir atama formu kaydeder; hangisi olduğunu gösterir.
+    enum AssignmentKind { case mudurluk, personel, arac }
+
+    @Published private(set) var sikayet: ComplaintDetailDTO?
+    @Published private(set) var isLoading = false
+    @Published private(set) var isSaving = false
+    @Published private(set) var kaydedilenAtama: AssignmentKind?
+    @Published var errorMessage: String?
+
+    @Published var departmentId: String?
+    @Published var personnelIds: Set<String> = []
+    @Published var vehicleId: String?
+    @Published var atamaPersonnelIds: Set<String> = []
+    @Published var hedefDurum: ComplaintStatus = .DEVAM_EDIYOR
+    @Published var cozumNotu = ""
+
+    private let complaintId: String
+    private let api: APIClient
+
+    init(complaintId: String, api: APIClient = .shared) {
+        self.complaintId = complaintId
+        self.api = api
+    }
+
+    func load() async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            sikayet = try await api.fetchComplaint(id: complaintId)
+        } catch {
+            errorMessage = APIError.describe(error)
+        }
+        isLoading = false
+    }
+
+    /// Formlar mevcut değerlerle açılır (web'in `defaultValue` davranışı).
+    func formuHazirla() {
+        guard let sikayet else { return }
+        departmentId = sikayet.departmentId
+        vehicleId = sikayet.vehicleId
+        atamaPersonnelIds = Set(sikayet.personel.map(\.id))
+        hedefDurum = sikayet.durum ?? .DEVAM_EDIYOR
+        cozumNotu = sikayet.cozumNotu ?? ""
+    }
+
+    func mudurlukAta() async {
+        await atamaYap(.mudurluk, .mudurluk(departmentId: departmentId))
+    }
+
+    func personelAta() async {
+        await atamaYap(.personel, .personel(personnelIds: Array(personnelIds)))
+        personnelIds = []
+    }
+
+    func aracAta() async {
+        await atamaYap(
+            .arac,
+            .arac(vehicleId: vehicleId, personnelIds: Array(atamaPersonnelIds))
+        )
+    }
+
+    func durumGuncelle() async {
+        isSaving = true
+        errorMessage = nil
+        do {
+            _ = try await api.updateComplaint(
+                id: complaintId,
+                body: UpdateComplaintRequestDTO(
+                    durum: hedefDurum,
+                    cozumNotu: cozumNotu.bosDegilse,
+                    lat: nil,
+                    lng: nil
+                )
+            )
+            await yenile()
+        } catch {
+            errorMessage = APIError.describe(error)
+        }
+        isSaving = false
+    }
+
+    private func atamaYap(_ kind: AssignmentKind, _ assignment: ComplaintAssignment) async {
+        kaydedilenAtama = kind
+        errorMessage = nil
+        do {
+            try await api.assignComplaint(id: complaintId, assignment)
+            await yenile()
+        } catch {
+            errorMessage = APIError.describe(error)
+        }
+        kaydedilenAtama = nil
+    }
+
+    private func yenile() async {
+        await load()
+        formuHazirla()
+    }
+}
+
+extension AppSession {
+    /// Web: müdürlüğe yönlendirme ADMIN + CALL_CENTER (`ACTION_ROLES.whatsapp`).
+    var canRouteComplaintToDepartment: Bool {
+        role == .ADMIN || role == .CALL_CENTER
+    }
+
+    /// Web: personel atama ADMIN veya müdürlüğü olan DEPARTMENT_MANAGER.
+    var canAssignComplaintPersonnel: Bool {
+        role == .ADMIN
+            || (role == .DEPARTMENT_MANAGER && user?.departmentId != nil)
     }
 }

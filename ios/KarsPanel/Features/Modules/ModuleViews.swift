@@ -49,7 +49,7 @@ struct ModuleListView: View {
                         }
                     }
                 } footer: {
-                    if destination == .whatsapp || destination == .gorevler {
+                    if destination == .whatsapp {
                         Text("İşlemler için sağa kaydırın veya satırdaki düğmeleri kullanın.")
                             .font(.caption)
                     }
@@ -65,9 +65,6 @@ struct ModuleListView: View {
         .task(id: destination) { await viewModel.load(destination: destination) }
         .overlay {
             if viewModel.isLoading && viewModel.rows.isEmpty { LoadingOverlay() }
-        }
-        .sheet(item: $viewModel.routeTask) { task in
-            TaskRouteMapView(task: task)
         }
     }
 }
@@ -102,18 +99,6 @@ private struct ModuleRowView<Actions: View>: View {
     }
 }
 
+// Yalnızca WhatsApp kuyruğu genel liste iskeletini kullanıyor; diğer modüller
+// kendi ekranlarına taşındı.
 struct WhatsAppView: View { var body: some View { ModuleListView(destination: .whatsapp) } }
-struct GorevlerView: View { var body: some View { ModuleListView(destination: .gorevler) } }
-struct KontrolView: View { var body: some View { ModuleListView(destination: .kontrol) } }
-struct AraclarView: View { var body: some View { ModuleListView(destination: .araclar) } }
-struct BakimView: View { var body: some View { ModuleListView(destination: .bakim) } }
-struct YakitView: View { var body: some View { ModuleListView(destination: .yakit) } }
-struct AkaryakitView: View { var body: some View { ModuleListView(destination: .akaryakit) } }
-struct MalzemeDepoView: View { var body: some View { ModuleListView(destination: .malzemeDepo) } }
-struct BetonView: View { var body: some View { ModuleListView(destination: .beton) } }
-struct AgregaView: View { var body: some View { ModuleListView(destination: .agrega) } }
-struct BitumView: View { var body: some View { ModuleListView(destination: .bitum) } }
-struct PersonelView: View { var body: some View { ModuleListView(destination: .personel) } }
-struct GunlukCalismaView: View { var body: some View { ModuleListView(destination: .gunlukCalisma) } }
-struct RaporlarView: View { var body: some View { ModuleListView(destination: .raporlar) } }
-struct TanimlarView: View { var body: some View { ModuleListView(destination: .tanimlar) } }

@@ -43,6 +43,21 @@ struct KBPrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/// Liste satırı içindeki ikincil aksiyonlar (durum değiştirme, hızlı seçim).
+struct KBChipButtonStyle: ButtonStyle {
+    var tone: StatusBadge.Tone = .neutral
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tone.foreground)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 34)
+            .background(tone.foreground.opacity(configuration.isPressed ? 0.24 : 0.12))
+            .clipShape(Capsule())
+    }
+}
+
 struct KBCardModifier: ViewModifier {
     var padded = true
 

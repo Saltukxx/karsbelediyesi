@@ -1,3 +1,6 @@
 .derivedData/
+.build/
+.typecheck/
+.testbuild/
 *.xcuserdata/
 xcuserdata/

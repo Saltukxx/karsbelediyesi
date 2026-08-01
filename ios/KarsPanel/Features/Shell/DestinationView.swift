@@ -4,41 +4,82 @@ struct DestinationView: View {
     let destination: NavDestination
 
     var body: some View {
+        content
+            // Modül ekranlarının push ettiği detay hedefleri tek yerde kayıtlı;
+            // her modülün ayrı ayrı kaydetmesi aynı yığında çakışmaya yol açar.
+            .navigationDestination(for: PanelRoute.self) { route in
+                switch route {
+                case let .vehicle(id):
+                    VehicleDetailView(vehicleId: id)
+                case let .personnel(id):
+                    PersonnelDetailView(personnelId: id)
+                case let .complaint(id):
+                    ComplaintDetailView(complaintId: id)
+                case let .workItemComplaint(id):
+                    WorkItemComplaintView(complaintId: id)
+                case let .checklist(id):
+                    ChecklistDetailView(submissionId: id)
+                case let .task(id):
+                    TaskDetailView(taskId: id)
+                case let .taskTrack(id):
+                    TaskTrackReportView(taskId: id)
+                }
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch destination {
         case .dashboard:
             DashboardView()
+        case .komuta:
+            KomutaView()
+        case .harita:
+            MapScreen()
+        case .parsel:
+            ParcelView()
+        case .kis:
+            WinterView()
+        case .cop:
+            WasteView()
+        case .temizlik:
+            CleaningView()
         case .sikayetler:
             ComplaintsListView()
+        case .islerim:
+            WorkItemsView()
         case .whatsapp:
             WhatsAppView()
         case .gorevler:
-            GorevlerView()
+            TasksView()
         case .kontrol:
-            KontrolView()
+            ChecklistsView()
         case .araclar:
-            AraclarView()
+            VehiclesView()
         case .bakim:
-            BakimView()
+            MaintenanceView()
         case .yakit:
-            YakitView()
+            FuelView()
         case .akaryakit:
-            AkaryakitView()
+            AkaryakitAnalysisView()
         case .malzemeDepo:
-            MalzemeDepoView()
+            MaterialsView()
         case .beton:
-            BetonView()
+            ConcreteView()
         case .agrega:
-            AgregaView()
+            AgregaCostView()
         case .bitum:
-            BitumView()
+            BitumTrackingView()
         case .personel:
-            PersonelView()
+            PersonnelListView()
         case .gunlukCalisma:
-            GunlukCalismaView()
+            WorkLogsView()
         case .raporlar:
             RaporlarView()
         case .tanimlar:
             TanimlarView()
+        case .denetim:
+            DenetimView()
         }
     }
 }
