@@ -1,6 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import type { Delta } from "@/lib/dashboard-range";
-import { dashCardCls, numeralCls, toneChipCls, type Tone } from "./styles";
+import { cardCls, numeralCls, toneChipCls, type Tone } from "@/lib/ui";
 
 type ValueFormat = "sayi" | "tl" | "gun";
 
@@ -54,7 +54,7 @@ export function KpiCard({
 
   return (
     <div
-      className={`${dashCardCls} border-l-2 border-l-kb-navy/70 p-4`}
+      className={`${cardCls} border-l-2 border-l-kb-navy/70 p-4`}
     >
       <div className="text-[0.8rem] font-medium text-kb-muted">{label}</div>
 

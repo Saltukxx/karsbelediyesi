@@ -1,9 +1,9 @@
 import { Skeleton } from "@/components/ui/Skeleton";
-import { dashCardCls } from "./styles";
+import { cardCls } from "@/lib/ui";
 
 function CardSkeleton({ lines = 2 }: { lines?: number }) {
   return (
-    <div className={`${dashCardCls} p-4`} aria-hidden="true">
+    <div className={`${cardCls} p-4`} aria-hidden="true">
       <Skeleton className="h-3 w-20" />
       <Skeleton className="mt-3 h-6 w-16" />
       {Array.from({ length: Math.max(0, lines - 1) }).map((_, i) => (
@@ -15,7 +15,7 @@ function CardSkeleton({ lines = 2 }: { lines?: number }) {
 
 function ChartSkeleton({ height = 240 }: { height?: number }) {
   return (
-    <div className={`${dashCardCls} p-5`} aria-hidden="true">
+    <div className={`${cardCls} p-5`} aria-hidden="true">
       <Skeleton className="h-4 w-44" />
       <Skeleton className="mt-2 h-3 w-56" />
       <div className="mt-5 flex items-end gap-2" style={{ height }}>

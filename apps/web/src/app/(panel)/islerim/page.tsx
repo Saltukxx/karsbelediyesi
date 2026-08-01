@@ -141,7 +141,7 @@ export default async function IslerimPage() {
 
       {aracGorevleri.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase text-kb-muted">
+          <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink">
             Araç Görevleri ({aktifGorevler.length} aktif)
           </h2>
           <div className="grid gap-3 md:grid-cols-2">
@@ -190,7 +190,7 @@ export default async function IslerimPage() {
 
       {personel && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase text-kb-muted">
+          <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink">
             Açık Şikayetler ({acikSikayetler.length})
           </h2>
           {acikSikayetler.length === 0 ? (
@@ -209,7 +209,7 @@ export default async function IslerimPage() {
 
       {personel && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase text-kb-muted">
+          <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink">
             Asfalt Rotaları ({rotalar.length})
           </h2>
           {rotalar.length === 0 ? (
@@ -254,7 +254,7 @@ export default async function IslerimPage() {
 
       {kapaliSikayetler.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-sm font-semibold uppercase text-kb-muted">
+          <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink">
             Kapanan Şikayetler ({kapaliSikayetler.length})
           </h2>
           <div className="grid gap-3 md:grid-cols-2">

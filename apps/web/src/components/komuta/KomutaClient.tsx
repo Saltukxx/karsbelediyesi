@@ -4,7 +4,16 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { format } from "date-fns";
-import { Expand, Shrink } from "lucide-react";
+import {
+  Activity,
+  ClipboardList,
+  Expand,
+  Radio,
+  Shrink,
+  Siren,
+  Timer,
+  UserPlus,
+} from "lucide-react";
 import { dispatchAtaAction, dispatchReddetAction } from "@/lib/actions/dispatch";
 import { btnSecondary, cardCls, sectionTitleCls } from "@/lib/ui";
 import { StatCard } from "@/components/ui/StatCard";
@@ -128,36 +137,42 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
           value={kpi.acikSikayet}
           hint={`${kpi.slaGt3} tanesi 3 günden eski`}
           tone={kpi.slaGt3 > 0 ? "danger" : "navy"}
+          icon={Siren}
         />
         <StatCard
           label="Bekleyen atama"
           value={kpi.bekleyenAtama}
           hint="dispatch önerisi"
           tone={kpi.bekleyenAtama > 0 ? "warning" : "default"}
+          icon={UserPlus}
         />
         <StatCard
           label="Geciken rota"
           value={kpi.gecikenRota}
           hint="kış + çöp"
           tone={kpi.gecikenRota > 0 ? "danger" : "success"}
+          icon={Timer}
         />
         <StatCard
           label="Devam eden görev"
           value={kpi.devamEdenGorev}
           hint="sahada"
           tone="navy"
+          icon={ClipboardList}
         />
         <StatCard
           label="Canlı araç"
           value={`${kpi.tazeKonumluArac} / ${kpi.toplamArac}`}
           hint="15 dk içinde konum"
           tone={kpi.tazeKonumluArac > 0 ? "success" : "default"}
+          icon={Radio}
         />
         <StatCard
           label="Bugünkü operasyon"
           value={kpi.bugunOperasyon}
           hint="kış + çöp geçişi"
           tone="navy"
+          icon={Activity}
         />
       </div>
 

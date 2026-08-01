@@ -612,7 +612,7 @@ export default function RoadMap({
 
       <aside className="w-full shrink-0 space-y-4 lg:w-80">
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
             Konum ara
           </p>
           <form onSubmit={handleSearch} className="flex gap-2">
@@ -646,7 +646,7 @@ export default function RoadMap({
         </div>
 
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
             Görünüm
           </p>
           <div className="flex gap-2">
@@ -695,7 +695,7 @@ export default function RoadMap({
         </div>
 
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
             Altlık harita
           </p>
           <div className="flex gap-2">
@@ -717,7 +717,7 @@ export default function RoadMap({
         </div>
 
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
             Katmanlar
           </p>
           <div className="space-y-2.5 text-sm text-kb-ink">
@@ -810,7 +810,7 @@ export default function RoadMap({
 
         {canEdit && (
           <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+            <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
               İşaretleme
             </p>
             {is3D ? (
@@ -973,7 +973,7 @@ export default function RoadMap({
         )}
 
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm text-xs text-kb-muted space-y-1.5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-kb-muted">Gösterim</p>
+          <p className="text-[0.8rem] font-medium text-kb-muted">Gösterim</p>
           <p><span className="mr-1 inline-block h-2 w-4 rounded-sm align-middle" style={{ background: "#16a34a" }} /> Asfalt tamamlandı</p>
           <p><span className="mr-1 inline-block h-2 w-4 rounded-sm align-middle" style={{ background: "#f59e0b" }} /> Asfalt devam ediyor</p>
           <p><span className="mr-1 inline-block w-4 align-middle" style={{ borderTop: "3px dashed #64748b" }} /> Asfalt planlandı (kesikli)</p>

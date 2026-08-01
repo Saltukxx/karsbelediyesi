@@ -93,7 +93,7 @@ export default async function IslerimSikayetPage({
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           <section className="rounded-lg border border-kb-border bg-white p-5 shadow-sm">
-            <h2 className="mb-4 text-sm font-semibold uppercase text-kb-muted">
+            <h2 className="mb-4 font-brand text-[0.95rem] font-semibold text-kb-ink">
               Şikayet Bilgileri
             </h2>
             <div className="grid grid-cols-2 gap-4">
@@ -111,7 +111,7 @@ export default async function IslerimSikayetPage({
 
           {acikMi && (
             <section className="rounded-lg border border-kb-border bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-sm font-semibold uppercase text-kb-muted">
+              <h2 className="mb-4 font-brand text-[0.95rem] font-semibold text-kb-ink">
                 Durum Güncelle
               </h2>
               <form action={islerimSikayetDurum} className="grid gap-3 md:grid-cols-3">
@@ -142,7 +142,7 @@ export default async function IslerimSikayetPage({
 
         {/* WHATSAPP KONUŞMASI */}
         <section className="flex h-fit flex-col rounded-lg border border-kb-border bg-white p-5 shadow-sm">
-          <h2 className="mb-4 text-sm font-semibold uppercase text-kb-muted">
+          <h2 className="mb-4 font-brand text-[0.95rem] font-semibold text-kb-ink">
             WhatsApp Konuşması
           </h2>
           <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">

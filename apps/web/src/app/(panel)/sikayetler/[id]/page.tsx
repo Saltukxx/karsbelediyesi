@@ -119,7 +119,7 @@ export default async function SikayetDetayPage({
         <div className="lg:col-span-2 space-y-6">
           {/* ŞİKAYET BİLGİLERİ (Excel RAPORLAMA bölümleri) */}
           <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
-            <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+            <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
               Şikayet Bilgileri
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -153,7 +153,7 @@ export default async function SikayetDetayPage({
           {/* MÜDÜRLÜĞE YÖNLENDİRME (ADMIN / CALL_CENTER) */}
           {mudurlukAtayabilir && acikMi && (
             <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+              <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Müdürlüğe Yönlendir
               </h2>
               <form action={sikayetMudurlukAta} className="grid md:grid-cols-3 gap-3">
@@ -179,7 +179,7 @@ export default async function SikayetDetayPage({
           {/* PERSONELE ATAMA (ADMIN / MÜDÜR) */}
           {personelAtayabilir && acikMi && (
             <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+              <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Personele Ata
               </h2>
               <form action={sikayetPersonelAta} className="grid md:grid-cols-3 gap-3">
@@ -212,7 +212,7 @@ export default async function SikayetDetayPage({
 
           {/* GÖREVLENDİRME */}
           <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
-            <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+            <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
               Görevlendirme
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
@@ -265,7 +265,7 @@ export default async function SikayetDetayPage({
           {/* DURUM GÜNCELLEME / KAPATMA */}
           {acikMi && (
             <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
-              <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+              <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Durum Güncelle / Kapat
               </h2>
               <form action={sikayetDurumGuncelle} className="grid md:grid-cols-4 gap-3">
@@ -306,7 +306,7 @@ export default async function SikayetDetayPage({
 
         {/* ZAMAN ÇİZELGESİ (audit log) */}
         <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5 h-fit">
-          <h2 className="text-sm font-semibold text-kb-muted uppercase mb-4">
+          <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
             İşlem Geçmişi
           </h2>
           <ol className="space-y-3">

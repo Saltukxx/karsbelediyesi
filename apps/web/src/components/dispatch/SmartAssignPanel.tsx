@@ -100,7 +100,7 @@ export default function SmartAssignPanel({
   return (
     <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-900">
+        <p className="text-[0.8rem] font-semibold text-emerald-900">
           Akıllı atama
         </p>
         {routeId && (

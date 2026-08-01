@@ -55,7 +55,7 @@ export default function DispatchPanel({
 
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 shadow-sm">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-800">
+      <p className="mb-2 text-[0.8rem] font-semibold text-amber-800">
         Bekleyen görevler — dispatch önerileri ({oneriler.length})
       </p>
       <ul className="space-y-2">

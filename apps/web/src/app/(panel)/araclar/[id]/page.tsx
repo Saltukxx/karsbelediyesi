@@ -74,7 +74,7 @@ export default async function AracDetayPage({
       <AracForm action={aracGuncelle} arac={arac} cinsler={cinsler} mudurlukler={mudurlukler} soforler={soforler} />
 
       <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5 overflow-x-auto">
-        <h2 className="text-sm font-semibold text-kb-muted uppercase mb-3">Bakım Geçmişi</h2>
+        <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-3">Bakım Geçmişi</h2>
         {arac.maintenanceRecords.length === 0 ? (
           <p className="text-sm text-kb-muted">Bakım kaydı yok.</p>
         ) : (
@@ -108,7 +108,7 @@ export default async function AracDetayPage({
       </section>
 
       <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5 overflow-x-auto">
-        <h2 className="text-sm font-semibold text-kb-muted uppercase mb-3">Yakıt Geçmişi</h2>
+        <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-3">Yakıt Geçmişi</h2>
         {arac.fuelRecords.length === 0 ? (
           <p className="text-sm text-kb-muted">Yakıt kaydı yok.</p>
         ) : (
@@ -140,7 +140,7 @@ export default async function AracDetayPage({
       </section>
 
       <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5 overflow-x-auto">
-        <h2 className="text-sm font-semibold text-kb-muted uppercase mb-3">Görev Geçmişi</h2>
+        <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-3">Görev Geçmişi</h2>
         {arac.tasks.length === 0 ? (
           <p className="text-sm text-kb-muted">Görev kaydı yok.</p>
         ) : (

@@ -21,20 +21,33 @@ export function CardHeader({
   title,
   description,
   action,
+  divider = false,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  /** Başlığın altına ince ayırıcı çizgi ekler; grafik ve içerik kartlarında. */
+  divider?: boolean;
 }) {
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 className="text-base font-semibold text-kb-ink">{title}</h2>
-        {description && (
-          <p className="mt-0.5 text-sm text-kb-muted">{description}</p>
-        )}
+    <div
+      className={
+        divider
+          ? "mb-4 border-b border-kb-border/70 pb-4"
+          : "mb-4"
+      }
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <div>
+          <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink">
+            {title}
+          </h2>
+          {description && (
+            <p className="mt-0.5 text-[0.8rem] text-kb-muted">{description}</p>
+          )}
+        </div>
+        {action}
       </div>
-      {action}
     </div>
   );
 }

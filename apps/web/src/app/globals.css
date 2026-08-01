@@ -69,14 +69,12 @@ h2,
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #eef2f6;
+  background: var(--kb-surface);
   color: var(--kb-muted);
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   text-align: left;
-  padding: 0.75rem 1rem;
+  padding: 0.7rem 1rem;
   border-bottom: 1px solid var(--kb-border);
 }
 
@@ -93,7 +91,7 @@ h2,
 
 .kb-table tfoot td,
 .kb-table tbody tr.kb-total td {
-  background: #eef2f6;
+  background: var(--kb-surface);
   font-weight: 600;
 }
 

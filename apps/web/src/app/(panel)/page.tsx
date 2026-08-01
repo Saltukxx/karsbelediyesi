@@ -24,7 +24,16 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { SubmitButton } from "@/components/ui/SubmitButton";
-import { buttonCls } from "@/lib/ui";
+import { StatCard } from "@/components/ui/StatCard";
+import { SectionTitle } from "@/components/ui/SectionTitle";
+import {
+  buttonCls,
+  cardCls,
+  cardInteractiveCls,
+  numeralCls,
+  toneChipCls,
+  type Tone,
+} from "@/lib/ui";
 import {
   departmentScope,
   requirePageAccess,
@@ -39,17 +48,8 @@ import {
   type DashboardRange,
 } from "@/lib/dashboard-range";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { MetricCard } from "@/components/dashboard/MetricCard";
 import { RangePicker } from "@/components/dashboard/RangePicker";
-import { SectionTitle } from "@/components/dashboard/SectionTitle";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
-import {
-  dashCardCls,
-  dashCardInteractiveCls,
-  numeralCls,
-  toneChipCls,
-  type Tone,
-} from "@/components/dashboard/styles";
 import { KB } from "@/components/charts/theme";
 import {
   ComplaintTrendChart,
@@ -80,7 +80,7 @@ function ActionCard({
   return (
     <Link
       href={href}
-      className={`${dashCardInteractiveCls} group flex items-start gap-3 p-4`}
+      className={`${cardInteractiveCls} group flex items-start gap-3 p-4`}
     >
       <span
         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${toneChipCls[tone]}`}
@@ -112,7 +112,7 @@ function DetailSection({
   children: React.ReactNode;
 }) {
   return (
-    <details className={`${dashCardCls} group`}>
+    <details className={`${cardCls} group`}>
       <summary className="flex cursor-pointer list-none items-center gap-3 p-4">
         <ChevronRight className="h-4 w-4 shrink-0 text-kb-muted transition-transform group-open:rotate-90" />
         <span className="font-brand text-[0.9rem] font-semibold text-kb-ink">
@@ -426,37 +426,37 @@ async function DashboardContent({
           Anlık durum
         </SectionTitle>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-          <MetricCard
+          <StatCard
             label="Açık şikayet"
             value={anlik.acikSikayet}
             tone="info"
             icon={Siren}
           />
-          <MetricCard
+          <StatCard
             label="Devam eden"
             value={anlik.devamEdenSikayet}
             tone="warning"
             icon={Clock}
           />
-          <MetricCard
+          <StatCard
             label="Çok acil"
             value={anlik.cokAcil}
             tone={anlik.cokAcil > 0 ? "danger" : "neutral"}
             icon={Flame}
           />
-          <MetricCard
+          <StatCard
             label="Acil"
             value={anlik.acil}
             tone={anlik.acil > 0 ? "warning" : "neutral"}
             icon={AlertTriangle}
           />
-          <MetricCard
+          <StatCard
             label="Kritik stok"
             value={anlik.kritikStokToplam}
             tone={anlik.kritikStokToplam > 0 ? "danger" : "success"}
             icon={Package}
           />
-          <MetricCard
+          <StatCard
             label="Yaklaşan bakım"
             value={anlik.yaklasanMuayene}
             tone={anlik.yaklasanMuayene > 0 ? "warning" : "neutral"}
@@ -537,22 +537,22 @@ async function DashboardContent({
 
         <DetailSection title="Araç envanteri" description="anlık durum">
           <div className="grid grid-cols-2 gap-3 p-4 md:grid-cols-4">
-            <MetricCard
+            <StatCard
               label={`Envanter: ${ENVANTER_DURUM_LABELS.AKTIF}`}
               value={anlik.aracEnvanter.AKTIF ?? 0}
               hint="Çalışır durumda"
             />
-            <MetricCard
+            <StatCard
               label={ENVANTER_DURUM_LABELS.BAKIMDA}
               value={anlik.aracEnvanter.BAKIMDA ?? 0}
               hint="Bakım / onarımda"
             />
-            <MetricCard
+            <StatCard
               label={ENVANTER_DURUM_LABELS.ARIZALI}
               value={anlik.aracEnvanter.ARIZALI ?? 0}
               hint="Arıza mevcut"
             />
-            <MetricCard
+            <StatCard
               label={ENVANTER_DURUM_LABELS.HURDAYA_AYRILDI}
               value={anlik.aracEnvanter.HURDAYA_AYRILDI ?? 0}
             />
@@ -563,7 +563,7 @@ async function DashboardContent({
                 keyof typeof OPERASYON_DURUM_LABELS
               >
             ).map((k) => (
-              <MetricCard
+              <StatCard
                 key={k}
                 label={OPERASYON_DURUM_LABELS[k]}
                 value={anlik.aracOperasyon[k] ?? 0}

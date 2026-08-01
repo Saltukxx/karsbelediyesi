@@ -354,7 +354,7 @@ export default function WinterMap({
         />
 
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
             Altlık harita
           </p>
           <div className="flex gap-2">
@@ -377,7 +377,7 @@ export default function WinterMap({
 
         {canEdit && (
           <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+            <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
               Operasyon kaydı
             </p>
             <form ref={opFormRef} action={submitOperation} className="space-y-3">
@@ -485,7 +485,7 @@ export default function WinterMap({
 
         {canEdit && (
           <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+            <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
               Rota çizimi
             </p>
             <button
@@ -594,7 +594,7 @@ export default function WinterMap({
         )}
 
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
             Rotalar ({routes.length})
           </p>
           {siraliRotalar.length === 0 && (
@@ -635,7 +635,7 @@ export default function WinterMap({
         </div>
 
         <div className="space-y-1.5 rounded-lg border border-kb-border bg-kb-surface-raised p-4 text-xs text-kb-muted shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="text-[0.8rem] font-medium text-kb-muted">
             Gösterim
           </p>
           <p>

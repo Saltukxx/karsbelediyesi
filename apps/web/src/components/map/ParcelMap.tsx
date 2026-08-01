@@ -169,7 +169,7 @@ export default function ParcelMap({
         />
 
         <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
             Altlık harita
           </p>
           <div className="flex gap-2">
@@ -191,7 +191,7 @@ export default function ParcelMap({
         </div>
 
         <div className="space-y-1.5 rounded-lg border border-kb-border bg-kb-surface-raised p-4 text-xs text-kb-muted shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="text-[0.8rem] font-medium text-kb-muted">
             Bilgi
           </p>
           <p>

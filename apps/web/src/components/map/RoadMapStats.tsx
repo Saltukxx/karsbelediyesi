@@ -223,7 +223,7 @@ export default function RoadMapStats({
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <div className="relative overflow-hidden rounded-lg border border-kb-navy-deep bg-gradient-to-br from-kb-navy-soft to-kb-navy-deep p-4 shadow-sm">
           <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/5" />
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-white/70">
+          <div className="text-[0.75rem] font-medium text-white/70">
             Toplam Asfalt
           </div>
           <div className="mt-1.5 text-2xl font-bold tabular-nums text-white">
@@ -233,7 +233,7 @@ export default function RoadMapStats({
         </div>
 
         <div className={`${cardCls} p-4`}>
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-kb-muted">
+          <div className="text-[0.8rem] font-medium text-kb-muted">
             Tamamlanan
           </div>
           <div className="mt-1.5 text-2xl font-semibold tabular-nums text-kb-success">
@@ -245,7 +245,7 @@ export default function RoadMapStats({
         </div>
 
         <div className={`${cardCls} p-4`}>
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-kb-muted">
+          <div className="text-[0.8rem] font-medium text-kb-muted">
             Devam Eden + Planlı
           </div>
           <div className="mt-1.5 text-2xl font-semibold tabular-nums text-kb-warning">
@@ -257,7 +257,7 @@ export default function RoadMapStats({
         </div>
 
         <div className={`${cardCls} p-4`}>
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-kb-muted">
+          <div className="text-[0.8rem] font-medium text-kb-muted">
             Açık Çukur / Engel
           </div>
           <div
@@ -271,7 +271,7 @@ export default function RoadMapStats({
         </div>
 
         <div className={`${cardCls} p-4`}>
-          <div className="text-[0.65rem] font-semibold uppercase tracking-wider text-kb-muted">
+          <div className="text-[0.8rem] font-medium text-kb-muted">
             Açık Şikayet
           </div>
           <div className="mt-1.5 text-2xl font-semibold tabular-nums text-kb-navy">
@@ -285,7 +285,7 @@ export default function RoadMapStats({
 
       <div className="grid gap-3 lg:grid-cols-3">
         <div className={`${cardCls} p-4 lg:col-span-1`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="text-[0.8rem] font-medium text-kb-muted">
             Aylık Asfalt Üretimi (12 ay)
           </p>
           <div className="mt-3">
@@ -304,7 +304,7 @@ export default function RoadMapStats({
             centerSub="TOPLAM"
           />
           <div className="space-y-2 text-xs text-kb-ink">
-            <p className="text-xs font-semibold uppercase tracking-wider text-kb-muted">
+            <p className="text-[0.8rem] font-medium text-kb-muted">
               Asfalt Durumu
             </p>
             <p>
@@ -332,7 +332,7 @@ export default function RoadMapStats({
         </div>
 
         <div className={`${cardCls} space-y-4 p-4`}>
-          <p className="text-xs font-semibold uppercase tracking-wider text-kb-muted">
+          <p className="text-[0.8rem] font-medium text-kb-muted">
             Çukur / Engel &amp; Şikayet
           </p>
           <div className="space-y-2">
