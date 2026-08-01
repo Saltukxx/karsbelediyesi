@@ -31,21 +31,24 @@ export const SERIES_COLORS = [
   KB.muted,
 ] as const;
 
-export const FONT_FAMILY =
-  'var(--font-source-sans), "Source Sans 3", system-ui, sans-serif';
-
 /**
  * Canvas, CSS değişkenlerini çözemez ve next/font aile adlarını hash'ler;
- * serif aile adı bu yüzden çalışma anında CSS değişkeninden okunur.
- * Sunucu tarafında (SSR) grafik zaten çizilmediği için fallback yeterli.
+ * gerçek aile adı bu yüzden çalışma anında `<body>` üzerindeki değişkenden
+ * okunur. Sunucu tarafında (SSR) grafik çizilmediği için fallback yeterli.
  */
+function cssFont(varName: string, fallback: string): string {
+  if (typeof document === "undefined" || !document.body) return fallback;
+  const v = getComputedStyle(document.body).getPropertyValue(varName).trim();
+  return v ? `${v}, ${fallback}` : fallback;
+}
+
+export const FONT_FAMILY = cssFont(
+  "--font-source-sans",
+  '"Source Sans 3", system-ui, sans-serif',
+);
+
 export function serifFamily(): string {
-  const fallback = '"Source Serif 4", Georgia, serif';
-  if (typeof window === "undefined") return fallback;
-  const v = getComputedStyle(document.documentElement)
-    .getPropertyValue("--font-source-serif")
-    .trim();
-  return v ? `${v}, Georgia, serif` : fallback;
+  return cssFont("--font-source-serif", '"Source Serif 4", Georgia, serif');
 }
 
 /** Alan grafikleri için aşağı doğru şeffaflaşan dikey gradyan. */

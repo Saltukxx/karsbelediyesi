@@ -67,6 +67,8 @@ export type DashboardData = {
   mahalleDagilim: Array<{ name: string; toplam: number }>;
   /** Hafta günü (1=Pzt … 7=Paz) × saat yoğunluk matrisi */
   saatlikYogunluk: Array<{ haftaGunu: number; saat: number; adet: number }>;
+  /** Seçili dönemde konumu girilmiş şikayetler — ısı haritası için [lat, lng] */
+  sikayetKonumlari: Array<[number, number]>;
   sonBakimlar: Array<{
     id: string;
     plaka: string;
@@ -140,6 +142,7 @@ export async function computeDashboard(
     mahalleGruplari,
     neighborhoods,
     saatlikYogunluk,
+    sikayetKonumRows,
     sonBakimlar,
     trendAcilan,
     trendKapanan,
@@ -287,6 +290,16 @@ export async function computeDashboard(
         ${deptSql(dept)}
       GROUP BY 1, 2
     `,
+    prisma.complaint.findMany({
+      where: {
+        kayitTarihi: inRange,
+        lat: { not: null },
+        lng: { not: null },
+        ...dept,
+      },
+      select: { lat: true, lng: true },
+      take: 2000,
+    }),
     prisma.maintenanceRecord.findMany({
       where: vScope,
       take: 10,
@@ -582,6 +595,9 @@ export async function computeDashboard(
       saat: r.saat,
       adet: r.adet,
     })),
+    sikayetKonumlari: sikayetKonumRows.flatMap((k) =>
+      k.lat != null && k.lng != null ? [[k.lat, k.lng] as [number, number]] : [],
+    ),
     sonBakimlar: sonBakimlar.map((b) => ({
       id: b.id,
       plaka: b.vehicle.plaka,

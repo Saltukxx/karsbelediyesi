@@ -54,6 +54,7 @@ import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { KB } from "@/components/charts/theme";
 import {
   ChannelChart,
+  ComplaintHeatMapCard,
   ComplaintTrendChart,
   CostTrendChart,
   DepartmentChart,
@@ -422,6 +423,8 @@ async function DashboardContent({
           />
           <NeighborhoodChart data={data.mahalleDagilim} />
         </div>
+
+        <ComplaintHeatMapCard points={data.sikayetKonumlari} />
 
         <HourHeatmapChart data={data.saatlikYogunluk} />
 

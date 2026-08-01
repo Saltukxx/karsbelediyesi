@@ -30,6 +30,17 @@ const EChart = dynamic(
   },
 );
 
+// Leaflet, window'a bağımlı; sunucu render'ına girmemesi için dinamik yüklenir
+const ComplaintHeatMap = dynamic(
+  () => import("@/components/dashboard/ComplaintHeatMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[380px] w-full animate-pulse rounded bg-kb-border/40" />
+    ),
+  },
+);
+
 /**
  * Veri yokken grafik yüksekliği rezerve edilmez; kart kendi kadar yer kaplar.
  * Aksi halde boş bir dashboard baştan aşağı ölü alanla dolar.
@@ -480,6 +491,25 @@ export function NeighborhoodChart({
         height={Math.max(180, siralanmis.length * 30 + 40)}
         ariaLabel="Mahalle bazlı şikayet yoğunluğu"
       />
+    </ChartCard>
+  );
+}
+
+// ── Şikayet yoğunluk haritası ────────────────────────────────────────────
+
+export function ComplaintHeatMapCard({
+  points,
+}: {
+  points: Array<[number, number]>;
+}) {
+  return (
+    <ChartCard
+      title="Şikayet yoğunluk haritası"
+      description="Seçili dönemde konumu girilen şikayetlerin coğrafi dağılımı"
+      empty={points.length === 0}
+      emptyText="Konumu girilmiş şikayet yok"
+    >
+      <ComplaintHeatMap points={points} />
     </ChartCard>
   );
 }
