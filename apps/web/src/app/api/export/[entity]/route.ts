@@ -21,12 +21,8 @@ import {
   ayAdiFromDate,
 } from "@kars/shared";
 import { sheetFromRows, workbookToBuffer } from "@/lib/excel";
-import {
-  departmentScope,
-  EXPORT_ENTITY_ROLES,
-  requireSession,
-  type AppSession,
-} from "@/lib/authz";
+import { departmentScope, EXPORT_ENTITY_ROLES } from "@/lib/authz";
+import { withPanelUser } from "@/lib/panel-auth";
 
 const EXPORT_MAX_ROWS = 10_000;
 const DEFAULT_RANGE_DAYS = 90;
@@ -47,12 +43,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ entity: string }> },
 ) {
-  let session: AppSession;
-  try {
-    session = await requireSession();
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const session = await withPanelUser(req);
+  if (session instanceof NextResponse) return session;
 
   const { entity } = await params;
   const roles = EXPORT_ENTITY_ROLES[entity];

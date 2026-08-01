@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@kars/db";
-import { requireSession } from "@/lib/authz";
+import { withPanelUser } from "@/lib/panel-auth";
 import { slaTaramasiCalistir } from "@/lib/sla-notify";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  let userId: string;
-  try {
-    const session = await requireSession();
-    userId = session.user.id;
-  } catch {
-    return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
-  }
+export async function GET(req: Request) {
+  const session = await withPanelUser(req);
+  if (session instanceof NextResponse) return session;
+  const userId = session.user.id;
 
   // Ayrı cron kurmadan SLA taraması (en fazla 10 dakikada bir çalışır)
   await slaTaramasiCalistir();

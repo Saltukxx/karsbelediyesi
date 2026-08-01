@@ -10,19 +10,18 @@ import {
   agregaStokPayi,
 } from "@kars/shared";
 import { agregaParametreKaydet } from "@/lib/actions/agrega";
+import {
+  AGREGA_PARAMETRE_ADI,
+  boyutSatisOku,
+  fizikselGirdi,
+  projeGirdi,
+} from "@/lib/agrega-model";
 import { cardCls, inputCls, btnPrimary } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabs, TabPanel } from "@/components/ui/Tabs";
 import { requirePageAccess } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
-
-type BoyutSatis = {
-  boyut: string;
-  oran: number;
-  satisFiyati: number;
-  stokHedefi: number;
-};
 
 function numField(
   name: string,
@@ -40,7 +39,9 @@ function numField(
 
 export default async function AgregaPage() {
   await requirePageAccess("/agrega");
-  const params = await prisma.agregaParams.findUnique({ where: { ad: "varsayilan" } });
+  const params = await prisma.agregaParams.findUnique({
+    where: { ad: AGREGA_PARAMETRE_ADI },
+  });
   if (!params) {
     return (
       <div className="space-y-4">
@@ -50,51 +51,9 @@ export default async function AgregaPage() {
     );
   }
 
-  const boyutSatis = (params.boyutSatis as BoyutSatis[] | null) ?? [
-    { boyut: "0-5 mm", oran: params.oran05, satisFiyati: 180, stokHedefi: 1000 },
-    { boyut: "5-12 mm", oran: params.oran512, satisFiyati: 220, stokHedefi: 1000 },
-    { boyut: "12-19 mm", oran: params.oran1219, satisFiyati: 240, stokHedefi: 1000 },
-    { boyut: "19-32 mm", oran: params.oran1932, satisFiyati: 250, stokHedefi: 1000 },
-  ];
-
-  const fiziksel = agregaFizikselMaliyet({
-    mesafeKm: params.mesafeKm,
-    motorinFiyat: params.motorinFiyat,
-    elektrikFiyat: params.elektrikFiyat,
-    sokumYakitLtSaat: params.sokumYakitLtSaat,
-    sokumAmortisman: params.sokumAmortisman,
-    sokumKapasiteTonSaat: params.sokumKapasiteTonSaat,
-    yuklemeYakitLtSaat: params.yuklemeYakitLtSaat,
-    yuklemeAmortisman: params.yuklemeAmortisman,
-    yuklemeKapasiteTonSaat: params.yuklemeKapasiteTonSaat,
-    kamyonKapasiteTon: params.kamyonKapasiteTon,
-    kamyonYakitLtKm: params.kamyonYakitLtKm,
-    seferHizKmSaat: params.seferHizKmSaat,
-    yuklemeBosaltmaDk: params.yuklemeBosaltmaDk,
-    kamyonAmortisman: params.kamyonAmortisman,
-    kiriciKw: params.kiriciKw,
-    yukFaktoru: params.yukFaktoru,
-    kiriciKapasiteTonSaat: params.kiriciKapasiteTonSaat,
-    oran05: params.oran05,
-    oran512: params.oran512,
-    oran1219: params.oran1219,
-    oran1932: params.oran1932,
-    donemUretimTon: params.donemUretimTon,
-  });
-
-  const proje = agregaProjeMaliyet({
-    gunlukHedefTon: params.gunlukHedefTon,
-    kiriciYakitTon: params.kiriciYakitTon,
-    kiriciBakimTon: params.kiriciBakimTon,
-    yukleyiciYakitTon: params.yukleyiciYakitTon,
-    yukleyiciBakimTon: params.yukleyiciBakimTon,
-    nakliyeYakitTon: params.nakliyeYakitTon,
-    elekElektrikTon: params.elekElektrikTon,
-    elemeBakimTon: params.elemeBakimTon,
-    yikamaSuTon: params.yikamaSuTon,
-    genelGiderTon: params.genelGiderTon,
-    boyutlar: boyutSatis,
-  });
+  const boyutSatis = boyutSatisOku(params);
+  const fiziksel = agregaFizikselMaliyet(fizikselGirdi(params));
+  const proje = agregaProjeMaliyet(projeGirdi(params, boyutSatis));
 
   return (
     <div className="space-y-6">

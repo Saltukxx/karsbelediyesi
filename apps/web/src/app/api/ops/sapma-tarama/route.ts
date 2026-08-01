@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/authz";
+import { forbidPanelIfNot, withPanelUser } from "@/lib/panel-auth";
 import { sapmaTaramasi } from "@/lib/route-analysis";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +14,10 @@ export async function POST(req: Request) {
   const gelen = req.headers.get("x-cron-secret");
 
   if (!secret || gelen !== secret) {
-    try {
-      const session = await requireSession();
-      if (session.user.role !== "ADMIN") {
-        return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
-      }
-    } catch {
-      return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
-    }
+    const session = await withPanelUser(req);
+    if (session instanceof NextResponse) return session;
+    const forbidden = forbidPanelIfNot(session.user, ["ADMIN"]);
+    if (forbidden) return forbidden;
   }
 
   const sonuc = await sapmaTaramasi();

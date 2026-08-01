@@ -1,11 +1,10 @@
-import { prisma } from "@kars/db";
-import type { Prisma } from "@kars/db";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { StickyFilter } from "@/components/ui/StickyFilter";
 import { Pagination, pageSize, parsePage } from "@/components/ui/Pagination";
 import { requirePageAccess } from "@/lib/authz";
+import { denetimListesi } from "@/lib/services/audit-log";
 
 export const dynamic = "force-dynamic";
 
@@ -58,46 +57,18 @@ export default async function DenetimPage({
     size?: string;
   }>;
 }) {
-  await requirePageAccess("/denetim");
+  const session = await requirePageAccess("/denetim");
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const take = pageSize(sp.size, 50);
-  const skip = (page - 1) * take;
 
-  const where: Prisma.AuditLogWhereInput = {};
-  if (sp.kullanici) {
-    where.userAd = { contains: sp.kullanici, mode: "insensitive" };
-  }
-  if (sp.islem) where.islem = sp.islem;
-  if (sp.varlik) where.varlik = sp.varlik;
-  if (sp.baslangic || sp.bitis) {
-    where.createdAt = {
-      ...(sp.baslangic ? { gte: new Date(sp.baslangic) } : {}),
-      ...(sp.bitis ? { lte: new Date(`${sp.bitis}T23:59:59`) } : {}),
-    };
-  }
-
-  const [total, kayitlar, islemler, varliklar] = await Promise.all([
-    prisma.auditLog.count({ where }),
-    prisma.auditLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take,
-    }),
-    prisma.auditLog.findMany({
-      distinct: ["islem"],
-      select: { islem: true },
-      orderBy: { islem: "asc" },
-    }),
-    prisma.auditLog.findMany({
-      distinct: ["varlik"],
-      select: { varlik: true },
-      where: { varlik: { not: null } },
-      orderBy: { varlik: "asc" },
-    }),
-  ]);
-  const totalPages = Math.max(1, Math.ceil(total / take));
+  // Filtre/sayfalama mantığı servis katmanında; `/api/v1/denetim` ile ortak
+  const {
+    kayitlar,
+    toplamSayfa: totalPages,
+    islemler,
+    varliklar,
+  } = await denetimListesi(session, { ...sp, page, size: take });
 
   return (
     <div className="space-y-4">
@@ -121,8 +92,8 @@ export default async function DenetimPage({
           >
             <option value="">Tüm İşlemler</option>
             {islemler.map((i) => (
-              <option key={i.islem} value={i.islem}>
-                {ISLEM_LABELS[i.islem] ?? i.islem}
+              <option key={i} value={i}>
+                {ISLEM_LABELS[i] ?? i}
               </option>
             ))}
           </select>
@@ -133,8 +104,8 @@ export default async function DenetimPage({
           >
             <option value="">Tüm Varlıklar</option>
             {varliklar.map((v) => (
-              <option key={v.varlik} value={v.varlik ?? ""}>
-                {v.varlik}
+              <option key={v} value={v}>
+                {v}
               </option>
             ))}
           </select>
@@ -182,9 +153,9 @@ export default async function DenetimPage({
           {kayitlar.map((k) => (
             <tr key={k.id}>
               <td className="whitespace-nowrap">
-                {k.createdAt.toLocaleDateString("tr-TR")}{" "}
+                {k.zaman.toLocaleDateString("tr-TR")}{" "}
                 <span className="text-kb-muted">
-                  {k.createdAt.toLocaleTimeString("tr-TR", {
+                  {k.zaman.toLocaleTimeString("tr-TR", {
                     hour: "2-digit",
                     minute: "2-digit",
                     second: "2-digit",

@@ -14,6 +14,7 @@ import {
   betonStokGiris,
   betonReceteGuncelle,
 } from "@/lib/actions/beton";
+import { uretimCikisHaritasi } from "@/lib/beton-stok";
 import { cardCls, inputCls, btnPrimary } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabs, TabPanel } from "@/components/ui/Tabs";
@@ -105,16 +106,7 @@ export default async function BetonPage({
       _count: true,
     }),
   ]);
-  const sum = uretimSum._sum;
-  const cikisMap: Record<string, number> = {
-    Cimento: sum.cimentoKg ?? 0,
-    Kum: sum.kumKg ?? 0,
-    "Micir 0-5mm": sum.micir05Kg ?? 0,
-    "Micir 5-12mm": sum.micir512Kg ?? 0,
-    "Micir 12-19mm": sum.micir1219Kg ?? 0,
-    Su: sum.suLt ?? 0,
-    Katki: sum.katkiKg ?? 0,
-  };
+  const cikisMap = uretimCikisHaritasi(uretimSum._sum);
 
   const today = new Date().toISOString().slice(0, 10);
   const ayM3 = ayUretim._sum.hedefM3 ?? 0;

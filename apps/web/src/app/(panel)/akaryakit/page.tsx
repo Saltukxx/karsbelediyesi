@@ -1,20 +1,11 @@
 import { prisma } from "@kars/db";
-import {
-  gercekTuketim,
-  tuketimDurumu,
-  YAKIT_TIPI_LABELS,
-  AY_ADLARI,
-  sayacFarkiMaxMin,
-  ortBirimFiyat,
-} from "@kars/shared";
 import { cardCls, inputCls, btnPrimary } from "@/lib/ui";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
+import { akaryakitAnalizi, AY_LISTESI } from "@/lib/akaryakit-analiz";
 
 export const dynamic = "force-dynamic";
-
-const AYLAR = [...AY_ADLARI];
 
 export default async function AkaryakitPage({
   searchParams,
@@ -23,71 +14,15 @@ export default async function AkaryakitPage({
 }) {
   const session = await requirePageAccess("/akaryakit");
   const sp = await searchParams;
-  const ayAdi = (sp.ay && AYLAR.includes(sp.ay as (typeof AYLAR)[number])
-    ? sp.ay
-    : AYLAR[new Date().getMonth()]) as (typeof AYLAR)[number];
-  const ayIndex = AYLAR.indexOf(ayAdi);
   const dept = departmentScope(session);
   const mudurlukFilter = dept.departmentId ?? sp.mudurluk;
 
-  const vehicleWhere = {
-    envanterDurumu: { not: "HURDAYA_AYRILDI" as const },
-    ...(mudurlukFilter ? { departmentId: mudurlukFilter } : {}),
-  };
-
-  const [araclar, kayitlar, mudurlukler] = await Promise.all([
-    prisma.vehicle.findMany({
-      where: vehicleWhere,
-      include: { department: true },
-      orderBy: { plaka: "asc" },
-    }),
-    prisma.fuelRecord.findMany({
-      where: mudurlukFilter
-        ? { vehicle: { departmentId: mudurlukFilter } }
-        : undefined,
-      include: { vehicle: true },
-    }),
+  const [{ ay: ayAdi, analiz, aylik: aylikTumu }, mudurlukler] = await Promise.all([
+    akaryakitAnalizi({ departmentId: mudurlukFilter, ay: sp.ay }),
     prisma.department.findMany({ where: { aktif: true }, orderBy: { name: "asc" } }),
   ]);
 
-  const analiz = araclar
-    .map((a) => {
-      const rows = kayitlar.filter((k) => k.vehicleId === a.id);
-      const toplamLitre = rows.reduce((s, r) => s + Number(r.litre), 0);
-      const toplamTutar = rows.reduce((s, r) => s + Number(r.tutar), 0);
-      const sayaclar = rows.map((r) => r.sayac).filter((s): s is number => s != null);
-      const sayacFarki = sayacFarkiMaxMin(sayaclar);
-      const tip =
-        a.sayacTipi === "SAAT" || a.sayacBirim === "SAAT"
-          ? ("SAAT" as const)
-          : ("KM" as const);
-      const gercek = gercekTuketim(toplamLitre, sayacFarki, tip);
-      const norm = a.normTuketim ?? 0;
-      const durum =
-        gercek != null && norm > 0 ? tuketimDurumu(gercek, norm) : null;
-      return { a, toplamLitre, toplamTutar, sayacFarki, gercek, norm, durum, tip };
-    });
-
-  const aylik = araclar
-    .filter((a) => !mudurlukFilter || a.departmentId === mudurlukFilter)
-    .map((a) => {
-      const rows = kayitlar.filter((k) => {
-        if (k.vehicleId !== a.id) return false;
-        if (ayIndex < 0) return true;
-        return k.tarih.getMonth() === ayIndex;
-      });
-      const litre = rows.reduce((s, r) => s + Number(r.litre), 0);
-      const tutar = rows.reduce((s, r) => s + Number(r.tutar), 0);
-      return {
-        plaka: a.plaka,
-        yakit: a.yakitTipi ? YAKIT_TIPI_LABELS[a.yakitTipi] ?? a.yakitTipi : "—",
-        litre,
-        tutar,
-        adet: rows.length,
-        ort: ortBirimFiyat(tutar, litre),
-      };
-    })
-    .filter((r) => r.adet > 0 || !sp.ay);
+  const aylik = aylikTumu.filter((r) => r.adet > 0 || !sp.ay);
 
   return (
     <div className="space-y-6">
@@ -113,7 +48,7 @@ export default async function AkaryakitPage({
         <div>
           <label className="text-xs text-kb-muted block mb-1">Ay</label>
           <select name="ay" defaultValue={ayAdi} className={inputCls}>
-            {AYLAR.map((a) => (
+            {AY_LISTESI.map((a) => (
               <option key={a} value={a}>{a}</option>
             ))}
           </select>
@@ -139,23 +74,23 @@ export default async function AkaryakitPage({
               </tr>
             </thead>
             <tbody>
-              {analiz.map(({ a, toplamLitre, toplamTutar, sayacFarki, gercek, norm, durum, tip }) => (
-                <tr key={a.id} className="border-b border-kb-border/60">
+              {analiz.map((r) => (
+                <tr key={r.vehicleId} className="border-b border-kb-border/60">
                   <td className="p-3 font-mono">
-                    <Link href={`/araclar/${a.id}`} className="text-kb-navy hover:underline">
-                      {a.plaka}
+                    <Link href={`/araclar/${r.vehicleId}`} className="text-kb-navy hover:underline">
+                      {r.plaka}
                     </Link>
                   </td>
-                  <td className="p-3">{a.department?.shortName ?? "—"}</td>
-                  <td className="p-3">{tip === "KM" ? "Kilometre" : "Saat"}</td>
-                  <td className="p-3">{toplamLitre.toLocaleString("tr-TR")}</td>
-                  <td className="p-3">{toplamTutar.toLocaleString("tr-TR")} ₺</td>
-                  <td className="p-3">{sayacFarki.toLocaleString("tr-TR")}</td>
+                  <td className="p-3">{r.mudurluk ?? "—"}</td>
+                  <td className="p-3">{r.sayacTipi === "KM" ? "Kilometre" : "Saat"}</td>
+                  <td className="p-3">{r.toplamLitre.toLocaleString("tr-TR")}</td>
+                  <td className="p-3">{r.toplamTutar.toLocaleString("tr-TR")} ₺</td>
+                  <td className="p-3">{r.sayacFarki.toLocaleString("tr-TR")}</td>
                   <td className="p-3">
-                    {gercek != null ? gercek.toFixed(2) : "—"}
+                    {r.gercekTuketim != null ? r.gercekTuketim.toFixed(2) : "—"}
                   </td>
-                  <td className="p-3">{norm || "—"}</td>
-                  <td className="p-3 font-medium">{durum ?? "—"}</td>
+                  <td className="p-3">{r.norm || "—"}</td>
+                  <td className="p-3 font-medium">{r.durum ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -183,7 +118,9 @@ export default async function AkaryakitPage({
                   <td className="p-3">{r.litre.toLocaleString("tr-TR")}</td>
                   <td className="p-3">{r.tutar.toLocaleString("tr-TR")} ₺</td>
                   <td className="p-3">{r.adet}</td>
-                  <td className="p-3">{r.ort != null ? r.ort.toFixed(2) : "—"}</td>
+                  <td className="p-3">
+                    {r.ortBirimFiyat != null ? r.ortBirimFiyat.toFixed(2) : "—"}
+                  </td>
                 </tr>
               ))}
               <tr className="bg-[#eef2f6] font-semibold">

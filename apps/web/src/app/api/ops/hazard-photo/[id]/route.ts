@@ -2,8 +2,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { prisma } from "@kars/db";
-import { requireSession } from "@/lib/authz";
 import { resolveHazardPhotoPath } from "@/lib/hazard-photos";
+import { withPanelUser } from "@/lib/panel-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +15,11 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  try {
-    await requireSession();
-  } catch {
-    return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
-  }
+  const session = await withPanelUser(req);
+  if (session instanceof NextResponse) return session;
 
   const { id } = await ctx.params;
   const photo = await prisma.roadHazardPhoto.findUnique({

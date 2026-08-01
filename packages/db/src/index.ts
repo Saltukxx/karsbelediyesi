@@ -16,4 +16,5 @@ export {
   nextTaskSerial,
   withSerialRetry,
   isUniqueViolation,
+  isRecordNotFound,
 } from "./serial";

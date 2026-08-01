@@ -2,19 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { nextTaskSerial, prisma, withSerialRetry } from "@kars/db";
-import { gorevSuresiSaatTarihli, kmFarki } from "@kars/shared";
-import {
-  canAccessTask,
-  gorevOlusturmaKapsami,
-  loadTaskForAccess,
-  toAccessUser,
-} from "@/lib/access";
-import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
-import { ACTION_ROLES, requireRoles } from "@/lib/authz";
-import { auditKaydet } from "@/lib/audit";
-import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
-import { gorevIziAnalizDene } from "@/lib/route-analysis";
+import { requireSession } from "@/lib/authz";
+import * as gorevServis from "@/lib/services/tasks";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -30,215 +19,49 @@ function tarihSaat(t?: string, s?: string): Date | undefined {
   return new Date(`${t}T${s || "00:00"}:00`);
 }
 
-/**
- * Görev oluşturma (Excel Görev Formu satırı).
- * Görev No otomatik: GRV-2026-0001. Araç seçilince şoför zimmetten önerilir.
- * Durum "Devam Ediyor" ise araç GOREVDE yapılır (Excel Araç Havuzu durumu).
- */
 export async function gorevOlustur(formData: FormData) {
-  const session = await requireRoles(["ADMIN", "DEPARTMENT_MANAGER", "APPROVER"]);
-
-  const vehicleId = String(formData.get("vehicleId"));
-  const cikis = tarihSaat(bos(formData.get("cikisTarihi")), bos(formData.get("cikisSaati")));
-  const giris = tarihSaat(bos(formData.get("girisTarihi")), bos(formData.get("girisSaati")));
-  const kmCikis = sayi(formData.get("kmSayacCikis"));
-  const kmGiris = sayi(formData.get("kmSayacGiris"));
-  const durum = (bos(formData.get("durum")) ?? "PLANLANDI") as
-    | "PLANLANDI"
-    | "DEVAM_EDIYOR"
-    | "TAMAMLANDI"
-    | "IPTAL_EDILDI";
-
-  const kmCheck = validateKmPair(kmCikis, kmGiris);
-  if (!kmCheck.ok) throw new Error(kmCheck.error);
-
-  const kapsam = await gorevOlusturmaKapsami(toAccessUser(session.user), {
-    vehicleId,
-    talepEdenDepartmentId: bos(formData.get("talepEdenDepartmentId")) ?? null,
-    driverId: bos(formData.get("driverId")) ?? null,
+  const session = await requireSession();
+  await gorevServis.gorevOlustur(session, {
+    vehicleId: String(formData.get("vehicleId") ?? ""),
+    talepEdenDepartmentId: bos(formData.get("talepEdenDepartmentId")),
+    driverId: bos(formData.get("driverId")),
+    gorevYeri: bos(formData.get("gorevYeri")),
+    gorevTanimi: bos(formData.get("gorevTanimi")),
+    cikisTarihi: tarihSaat(bos(formData.get("cikisTarihi")), bos(formData.get("cikisSaati"))),
+    girisTarihi: tarihSaat(bos(formData.get("girisTarihi")), bos(formData.get("girisSaati"))),
+    kmSayacCikis: sayi(formData.get("kmSayacCikis")),
+    kmSayacGiris: sayi(formData.get("kmSayacGiris")),
+    onaylayanId: bos(formData.get("onaylayanId")),
+    durum: bos(formData.get("durum")) as never,
+    not: bos(formData.get("not")),
+    maliyet: sayi(formData.get("maliyet")),
   });
-  if (!kapsam.ok) throw new Error(kapsam.error);
-
-  const arac = await prisma.vehicle.findUniqueOrThrow({
-    where: { id: vehicleId },
-    include: { atananSofor: true },
-  });
-
-  const created = await withSerialRetry(prisma, async (tx) => {
-    const { yil, sira, gorevNo } = await nextTaskSerial(tx);
-
-    const gorev = await tx.vehicleTask.create({
-      data: {
-        gorevNo,
-        yil,
-        sira,
-        vehicleId,
-        talepEdenDepartmentId: kapsam.talepEdenDepartmentId ?? undefined,
-        gorevYeri: bos(formData.get("gorevYeri")),
-        gorevTanimi: bos(formData.get("gorevTanimi")),
-        cikisTarihi: cikis,
-        girisTarihi: giris,
-        sureSaat: cikis && giris ? gorevSuresiSaatTarihli(cikis, giris) : undefined,
-        driverId: kapsam.driverId ?? undefined,
-        kmSayacCikis: kmCikis,
-        kmSayacGiris: kmGiris,
-        kmFarki: kmCikis != null && kmGiris != null ? kmFarki(kmCikis, kmGiris) : undefined,
-        onaylayanId: bos(formData.get("onaylayanId")),
-        durum,
-        not: bos(formData.get("not")),
-        maliyet: sayi(formData.get("maliyet")),
-      },
-    });
-
-    if (durum === "DEVAM_EDIYOR") {
-      await tx.vehicle.update({
-        where: { id: vehicleId },
-        data: { operasyonDurumu: "GOREVDE", sonCikisTarihi: cikis ?? new Date() },
-      });
-    }
-
-    return gorev;
-  });
-
-  await auditKaydet(session, "GOREV_OLUSTUR", {
-    varlik: "VehicleTask",
-    varlikId: created.id,
-    detay: { gorevNo: created.gorevNo, plaka: arac.plaka, durum },
-  });
-
-  if (created.driverId && created.driverId !== session.user.id) {
-    await bildirimGonder([created.driverId], {
-      tip: "GOREV",
-      baslik: `Yeni görev: ${created.gorevNo}`,
-      mesaj: `${arac.plaka} plakalı araç için görev oluşturuldu.`,
-      href: "/gorevler",
-    });
-  }
-
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
   redirect("/gorevler");
 }
 
-/** Görev kapatma: giriş tarih/saat + KM girilir; süre ve KM farkı hesaplanır, araç MUSAIT olur */
 export async function gorevKapat(formData: FormData) {
-  const session = await requireRoles(ACTION_ROLES.tasks);
-
+  const session = await requireSession();
   const id = String(formData.get("id"));
-  const gorev = await loadTaskForAccess(id);
-  if (!gorev || !canAccessTask(toAccessUser(session.user), gorev)) {
-    throw new Error("Yetkisiz");
-  }
-
-  const giris = tarihSaat(
-    bos(formData.get("girisTarihi")) ?? new Date().toISOString().slice(0, 10),
-    bos(formData.get("girisSaati")),
-  );
-  const kmGiris = sayi(formData.get("kmSayacGiris"));
-  const durum = (bos(formData.get("durum")) ?? "TAMAMLANDI") as "TAMAMLANDI" | "IPTAL_EDILDI";
-
-  const transition = canTransitionTask(gorev.durum, durum);
-  if (!transition.ok) throw new Error(transition.error);
-
-  const kmCheck = validateKmPair(gorev.kmSayacCikis, kmGiris);
-  if (!kmCheck.ok) throw new Error(kmCheck.error);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.vehicleTask.update({
-      where: { id },
-      data: {
-        girisTarihi: giris,
-        sureSaat:
-          gorev.cikisTarihi && giris
-            ? gorevSuresiSaatTarihli(gorev.cikisTarihi, giris)
-            : gorev.sureSaat,
-        kmSayacGiris: kmGiris ?? gorev.kmSayacGiris,
-        kmFarki:
-          gorev.kmSayacCikis != null && kmGiris != null
-            ? kmFarki(gorev.kmSayacCikis, kmGiris)
-            : gorev.kmFarki,
-        durum,
-      },
-    });
-    const otherActive = await tx.vehicleTask.count({
-      where: {
-        vehicleId: gorev.vehicleId,
-        durum: "DEVAM_EDIYOR",
-        id: { not: id },
-      },
-    });
-    if (otherActive === 0) {
-      await tx.vehicle.update({
-        where: { id: gorev.vehicleId },
-        data: {
-          operasyonDurumu: "MUSAIT",
-          sonGirisTarihi: giris ?? new Date(),
-          ...(kmGiris != null ? { sayacDeger: kmGiris } : {}),
-        },
-      });
-    }
+  await gorevServis.gorevKapat(session, id, {
+    girisTarihi: tarihSaat(
+      bos(formData.get("girisTarihi")) ?? new Date().toISOString().slice(0, 10),
+      bos(formData.get("girisSaati")),
+    ),
+    kmSayacGiris: sayi(formData.get("kmSayacGiris")),
+    durum: bos(formData.get("durum")) as never,
   });
-
-  await gorevIziAnalizDene(id);
-
-  await auditKaydet(session, "GOREV_KAPAT", {
-    varlik: "VehicleTask",
-    varlikId: id,
-    detay: { gorevNo: gorev.gorevNo, durum },
-  });
-
-  const onaylayanlar = await kullaniciIdleri(["APPROVER"]);
-  await bildirimGonder(
-    onaylayanlar.filter((uid) => uid !== session.user.id),
-    {
-      tip: "GOREV",
-      baslik: `Görev kapatıldı: ${gorev.gorevNo}`,
-      mesaj: `${session.user.name} görevi ${durum === "TAMAMLANDI" ? "tamamlandı" : "iptal"} olarak kapattı.`,
-      href: "/gorevler",
-    },
-  );
-
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
 }
 
-/** Görevi başlat: çıkış zamanı yazılır, araç GOREVDE olur */
 export async function gorevBaslat(formData: FormData) {
-  const session = await requireRoles(ACTION_ROLES.tasks);
-
+  const session = await requireSession();
   const id = String(formData.get("id"));
-  const gorev = await loadTaskForAccess(id);
-  if (!gorev || !canAccessTask(toAccessUser(session.user), gorev)) {
-    throw new Error("Yetkisiz");
-  }
-
-  const transition = canTransitionTask(gorev.durum, "DEVAM_EDIYOR");
-  if (!transition.ok) throw new Error(transition.error);
-
-  const cikis = new Date();
-  const kmCikis = sayi(formData.get("kmSayacCikis"));
-
-  await prisma.$transaction(async (tx) => {
-    await tx.vehicleTask.update({
-      where: { id },
-      data: {
-        cikisTarihi: gorev.cikisTarihi ?? cikis,
-        kmSayacCikis: kmCikis ?? gorev.kmSayacCikis,
-        durum: "DEVAM_EDIYOR",
-      },
-    });
-    await tx.vehicle.update({
-      where: { id: gorev.vehicleId },
-      data: { operasyonDurumu: "GOREVDE", sonCikisTarihi: cikis },
-    });
+  await gorevServis.gorevBaslat(session, id, {
+    kmSayacCikis: sayi(formData.get("kmSayacCikis")),
   });
-
-  await auditKaydet(session, "GOREV_BASLAT", {
-    varlik: "VehicleTask",
-    varlikId: id,
-    detay: { gorevNo: gorev.gorevNo },
-  });
-
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
 }

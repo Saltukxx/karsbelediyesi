@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { TrackReportData } from "@/components/map/track-report-types";
+import type { TrackReportData } from "@/lib/api/track-dto";
 
 const TrackReportMap = dynamic(() => import("@/components/map/TrackReportMap"), {
   ssr: false,

@@ -1,20 +1,14 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { prisma } from "@kars/db";
 import { PageHeader } from "@/components/ui/PageHeader";
 import TrackReportPanel from "@/components/map/TrackReportPanel";
 import { assertTaskPageAccess } from "@/lib/access";
 import { requirePageAccess } from "@/lib/authz";
 import { gorevYenidenAnalizEt } from "@/lib/actions/track";
 import { tipLabel } from "@/lib/dispatch";
-import { dispatchRotasi } from "@/lib/route-analysis";
+import { gorevTakipRaporu } from "@/lib/services/tasks";
 import { btnPrimary, btnSecondary, cardCls } from "@/lib/ui";
-import type {
-  DuraklamaDto,
-  SapmaDto,
-  TrackReportData,
-  VeriBosluguDto,
-} from "@/components/map/track-report-types";
+import type { TakipOlayTipi, TrackReportData } from "@/lib/api/track-dto";
 
 export const dynamic = "force-dynamic";
 
@@ -31,14 +25,27 @@ const KALITE_LABEL: Record<string, { label: string; cls: string }> = {
   YOK: { label: "Veri yok", cls: "bg-gray-100 text-gray-600" },
 };
 
+const OLAY_LABEL: Record<TakipOlayTipi, { etiket: string; ton: string }> = {
+  ROTA_GIRIS: { etiket: "Rotaya giriş", ton: "text-emerald-700" },
+  SAPMA: { etiket: "Rota dışı sapma", ton: "text-orange-700" },
+  DURAKLAMA_ROTADA: { etiket: "Duraklama (rotada)", ton: "text-teal-700" },
+  DURAKLAMA_ROTA_DISI: { etiket: "Duraklama (rota dışı)", ton: "text-red-700" },
+  VERI_BOSLUGU: { etiket: "Veri boşluğu", ton: "text-purple-700" },
+  ROTA_CIKIS: { etiket: "Rotadan çıkış", ton: "text-red-700" },
+};
+
 function dk(v: number | null | undefined): string {
   if (v == null) return "—";
   if (v >= 60) return `${Math.floor(v / 60)} sa ${Math.round(v % 60)} dk`;
   return `${Math.round(v * 10) / 10} dk`;
 }
 
-function zaman(d: Date | null | undefined): string {
-  return d ? format(d, "dd.MM.yyyy HH:mm") : "—";
+function saat(ms: number | null): string {
+  return ms == null ? "—" : format(new Date(ms), "HH:mm");
+}
+
+function zaman(iso: string | null): string {
+  return iso ? format(new Date(iso), "dd.MM.yyyy HH:mm") : "—";
 }
 
 function Kpi({ baslik, deger, alt }: { baslik: string; deger: string; alt?: string }) {
@@ -58,109 +65,24 @@ export default async function GorevTakipPage({
 }) {
   const session = await requirePageAccess("/gorevler");
   const { id } = await params;
-  const gorev = await assertTaskPageAccess(session, id);
+  // Sayfa yolunda erişim hatası 404'e düşer; servis 403/404 fırlatmadan önce
+  // kontrol edilir (API tarafı aynı kuralı HTTP durumu olarak döner).
+  await assertTaskPageAccess(session, id);
+  const rapor = await gorevTakipRaporu(session, id);
+  const analiz = rapor.analiz;
 
-  const [analiz, detay] = await Promise.all([
-    prisma.routeTrackAnalysis.findUnique({ where: { taskId: id } }),
-    prisma.vehicleTask.findUnique({
-      where: { id },
-      select: {
-        gorevNo: true,
-        gorevTanimi: true,
-        cikisTarihi: true,
-        girisTarihi: true,
-        dispatchJobId: true,
-        dispatchJob: {
-          select: { tip: true, routeId: true, routeAd: true, rotaSnapshot: true },
-        },
-        vehicle: { select: { plaka: true } },
-        driver: { select: { name: true } },
-      },
-    }),
-  ]);
-
-  const sapmalar = ((analiz?.sapmalar as unknown as SapmaDto[]) ?? []).filter(Boolean);
-  const duraklamalar = (
-    (analiz?.duraklamalar as unknown as DuraklamaDto[]) ?? []
-  ).filter(Boolean);
-  const bosluklar = (
-    (analiz?.veriBosluklari as unknown as VeriBosluguDto[]) ?? []
-  ).filter(Boolean);
-
-  // Kronolojik zaman çizelgesi
-  type Olay = { ms: number; etiket: string; detay: string; ton: string };
-  const olaylar: Olay[] = [];
-  if (analiz?.rotaGiris) {
-    olaylar.push({
-      ms: analiz.rotaGiris.getTime(),
-      etiket: "Rotaya giriş",
-      detay: zaman(analiz.rotaGiris),
-      ton: "text-emerald-700",
-    });
-  }
-  for (const s of sapmalar) {
-    olaylar.push({
-      ms: s.baslangicMs,
-      etiket: "Rota dışı sapma",
-      detay: `${format(new Date(s.baslangicMs), "HH:mm")} → ${format(new Date(s.bitisMs), "HH:mm")} · ${s.sureDk} dk · en fazla ${s.maxMesafeM} m`,
-      ton: "text-orange-700",
-    });
-  }
-  for (const d of duraklamalar) {
-    olaylar.push({
-      ms: d.baslangicMs,
-      etiket: d.rotaUzerinde ? "Duraklama (rotada)" : "Duraklama (rota dışı)",
-      detay: `${format(new Date(d.baslangicMs), "HH:mm")} → ${format(new Date(d.bitisMs), "HH:mm")} · ${d.sureDk} dk`,
-      ton: d.rotaUzerinde ? "text-teal-700" : "text-red-700",
-    });
-  }
-  for (const b of bosluklar) {
-    olaylar.push({
-      ms: b.baslangicMs,
-      etiket: "Veri boşluğu",
-      detay: `${format(new Date(b.baslangicMs), "HH:mm")} → ${format(new Date(b.bitisMs), "HH:mm")} · ${b.sureDk} dk ping yok`,
-      ton: "text-purple-700",
-    });
-  }
-  if (analiz?.rotaCikis) {
-    olaylar.push({
-      ms: analiz.rotaCikis.getTime(),
-      etiket: "Rotadan çıkış",
-      detay: zaman(analiz.rotaCikis),
-      ton: "text-red-700",
-    });
-  }
-  olaylar.sort((a, b) => a.ms - b.ms);
-
-  const toplamSapmaDk = sapmalar.reduce((s, x) => s + x.sureDk, 0);
-  const toplamDuraklamaDk = duraklamalar.reduce((s, x) => s + x.sureDk, 0);
-
-  const mapData: TrackReportData | null = analiz
+  const mapData: TrackReportData | null = rapor.harita
     ? {
-        planlanan: [],
-        eksikSegmentler:
-          ((analiz.eksikSegmentler as unknown as [number, number][][]) ?? []) || [],
-        iz:
-          ((analiz.izKoordinatlar as unknown as [
-            number,
-            number,
-            number,
-            number | null,
-          ][]) ?? []) || [],
-        sapmalar,
-        duraklamalar,
-        veriBosluklari: bosluklar,
-        rotaGirisMs: analiz.rotaGiris?.getTime() ?? null,
-        rotaCikisMs: analiz.rotaCikis?.getTime() ?? null,
+        planlanan: rapor.harita.planlanan,
+        eksikSegmentler: rapor.harita.eksikSegmentler,
+        iz: rapor.harita.iz,
+        sapmalar: rapor.sapmalar,
+        duraklamalar: rapor.duraklamalar,
+        veriBosluklari: rapor.veriBosluklari,
+        rotaGirisMs: analiz?.rotaGiris ? new Date(analiz.rotaGiris).getTime() : null,
+        rotaCikisMs: analiz?.rotaCikis ? new Date(analiz.rotaCikis).getTime() : null,
       }
     : null;
-
-  // Haritadaki planlanan rota, metrikleri üreten geometriyle aynı olmalı:
-  // atama anındaki snapshot varsa o, yoksa güncel rota kullanılır.
-  if (mapData && detay?.dispatchJob) {
-    const rota = await dispatchRotasi(detay.dispatchJob);
-    if (rota) mapData.planlanan = rota.koordinatlar as [number, number][];
-  }
 
   const sonucBadge = analiz ? SONUC_LABEL[analiz.sonuc] : null;
   const kaliteBadge = analiz ? KALITE_LABEL[analiz.veriKalitesi] : null;
@@ -169,11 +91,11 @@ export default async function GorevTakipPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <PageHeader
-          title={`Takip Raporu — ${detay?.gorevNo ?? gorev.gorevNo}`}
+          title={`Takip Raporu — ${rapor.gorevNo}`}
           description={
             analiz
-              ? `${tipLabel(analiz.tip)} · ${analiz.routeAd} · ${detay?.vehicle?.plaka ?? ""}${detay?.driver?.name ? ` · ${detay.driver.name}` : ""}`
-              : (detay?.gorevTanimi ?? "GPS izi ↔ planlanan rota karşılaştırması")
+              ? `${tipLabel(analiz.tip)} · ${analiz.routeAd} · ${rapor.plaka}${rapor.soforAdi ? ` · ${rapor.soforAdi}` : ""}`
+              : (rapor.gorevTanimi ?? "GPS izi ↔ planlanan rota karşılaştırması")
           }
         />
         <div className="flex items-center gap-2">
@@ -189,7 +111,7 @@ export default async function GorevTakipPage({
         </div>
       </div>
 
-      {!detay?.dispatchJobId ? (
+      {!rapor.dispatchVar ? (
         <div className={`${cardCls} p-6 text-sm text-kb-muted`}>
           Bu görev bir dispatch rotasına bağlı değil; rota takip analizi yalnızca
           kış / çöp / yol temizliği rotalarına atanan görevler için üretilir.
@@ -225,7 +147,7 @@ export default async function GorevTakipPage({
               </span>
             )}
             <span className="text-xs text-kb-muted">
-              Son analiz: {zaman(analiz.updatedAt)}
+              Son analiz: {zaman(analiz.guncellemeTarihi)}
             </span>
           </div>
 
@@ -264,41 +186,55 @@ export default async function GorevTakipPage({
                 <Kpi
                   baslik="Ortalama / maks sapma"
                   deger={`${analiz.ortSapmaM ?? "—"} / ${analiz.maxSapmaM ?? "—"} m`}
-                  alt={`${sapmalar.length} sapma olayı · rota dışı ${dk(toplamSapmaDk)}`}
+                  alt={`${rapor.sapmalar.length} sapma olayı · rota dışı ${dk(rapor.toplamSapmaDk)}`}
                 />
                 <Kpi
                   baslik="Duraklama"
-                  deger={`${duraklamalar.length} kez`}
-                  alt={`toplam ${dk(toplamDuraklamaDk)}`}
+                  deger={`${rapor.duraklamalar.length} kez`}
+                  alt={`toplam ${dk(rapor.toplamDuraklamaDk)}`}
                 />
                 <Kpi
                   baslik="Ping"
                   deger={`${analiz.pingSayisi}`}
-                  alt={`ortalama aralık ${analiz.ortPingAraligiSn != null ? `${analiz.ortPingAraligiSn} sn` : "—"} · ${bosluklar.length} veri boşluğu`}
+                  alt={`ortalama aralık ${analiz.ortPingAraligiSn != null ? `${analiz.ortPingAraligiSn} sn` : "—"} · ${rapor.veriBosluklari.length} veri boşluğu`}
                 />
               </div>
 
               {mapData && <TrackReportPanel data={mapData} />}
 
               <div className={`${cardCls} p-4`}>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-kb-muted">
+                <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
                   Zaman çizelgesi
                 </p>
-                {olaylar.length === 0 ? (
+                {rapor.zamanCizelgesi.length === 0 ? (
                   <p className="text-sm text-kb-muted">
                     Kayda değer olay yok (sapma/duraklama/boşluk tespit edilmedi).
                   </p>
                 ) : (
                   <ol className="space-y-1.5">
-                    {olaylar.map((o, i) => (
-                      <li key={i} className="flex items-baseline gap-3 text-sm">
-                        <span className="w-14 shrink-0 font-mono text-xs text-kb-muted">
-                          {format(new Date(o.ms), "HH:mm")}
-                        </span>
-                        <span className={`font-medium ${o.ton}`}>{o.etiket}</span>
-                        <span className="text-xs text-kb-muted">{o.detay}</span>
-                      </li>
-                    ))}
+                    {rapor.zamanCizelgesi.map((o, i) => {
+                      const sunum = OLAY_LABEL[o.tip];
+                      const detay = [
+                        o.bitisMs != null
+                          ? `${saat(o.baslangicMs)} → ${saat(o.bitisMs)}`
+                          : saat(o.baslangicMs),
+                        o.sureDk != null ? `${o.sureDk} dk` : null,
+                        o.maxMesafeM != null ? `en fazla ${o.maxMesafeM} m` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
+                      return (
+                        <li key={i} className="flex items-baseline gap-3 text-sm">
+                          <span className="w-14 shrink-0 font-mono text-xs text-kb-muted">
+                            {saat(o.baslangicMs)}
+                          </span>
+                          <span className={`font-medium ${sunum.ton}`}>
+                            {sunum.etiket}
+                          </span>
+                          <span className="text-xs text-kb-muted">{detay}</span>
+                        </li>
+                      );
+                    })}
                   </ol>
                 )}
               </div>

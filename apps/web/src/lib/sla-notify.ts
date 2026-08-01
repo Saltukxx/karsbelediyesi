@@ -10,16 +10,38 @@ const TARAMA_ARALIGI_MS = 10 * 60 * 1000;
 
 let sonTarama = 0;
 
+export interface SlaTaramaSonucu {
+  /** Kısıtlama nedeniyle atlandıysa false — sayılar 0 gelir */
+  calisti: boolean;
+  /** SLA'yı aşmış açık şikayet sayısı */
+  sikayet: number;
+  gecikenKisRota: number;
+  gecikenCopRota: number;
+  zaman: string;
+}
+
 /**
  * 24 saatten uzun süredir AÇIK şikayetler için müdürlük yöneticisi + admin'e
  * bildirim üretir. Notification.anahtar sayesinde aynı şikayet için tekrar
- * bildirim oluşmaz. /api/ops/notifications GET'i içinden tetiklenir.
+ * bildirim oluşmaz. Bildirim uçları içinden tetiklenir; `zorla` yalnız
+ * elle çalıştırma (yönetici / cron) içindir.
  */
-export async function slaTaramasiCalistir(): Promise<void> {
+export async function slaTaramasiCalistir(
+  opts: { zorla?: boolean } = {},
+): Promise<SlaTaramaSonucu> {
   const simdi = Date.now();
-  if (simdi - sonTarama < TARAMA_ARALIGI_MS) return;
+  if (!opts.zorla && simdi - sonTarama < TARAMA_ARALIGI_MS) {
+    return {
+      calisti: false,
+      sikayet: 0,
+      gecikenKisRota: 0,
+      gecikenCopRota: 0,
+      zaman: new Date(simdi).toISOString(),
+    };
+  }
   sonTarama = simdi;
 
+  let sikayet = 0;
   try {
     const esik = new Date(simdi - SLA_SAAT * 60 * 60 * 1000);
     const gecikenler = await prisma.complaint.findMany({
@@ -27,6 +49,7 @@ export async function slaTaramasiCalistir(): Promise<void> {
       select: { id: true, sikayetNo: true, departmentId: true },
       take: 50,
     });
+    sikayet = gecikenler.length;
 
     if (gecikenler.length > 0) {
       const adminler = await kullaniciIdleri(["ADMIN"]);
@@ -47,8 +70,16 @@ export async function slaTaramasiCalistir(): Promise<void> {
     console.error("SLA taraması başarısız:", e);
   }
 
-  await kisRotaTaramasi(simdi);
-  await copRotaTaramasi(simdi);
+  const gecikenKisRota = await kisRotaTaramasi(simdi);
+  const gecikenCopRota = await copRotaTaramasi(simdi);
+
+  return {
+    calisti: true,
+    sikayet,
+    gecikenKisRota,
+    gecikenCopRota,
+    zaman: new Date(simdi).toISOString(),
+  };
 }
 
 /**
@@ -141,10 +172,10 @@ export async function gecikenKisRotalari(simdi: number): Promise<GecikenKisRota[
  * Kış sezonunda geciken öncelik-1 (12 sa) ve öncelik-2 (18 sa) rotalar.
  * Öncelik-1 önce işlenir; aynı araç aynı turda ikinci rotaya önerilmez.
  */
-async function kisRotaTaramasi(simdi: number): Promise<void> {
+async function kisRotaTaramasi(simdi: number): Promise<number> {
   try {
     const gecikenler = await gecikenKisRotalari(simdi);
-    if (gecikenler.length === 0) return;
+    if (gecikenler.length === 0) return 0;
 
     const otomatik = await otomatikAtamaAcikMi();
     const ilgililer = await kullaniciIdleri(["ADMIN", "DEPARTMENT_MANAGER"]);
@@ -164,8 +195,10 @@ async function kisRotaTaramasi(simdi: number): Promise<void> {
         anahtar: `kis:${r.id}:${gun}`,
       });
     }
+    return gecikenler.length;
   } catch (e) {
     console.error("Kış rota taraması başarısız:", e);
+    return 0;
   }
 }
 
@@ -221,11 +254,11 @@ export async function gecikenCopRotalari(simdi: number): Promise<GecikenCopRota[
     }));
 }
 
-async function copRotaTaramasi(simdi: number): Promise<void> {
+async function copRotaTaramasi(simdi: number): Promise<number> {
   try {
     const bugun = new Date(simdi);
     const gecikenler = await gecikenCopRotalari(simdi);
-    if (gecikenler.length === 0) return;
+    if (gecikenler.length === 0) return 0;
 
     const otomatik = await otomatikAtamaAcikMi();
     const ilgililer = await kullaniciIdleri(["ADMIN", "DEPARTMENT_MANAGER"]);
@@ -245,7 +278,9 @@ async function copRotaTaramasi(simdi: number): Promise<void> {
         anahtar: `cop:${r.id}:${gun}`,
       });
     }
+    return gecikenler.length;
   } catch (e) {
     console.error("Çöp rota taraması başarısız:", e);
+    return 0;
   }
 }

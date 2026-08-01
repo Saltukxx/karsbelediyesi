@@ -60,6 +60,11 @@ export function isUniqueViolation(err: unknown): boolean {
   return hataKodu(err) === "P2002";
 }
 
+/** `findUniqueOrThrow` / `update` bir kayıt bulamadığında P2025 fırlatır. */
+export function isRecordNotFound(err: unknown): boolean {
+  return hataKodu(err) === "P2025";
+}
+
 /**
  * Yeniden denenebilir hatalar:
  * P2002 sıra numarası çakışması, P2028 transaction başlatma/zaman aşımı

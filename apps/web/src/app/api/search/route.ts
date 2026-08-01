@@ -1,18 +1,15 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@kars/db";
 import { prisma } from "@kars/db";
-import { auth } from "@/auth";
 import { departmentWhere, vehicleDepartmentWhere } from "@/lib/access";
-import type { SessionUser } from "@/lib/authz";
+import { withPanelUser } from "@/lib/panel-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const user = session.user as SessionUser;
+  const session = await withPanelUser(req);
+  if (session instanceof NextResponse) return session;
+  const user = session.user;
 
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get("q") ?? "").trim();

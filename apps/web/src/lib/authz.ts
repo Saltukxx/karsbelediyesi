@@ -55,6 +55,8 @@ export const ACTION_ROLES = {
   cop: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
   temizlik: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
   dispatch: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
+  komuta: ["ADMIN", "DEPARTMENT_MANAGER"] as Rol[],
+  audit: ["ADMIN"] as Rol[],
 } as const;
 
 export const EXPORT_ENTITY_ROLES: Record<string, Rol[]> = {

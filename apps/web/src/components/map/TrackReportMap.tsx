@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import "leaflet/dist/leaflet.css";
 import { BASEMAPS, KARS_CENTER, type Basemap } from "@/components/map/basemaps";
 import { btnSecondary } from "@/lib/ui";
-import type { TrackReportData } from "@/components/map/track-report-types";
+import type { TrackReportData } from "@/lib/api/track-dto";
 
 const RENK = {
   planlanan: "#2563eb",

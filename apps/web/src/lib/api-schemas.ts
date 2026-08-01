@@ -1,29 +1,10 @@
 import { z } from "zod";
 
-export const complaintCreateSchema = z.object({
-  arayanKisi: z.string().min(1, "Arayan kişi zorunlu"),
-  telefon: z.string().optional(),
-  neighborhoodId: z.string().optional(),
-  acikAdres: z.string().optional(),
-  complaintTypeId: z.string().optional(),
-  departmentId: z.string().optional(),
-  aciklama: z.string().optional(),
-  oncelik: z.enum(["NORMAL", "ACIL", "COK_ACIL"]).optional(),
-  kanal: z.enum(["TELEFON", "WHATSAPP", "WEB"]).optional(),
-});
-
-export const complaintPatchSchema = z.object({
-  durum: z.enum(["ACIK", "DEVAM_EDIYOR", "KAPATILDI", "IPTAL"]).optional(),
-  cozumNotu: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
-});
-
-export const taskActionSchema = z.object({
-  action: z.enum(["start", "close"]),
-  kmSayacCikis: z.number().optional(),
-  kmSayacGiris: z.number().optional(),
-});
+/**
+ * Yalnızca `/api/mobile/*` (Expo uygulaması) uçlarının şemaları. `/api/v1`
+ * tarafında doğrulama servis katmanının Zod şemalarında yapılır, böylece web
+ * Server Action'ı ile aynı kurallar geçerli olur.
+ */
 
 export const locationPingSchema = z.object({
   lat: z.number().min(-90).max(90),

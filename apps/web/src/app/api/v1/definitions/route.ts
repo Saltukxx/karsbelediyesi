@@ -1,32 +1,9 @@
-import { prisma } from "@kars/db";
-import { withApiUser, json, forbidIfNot } from "@/lib/api-v1";
+import { ok, panelRoute } from "@/lib/api-route";
+import { tanimlarVerisi } from "@/lib/services/definitions";
 
 export const dynamic = "force-dynamic";
 
+/** Yönetim ekranının tüm tanım kümesi (pasif kayıtlar dahil) */
 export async function GET(req: Request) {
-  const auth = await withApiUser(req);
-  if (auth instanceof Response) return auth;
-  const forbidden = forbidIfNot(auth.user, ["ADMIN"]);
-  if (forbidden) return forbidden;
-
-  const [departments, neighborhoods, complaintTypes, vehicleTypes] = await Promise.all([
-    prisma.department.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.neighborhood.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.complaintType.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-    prisma.vehicleType.findMany({
-      orderBy: { name: "asc" },
-      select: { id: true, name: true },
-    }),
-  ]);
-
-  return json({ departments, neighborhoods, complaintTypes, vehicleTypes });
+  return panelRoute(req, async (actor) => ok(await tanimlarVerisi(actor)));
 }

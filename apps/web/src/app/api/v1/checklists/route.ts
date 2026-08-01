@@ -1,36 +1,24 @@
-import { prisma } from "@kars/db";
-import { withApiUser, json, forbidIfNot } from "@/lib/api-v1";
+import { created, ok, panelRoute, readJson } from "@/lib/api-route";
+import { kontrolFormuOlustur, kontrolListesi } from "@/lib/services/checklists";
 
 export const dynamic = "force-dynamic";
 
+/** Doldurulan formlar + şablonlar + form açılabilir araçlar. */
 export async function GET(req: Request) {
-  const auth = await withApiUser(req);
-  if (auth instanceof Response) return auth;
-  const forbidden = forbidIfNot(auth.user, [
-    "ADMIN",
-    "DEPARTMENT_MANAGER",
-    "APPROVER",
-    "DRIVER",
-    "FIELD_WORKER",
-  ]);
-  if (forbidden) return forbidden;
+  return panelRoute(req, async (actor) => ok(await kontrolListesi(actor)));
+}
 
-  const rows = await prisma.checklistSubmission.findMany({
-    include: {
-      template: { select: { ekipmanAdi: true } },
-      operator: { select: { name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
+/** Yeni kontrol formu taslağı. */
+export async function POST(req: Request) {
+  return panelRoute(req, async (actor) => {
+    const submission = await kontrolFormuOlustur(actor, await readJson(req));
+    return created({
+      id: submission.id,
+      templateId: submission.templateId,
+      vehicleId: submission.vehicleId,
+      ay: submission.ay,
+      yilDonem: submission.yilDonem,
+      durum: submission.durum,
+    });
   });
-
-  return json(
-    rows.map((r) => ({
-      id: r.id,
-      sablonAdi: r.template.ekipmanAdi,
-      durum: r.durum,
-      operatorAdi: r.operator?.name ?? r.sorumluOperatorTeknisyen,
-      createdAt: r.createdAt.toISOString(),
-    })),
-  );
 }

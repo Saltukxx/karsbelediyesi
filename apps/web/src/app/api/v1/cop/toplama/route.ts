@@ -1,0 +1,10 @@
+import { created, panelRoute, readJson } from "@/lib/api-route";
+import { copToplamaOlustur } from "@/lib/services/cop";
+
+export const dynamic = "force-dynamic";
+
+export async function POST(req: Request) {
+  return panelRoute(req, async (actor) =>
+    created(await copToplamaOlustur(actor, await readJson(req))),
+  );
+}

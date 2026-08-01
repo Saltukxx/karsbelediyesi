@@ -1,118 +1,82 @@
 import { prisma } from "@kars/db";
-import type { SikayetDurum } from "@kars/db";
-import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
-import { assertComplaintApiAccess, toAccessUser } from "@/lib/access";
-import { canTransitionComplaint } from "@/lib/domain/complaint-status";
-import { serializeComplaint } from "@/lib/v1-serialize";
-import { auditKaydet } from "@/lib/audit";
+import { canAccessComplaint, toAccessUser } from "@/lib/access";
+import { ok, panelRoute, readJson } from "@/lib/api-route";
+import {
+  complaintInclude,
+  serializeComplaint,
+  serializeComplaintEvent,
+} from "@/lib/api/complaint-dto";
+import { ACTION_ROLES } from "@/lib/authz";
+import { bulunamadi, rolGerekli, ServiceError } from "@/lib/services/base";
+import { sikayetDurumGuncelle } from "@/lib/services/complaints";
 
 export const dynamic = "force-dynamic";
 
-const complaintInclude = {
-  neighborhood: { select: { id: true, name: true } },
-  complaintType: { select: { id: true, name: true } },
-  department: { select: { id: true, name: true } },
-  vehicle: { select: { id: true, plaka: true } },
-} as const;
-
 type Ctx = { params: Promise<{ id: string }> };
 
+/** Şikayet kartı: bilgiler + atanan personel + olay zaman çizelgesi + fotoğraflar. */
 export async function GET(req: Request, ctx: Ctx) {
-  const auth = await withApiUser(req);
-  if (auth instanceof Response) return auth;
-  const forbidden = forbidIfNot(auth.user, [
-    "ADMIN",
-    "CALL_CENTER",
-    "DEPARTMENT_MANAGER",
-    "APPROVER",
-  ]);
-  if (forbidden) return forbidden;
-
   const { id } = await ctx.params;
-  const access = await assertComplaintApiAccess(toAccessUser(auth.user), id);
-  if (access instanceof Response) return access;
+  return panelRoute(req, async (actor) => {
+    rolGerekli(actor, ACTION_ROLES.complaints);
 
-  const row = await prisma.complaint.findUnique({
-    where: { id },
-    include: complaintInclude,
-  });
-  if (!row) return json({ error: "Not found" }, 404);
-  return json(serializeComplaint(row));
-}
-
-export async function PATCH(req: Request, ctx: Ctx) {
-  const auth = await withApiUser(req);
-  if (auth instanceof Response) return auth;
-  const forbidden = forbidIfNot(auth.user, [
-    "ADMIN",
-    "CALL_CENTER",
-    "DEPARTMENT_MANAGER",
-    "APPROVER",
-  ]);
-  if (forbidden) return forbidden;
-
-  const { id } = await ctx.params;
-  const access = await assertComplaintApiAccess(toAccessUser(auth.user), id);
-  if (access instanceof Response) return access;
-
-  const body = (await req.json()) as {
-    durum?: SikayetDurum;
-    cozumNotu?: string;
-    lat?: number;
-    lng?: number;
-  };
-
-  const eski = access.row;
-
-  if (body.durum) {
-    if (!["ACIK", "DEVAM_EDIYOR", "KAPATILDI", "IPTAL"].includes(body.durum)) {
-      return badRequest("Geçersiz durum");
-    }
-    const transition = canTransitionComplaint(eski.durum, body.durum, auth.user.role);
-    if (!transition.ok) return badRequest(transition.error);
-  }
-
-  const row = await prisma.complaint.update({
-    where: { id },
-    data: {
-      ...(body.durum
-        ? {
-            durum: body.durum,
-            ...(body.durum === "KAPATILDI"
-              ? {
-                  kapanisTarihi: new Date(),
-                  cozumNotu: body.cozumNotu,
-                  onaylayanId: auth.user.id,
-                }
-              : body.cozumNotu
-                ? { cozumNotu: body.cozumNotu }
-                : {}),
-          }
-        : body.cozumNotu
-          ? { cozumNotu: body.cozumNotu }
-          : {}),
-      ...(body.lat != null ? { lat: body.lat } : {}),
-      ...(body.lng != null ? { lng: body.lng } : {}),
-      ...(body.durum
-        ? {
-            events: {
-              create: {
-                userId: auth.user.id,
-                tip: "DURUM_DEGISTI",
-                detay: { eski: eski.durum, yeni: body.durum, kaynak: "api-v1" },
+    const row = await prisma.complaint.findUnique({
+      where: { id },
+      include: {
+        ...complaintInclude,
+        // `canAccessComplaint` şoför zimmetine bakar; erişim alanları da gerekir.
+        vehicle: { select: { id: true, plaka: true, atananSoforId: true } },
+        onaylayan: { select: { name: true } },
+        photos: { select: { id: true, url: true, tip: true } },
+        personel: {
+          include: {
+            personnel: {
+              select: {
+                id: true,
+                adSoyad: true,
+                unvan: true,
+                telefon: true,
+                userId: true,
               },
             },
-          }
-        : {}),
-    },
-    include: complaintInclude,
-  });
+          },
+        },
+        events: {
+          orderBy: { createdAt: "asc" },
+          include: { user: { select: { name: true } } },
+        },
+      },
+    });
+    if (!row) bulunamadi("Şikayet");
+    if (!canAccessComplaint(toAccessUser(actor.user), row)) {
+      throw new ServiceError("Yetkisiz", 403);
+    }
 
-  await auditKaydet({ user: auth.user }, "SIKAYET_DURUM_GUNCELLE", {
-    varlik: "Complaint",
-    varlikId: id,
-    detay: { eski: eski.durum, yeni: body.durum, kaynak: "api-v1" },
+    return ok({
+      ...serializeComplaint(row),
+      // İş emri raporunun "Onaylayan" imza alanı
+      onaylayanAdi: row.onaylayan?.name ?? null,
+      fotograflar: row.photos.map((f) => ({ id: f.id, url: f.url, tip: f.tip })),
+      personel: row.personel.map((p) => ({
+        id: p.personnel.id,
+        adSoyad: p.personnel.adSoyad,
+        unvan: p.personnel.unvan,
+        telefon: p.personnel.telefon,
+      })),
+      olaylar: row.events.map(serializeComplaintEvent),
+    });
   });
+}
 
-  return json(serializeComplaint(row));
+/** Durum geçişi (web formuyla aynı servis: geçiş kuralı, kapanış notu, olay kaydı). */
+export async function PATCH(req: Request, ctx: Ctx) {
+  const { id } = await ctx.params;
+  return panelRoute(req, async (actor) => {
+    const guncel = await sikayetDurumGuncelle(actor, id, await readJson(req));
+    const row = await prisma.complaint.findUniqueOrThrow({
+      where: { id: guncel.id },
+      include: complaintInclude,
+    });
+    return ok(serializeComplaint(row));
+  });
 }

@@ -2,18 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import type { DispatchTip } from "@kars/db";
-import { ACTION_ROLES, requireRoles } from "@/lib/authz";
-import { auditKaydet } from "@/lib/audit";
+import { ACTION_ROLES, requireRoles, requireSession } from "@/lib/authz";
+import { type DispatchOneri } from "@/lib/dispatch";
+import { formVerisi } from "@/lib/services/base";
+import { otomatikAtamaKaydet as otomatikAtamaServis } from "@/lib/services/definitions";
 import {
-  adaylariSkorla,
-  aracOner,
-  dispatchAta,
-  dispatchReddet,
-  enYakinAracOner,
-  otomatikAtamaAyarla,
-  type DispatchAday,
-  type DispatchOneri,
-} from "@/lib/dispatch";
+  dispatchAdaylari,
+  dispatchAracAta,
+  dispatchOneriAta,
+  dispatchOneriReddet,
+  dispatchOneriUret,
+  type DispatchAdayDto,
+} from "@/lib/services/dispatch";
 
 function sayfa(tip: DispatchTip): string {
   switch (tip) {
@@ -39,25 +39,10 @@ function parseTip(v: FormDataEntryValue | null): DispatchTip {
 export async function dispatchAdaylariGetir(
   tip: DispatchTip,
   routeId: string,
-): Promise<{ routeAd: string; adaylar: Omit<DispatchAday, "rota">[] }> {
-  await requireRoles(ACTION_ROLES.dispatch);
-  const { routeAd, adaylar } = await adaylariSkorla(tip, routeId);
-  // Geometri (rota) client'a gönderilmez — alanlar açıkça seçilir
-  return {
-    routeAd,
-    adaylar: adaylar.map((a) => ({
-      vehicleId: a.vehicleId,
-      plaka: a.plaka,
-      tip: a.tip,
-      sureDk: a.sureDk,
-      mesafeKm: a.mesafeKm,
-      tahmini: a.tahmini,
-      skor: a.skor,
-      kirilim: a.kirilim,
-      etiketler: a.etiketler,
-      bayat: a.bayat,
-    })),
-  };
+): Promise<{ routeAd: string; adaylar: DispatchAdayDto[] }> {
+  const session = await requireSession();
+  const { routeAd, adaylar } = await dispatchAdaylari(session, { tip, routeId });
+  return { routeAd, adaylar };
 }
 
 /** Seçilen adayı öneri yap + hemen ata (tek tık Ata) */
@@ -66,17 +51,8 @@ export async function dispatchAracAtaAction(
   routeId: string,
   vehicleId: string,
 ): Promise<{ gorevNo: string }> {
-  const session = await requireRoles(ACTION_ROLES.dispatch);
-  const oneri = await aracOner(tip, routeId, vehicleId);
-  if (!oneri) {
-    throw new Error("Seçilen araç artık uygun değil — listeyi yenileyin");
-  }
-  const { gorevNo, taskId } = await dispatchAta(oneri.jobId, session.user);
-  await auditKaydet(session, "DISPATCH_ATA", {
-    varlik: "VehicleTask",
-    varlikId: taskId,
-    detay: { gorevNo, jobId: oneri.jobId, plaka: oneri.plaka, skor: oneri.gerekce?.skor },
-  });
+  const session = await requireSession();
+  const { gorevNo } = await dispatchAracAta(session, { tip, routeId, vehicleId });
   revalidatePath(sayfa(tip));
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
@@ -88,59 +64,45 @@ export async function dispatchOnerAction(
   tip: DispatchTip,
   routeId: string,
 ): Promise<DispatchOneri | null> {
-  const session = await requireRoles(ACTION_ROLES.dispatch);
-  const oneri = await enYakinAracOner(tip, routeId);
-  if (oneri) {
-    await auditKaydet(session, "DISPATCH_ONER", {
-      varlik: "DispatchJob",
-      varlikId: oneri.jobId,
-      detay: { tip, routeAd: oneri.routeAd, plaka: oneri.plaka },
-    });
+  const session = await requireSession();
+  try {
+    return await dispatchOneriUret(session, { tip, routeId });
+  } finally {
+    revalidatePath(sayfa(tip));
   }
-  revalidatePath(sayfa(tip));
-  return oneri;
 }
 
 /** Öneriyi kabul et: görev oluştur, aracı yola çıkar */
 export async function dispatchAtaAction(formData: FormData): Promise<void> {
-  const session = await requireRoles(ACTION_ROLES.dispatch);
+  const session = await requireSession();
   const jobId = String(formData.get("jobId") ?? "");
-  if (!jobId) throw new Error("Öneri bulunamadı");
   const tip = parseTip(formData.get("tip"));
 
-  const { gorevNo, taskId } = await dispatchAta(jobId, session.user);
-  await auditKaydet(session, "DISPATCH_ATA", {
-    varlik: "VehicleTask",
-    varlikId: taskId,
-    detay: { gorevNo, jobId },
-  });
-  revalidatePath(sayfa(tip));
-  revalidatePath("/gorevler");
-  revalidatePath("/araclar");
+  try {
+    await dispatchOneriAta(session, { jobId });
+  } finally {
+    revalidatePath(sayfa(tip));
+    revalidatePath("/gorevler");
+    revalidatePath("/araclar");
+  }
 }
 
 /** Öneriyi reddet */
 export async function dispatchReddetAction(formData: FormData): Promise<void> {
-  const session = await requireRoles(ACTION_ROLES.dispatch);
+  const session = await requireSession();
   const jobId = String(formData.get("jobId") ?? "");
-  if (!jobId) throw new Error("Öneri bulunamadı");
   const tip = parseTip(formData.get("tip"));
 
-  await dispatchReddet(jobId);
-  await auditKaydet(session, "DISPATCH_REDDET", {
-    varlik: "DispatchJob",
-    varlikId: jobId,
-  });
-  revalidatePath(sayfa(tip));
+  try {
+    await dispatchOneriReddet(session, { jobId });
+  } finally {
+    revalidatePath(sayfa(tip));
+  }
 }
 
 /** Tanımlar: tam otomatik atama anahtarı */
 export async function otomatikAtamaKaydet(formData: FormData): Promise<void> {
   const session = await requireRoles(ACTION_ROLES.definitions);
-  const acik = formData.get("otomatikAtama") === "on";
-  await otomatikAtamaAyarla(acik);
-  await auditKaydet(session, "DISPATCH_OTOMATIK_AYAR", {
-    detay: { acik },
-  });
+  await otomatikAtamaServis(session, formVerisi(formData));
   revalidatePath("/tanimlar");
 }

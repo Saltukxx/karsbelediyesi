@@ -271,6 +271,7 @@ model User {
   copSuruculukleri     WasteCollection[]     @relation("CopToplamaSofor")
   konumPingleri        VehicleLocation[]     @relation("KonumSofor")
   notifications        Notification[]
+  cihazlar             DeviceToken[]
   gonderilenWhatsapp   WhatsAppMessage[]     @relation("WhatsAppGonderen")
 }
 
@@ -1341,4 +1342,25 @@ model Notification {
 
   @@index([userId, okundu])
   @@index([createdAt])
+}
+
+/// Push bildirimi için cihaz kaydı (APNs). Token cihaz başına benzersizdir;
+/// aynı cihaza başka kullanıcı giriş yaparsa kayıt o kullanıcıya devredilir.
+model DeviceToken {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// APNs cihaz token'ı (hex)
+  token      String   @unique
+  /// APNS | APNS_SANDBOX — geliştirme ve üretim ortamı ayrı gateway kullanır
+  platform   String   @default("APNS")
+  /// Uygulama sürümü / cihaz modeli — teşhis için
+  uygulama   String?
+  cihaz      String?
+  aktif      Boolean  @default(true)
+  sonGoruldu DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, aktif])
 }

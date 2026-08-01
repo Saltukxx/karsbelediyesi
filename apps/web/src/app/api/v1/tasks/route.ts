@@ -1,6 +1,9 @@
-import { nextTaskSerial, prisma, withSerialRetry } from "@kars/db";
-import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
-import { gorevOlusturmaKapsami, toAccessUser } from "@/lib/access";
+import { prisma } from "@kars/db";
+import { toAccessUser } from "@/lib/access";
+import { created, ok, panelRoute, readJson } from "@/lib/api-route";
+import { ACTION_ROLES } from "@/lib/authz";
+import { rolGerekli } from "@/lib/services/base";
+import { gorevOlustur } from "@/lib/services/tasks";
 
 export const dynamic = "force-dynamic";
 
@@ -103,99 +106,60 @@ async function servisRotalari(
 }
 
 export async function GET(req: Request) {
-  const auth = await withApiUser(req);
-  if (auth instanceof Response) return auth;
-  const forbidden = forbidIfNot(auth.user, [
-    "ADMIN",
-    "DEPARTMENT_MANAGER",
-    "APPROVER",
-    "DRIVER",
-    "FIELD_WORKER",
-  ]);
-  if (forbidden) return forbidden;
+  return panelRoute(req, async (actor) => {
+    rolGerekli(actor, ACTION_ROLES.tasks);
 
-  const user = toAccessUser(auth.user);
-  const where =
-    user.role === "DRIVER" || user.role === "FIELD_WORKER"
-      ? { driverId: user.id }
-      : user.role === "DEPARTMENT_MANAGER" && user.departmentId
-        ? {
-            OR: [
-              { talepEdenDepartmentId: user.departmentId },
-              { vehicle: { departmentId: user.departmentId } },
-            ],
-          }
-        : {};
+    const user = toAccessUser(actor.user);
+    const where =
+      user.role === "DRIVER" || user.role === "FIELD_WORKER"
+        ? { driverId: user.id }
+        : user.role === "DEPARTMENT_MANAGER" && user.departmentId
+          ? {
+              OR: [
+                { talepEdenDepartmentId: user.departmentId },
+                { vehicle: { departmentId: user.departmentId } },
+              ],
+            }
+          : {};
 
-  const rows = await prisma.vehicleTask.findMany({
-    where,
-    include: {
-      vehicle: { select: { id: true, plaka: true } },
-      dispatchJob: {
-        select: {
-          tip: true,
-          routeId: true,
-          rota: true,
-          mesafeKm: true,
-          sureDk: true,
-          tahmini: true,
+    const rows = await prisma.vehicleTask.findMany({
+      where,
+      include: {
+        vehicle: { select: { id: true, plaka: true } },
+        dispatchJob: {
+          select: {
+            tip: true,
+            routeId: true,
+            rota: true,
+            mesafeKm: true,
+            sureDk: true,
+            tahmini: true,
+          },
         },
       },
-    },
-    orderBy: { talepTarihi: "desc" },
-    take: 200,
+      orderBy: { talepTarihi: "desc" },
+      take: 200,
+    });
+
+    const servisler = await servisRotalari(
+      rows.map((r) => r.dispatchJob).filter((j): j is NonNullable<typeof j> => j != null),
+    );
+
+    return ok(rows.map((r) => serializeTask(r, servisler)));
   });
-
-  const servisler = await servisRotalari(
-    rows.map((r) => r.dispatchJob).filter((j): j is NonNullable<typeof j> => j != null),
-  );
-
-  return json(rows.map((r) => serializeTask(r, servisler)));
 }
 
+/**
+ * Görev oluşturma — web formuyla aynı tam alan seti (tarihler, KM, maliyet,
+ * durum, onaylayan). Görev No serisi ve araç durumu servis tarafında yönetilir.
+ */
 export async function POST(req: Request) {
-  const auth = await withApiUser(req);
-  if (auth instanceof Response) return auth;
-  const forbidden = forbidIfNot(auth.user, [
-    "ADMIN",
-    "DEPARTMENT_MANAGER",
-    "APPROVER",
-  ]);
-  if (forbidden) return forbidden;
-
-  const body = (await req.json()) as {
-    vehicleId?: string;
-    gorevTanimi?: string;
-    gorevYeri?: string;
-    talepEdenDepartmentId?: string;
-    driverId?: string;
-  };
-  if (!body.vehicleId) return badRequest("vehicleId zorunlu");
-
-  const kapsam = await gorevOlusturmaKapsami(toAccessUser(auth.user), {
-    vehicleId: body.vehicleId,
-    talepEdenDepartmentId: body.talepEdenDepartmentId ?? null,
-    driverId: body.driverId ?? null,
-  });
-  if (!kapsam.ok) return badRequest(kapsam.error);
-
-  const created = await withSerialRetry(prisma, async (tx) => {
-    const { yil, sira, gorevNo } = await nextTaskSerial(tx);
-    return tx.vehicleTask.create({
-      data: {
-        gorevNo,
-        yil,
-        sira,
-        vehicleId: body.vehicleId!,
-        gorevTanimi: body.gorevTanimi,
-        gorevYeri: body.gorevYeri,
-        talepEdenDepartmentId: kapsam.talepEdenDepartmentId ?? undefined,
-        driverId: kapsam.driverId ?? undefined,
-        durum: "PLANLANDI",
-      },
+  return panelRoute(req, async (actor) => {
+    const gorev = await gorevOlustur(actor, await readJson(req));
+    const row = await prisma.vehicleTask.findUniqueOrThrow({
+      where: { id: gorev.id },
       include: { vehicle: { select: { id: true, plaka: true } } },
     });
+    return created(serializeTask(row));
   });
-
-  return json(serializeTask(created), 201);
 }

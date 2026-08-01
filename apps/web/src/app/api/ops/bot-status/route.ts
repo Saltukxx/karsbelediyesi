@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
-import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { ACTION_ROLES } from "@/lib/authz";
 import { getBotStatus } from "@/lib/bot-status";
+import { forbidPanelIfNot, withPanelUser } from "@/lib/panel-auth";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  try {
-    await requireRoles(ACTION_ROLES.whatsapp);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unauthorized";
-    const status = msg === "Yetkisiz" ? 403 : 401;
-    return NextResponse.json({ error: msg }, { status });
-  }
+export async function GET(req: Request) {
+  const session = await withPanelUser(req);
+  if (session instanceof NextResponse) return session;
+
+  const forbidden = forbidPanelIfNot(session.user, ACTION_ROLES.whatsapp);
+  if (forbidden) return forbidden;
 
   return NextResponse.json(await getBotStatus());
 }

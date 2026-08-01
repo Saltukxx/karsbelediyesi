@@ -3,7 +3,7 @@ import booleanPointInPolygon from "@turf/boolean-point-in-polygon";
 import { point } from "@turf/helpers";
 import { prisma } from "@kars/db";
 import type { Prisma } from "@kars/db";
-import { requireSession } from "@/lib/authz";
+import { withPanelUser } from "@/lib/panel-auth";
 import {
   KARS_IL_ID,
   TkgmError,
@@ -157,13 +157,9 @@ function errorResponse(e: unknown): NextResponse {
 }
 
 export async function GET(request: Request) {
-  let userId: string;
-  try {
-    const session = await requireSession();
-    userId = session.user.id;
-  } catch {
-    return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
-  }
+  const session = await withPanelUser(request);
+  if (session instanceof NextResponse) return session;
+  const userId = session.user.id;
 
   const url = new URL(request.url);
   const q = url.searchParams;
