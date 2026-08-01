@@ -34,6 +34,57 @@ export const SERIES_COLORS = [
 export const FONT_FAMILY =
   'var(--font-source-sans), "Source Sans 3", system-ui, sans-serif';
 
+/**
+ * Canvas, CSS değişkenlerini çözemez ve next/font aile adlarını hash'ler;
+ * serif aile adı bu yüzden çalışma anında CSS değişkeninden okunur.
+ * Sunucu tarafında (SSR) grafik zaten çizilmediği için fallback yeterli.
+ */
+export function serifFamily(): string {
+  const fallback = '"Source Serif 4", Georgia, serif';
+  if (typeof window === "undefined") return fallback;
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue("--font-source-serif")
+    .trim();
+  return v ? `${v}, Georgia, serif` : fallback;
+}
+
+/** Alan grafikleri için aşağı doğru şeffaflaşan dikey gradyan. */
+export function dikeyGradyan(rgb: string, tavan = 0.18) {
+  return {
+    type: "linear" as const,
+    x: 0,
+    y: 0,
+    x2: 0,
+    y2: 1,
+    colorStops: [
+      { offset: 0, color: `rgba(${rgb},${tavan})` },
+      { offset: 1, color: `rgba(${rgb},0)` },
+    ],
+  };
+}
+
+/** Donut ortasına serif toplam yazısı (ECharts title bileşeniyle). */
+export function donutOrtasi(toplam: number, etiket: string, sol = "32%") {
+  return {
+    text: formatTr(toplam),
+    subtext: etiket,
+    left: sol,
+    top: "40%",
+    textAlign: "center" as const,
+    textStyle: {
+      fontFamily: serifFamily(),
+      fontSize: 26,
+      fontWeight: 600 as const,
+      color: KB.ink,
+    },
+    subtextStyle: {
+      fontFamily: FONT_FAMILY,
+      fontSize: 11,
+      color: KB.muted,
+    },
+  };
+}
+
 const axisLabel = {
   color: KB.muted,
   fontSize: 11,

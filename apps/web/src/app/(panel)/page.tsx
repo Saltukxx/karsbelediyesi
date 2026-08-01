@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import {
   ENVANTER_DURUM_LABELS,
   GOREV_DURUM_LABELS,
+  KANAL_LABELS,
   OPERASYON_DURUM_LABELS,
 } from "@kars/shared";
 import Link from "next/link";
@@ -52,9 +53,12 @@ import { RangePicker } from "@/components/dashboard/RangePicker";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { KB } from "@/components/charts/theme";
 import {
+  ChannelChart,
   ComplaintTrendChart,
   CostTrendChart,
   DepartmentChart,
+  HourHeatmapChart,
+  NeighborhoodChart,
   SlaChart,
   TypeChart,
   VehicleStatusChart,
@@ -407,6 +411,19 @@ async function DashboardContent({
           />
           <VehicleStatusChart data={aracGrafik} />
         </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ChannelChart
+            data={data.kanalDagilim.map((k) => ({
+              name:
+                KANAL_LABELS[k.kanal as keyof typeof KANAL_LABELS] ?? k.kanal,
+              value: k.toplam,
+            }))}
+          />
+          <NeighborhoodChart data={data.mahalleDagilim} />
+        </div>
+
+        <HourHeatmapChart data={data.saatlikYogunluk} />
 
         <CostTrendChart data={data.maliyetTrend} />
       </section>

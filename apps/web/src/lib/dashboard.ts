@@ -61,6 +61,12 @@ export type DashboardData = {
     acik: number;
     kapatildi: number;
   }>;
+  /** Şikayetlerin geldiği kanal (telefon / WhatsApp / web) */
+  kanalDagilim: Array<{ kanal: string; toplam: number }>;
+  /** En çok şikayet üreten mahalleler */
+  mahalleDagilim: Array<{ name: string; toplam: number }>;
+  /** Hafta günü (1=Pzt … 7=Paz) × saat yoğunluk matrisi */
+  saatlikYogunluk: Array<{ haftaGunu: number; saat: number; adet: number }>;
   sonBakimlar: Array<{
     id: string;
     plaka: string;
@@ -130,6 +136,10 @@ export async function computeDashboard(
     departments,
     turDurum,
     complaintTypes,
+    kanalGruplari,
+    mahalleGruplari,
+    neighborhoods,
+    saatlikYogunluk,
     sonBakimlar,
     trendAcilan,
     trendKapanan,
@@ -257,6 +267,26 @@ export async function computeDashboard(
       where: { aktif: true },
       select: { id: true, name: true },
     }),
+    prisma.complaint.groupBy({
+      by: ["kanal"],
+      where: { kayitTarihi: inRange, ...dept },
+      _count: { _all: true },
+    }),
+    prisma.complaint.groupBy({
+      by: ["neighborhoodId"],
+      where: { kayitTarihi: inRange, ...dept },
+      _count: { _all: true },
+    }),
+    prisma.neighborhood.findMany({ select: { id: true, name: true } }),
+    prisma.$queryRaw<Array<{ haftagunu: number; saat: number; adet: number }>>`
+      SELECT EXTRACT(ISODOW FROM (("kayitTarihi" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul'))::int AS haftagunu,
+             EXTRACT(HOUR FROM (("kayitTarihi" AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul'))::int AS saat,
+             COUNT(*)::int AS adet
+      FROM "Complaint"
+      WHERE "kayitTarihi" >= ${range.bas} AND "kayitTarihi" <= ${range.bit}
+        ${deptSql(dept)}
+      GROUP BY 1, 2
+    `,
     prisma.maintenanceRecord.findMany({
       where: vScope,
       take: 10,
@@ -469,6 +499,23 @@ export async function computeDashboard(
     .filter((t) => t.toplam > 0)
     .sort((a, b) => b.toplam - a.toplam);
 
+  const kanalDagilim = kanalGruplari
+    .map((g) => ({ kanal: g.kanal, toplam: g._count._all }))
+    .filter((k) => k.toplam > 0)
+    .sort((a, b) => b.toplam - a.toplam);
+
+  const mahalleAdiById = new Map(neighborhoods.map((n) => [n.id, n.name]));
+  const mahalleDagilim = mahalleGruplari
+    .map((g) => ({
+      name: g.neighborhoodId
+        ? (mahalleAdiById.get(g.neighborhoodId) ?? "—")
+        : "Mahalle belirtilmemiş",
+      toplam: g._count._all,
+    }))
+    .filter((m) => m.toplam > 0)
+    .sort((a, b) => b.toplam - a.toplam)
+    .slice(0, 10);
+
   // ── Zaman serileri ─────────────────────────────────────────────────────
   const trendMap = new Map<string, { acilan: number; kapanan: number }>();
   for (const row of trendAcilan) {
@@ -528,6 +575,13 @@ export async function computeDashboard(
     maliyetTrend,
     mudurlukDagilim,
     turDagilim,
+    kanalDagilim,
+    mahalleDagilim,
+    saatlikYogunluk: saatlikYogunluk.map((r) => ({
+      haftaGunu: r.haftagunu,
+      saat: r.saat,
+      adet: r.adet,
+    })),
     sonBakimlar: sonBakimlar.map((b) => ({
       id: b.id,
       plaka: b.vehicle.plaka,

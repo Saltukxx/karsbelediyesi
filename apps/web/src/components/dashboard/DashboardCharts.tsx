@@ -5,6 +5,8 @@ import type { EChartsOption } from "echarts";
 import { BarChart3 } from "lucide-react";
 import {
   categoryAxis,
+  dikeyGradyan,
+  donutOrtasi,
   formatTL,
   formatTr,
   KB,
@@ -92,7 +94,21 @@ export function ComplaintTrendChart({
         data: data.map((d) => d.acilan),
         lineStyle: { width: 2, color: KB.navy },
         itemStyle: { color: KB.navy },
-        areaStyle: { color: "rgba(30,58,95,0.10)" },
+        areaStyle: { color: dikeyGradyan("30,58,95") },
+        // Dönem ortalaması: "bugün normalin üstünde mi" sorusunu anında cevaplar
+        markLine: {
+          silent: true,
+          symbol: "none",
+          precision: 1,
+          lineStyle: { type: "dashed", color: KB.muted, width: 1 },
+          label: {
+            position: "insideEndTop",
+            color: KB.muted,
+            fontSize: 10,
+            formatter: "ort. {c}",
+          },
+          data: [{ type: "average" }],
+        },
       },
       {
         name: "Kapanan",
@@ -102,7 +118,7 @@ export function ComplaintTrendChart({
         data: data.map((d) => d.kapanan),
         lineStyle: { width: 2, color: KB.success },
         itemStyle: { color: KB.success },
-        areaStyle: { color: "rgba(31,107,74,0.10)" },
+        areaStyle: { color: dikeyGradyan("31,107,74", 0.14) },
       },
     ],
   };
@@ -165,7 +181,7 @@ export function DepartmentChart({
         type: "bar",
         stack: "toplam",
         data: top.map((d) => d.kapatildi),
-        itemStyle: { color: KB.success },
+        itemStyle: { color: KB.success, borderRadius: [0, 3, 3, 0] },
         barMaxWidth: 22,
       },
     ],
@@ -196,8 +212,10 @@ export function TypeChart({
   const top = data.slice(0, 7);
   const kalan = data.slice(7).reduce((a, d) => a + d.toplam, 0);
   const dilimler = kalan > 0 ? [...top, { name: "Diğer", toplam: kalan }] : top;
+  const toplam = data.reduce((a, d) => a + d.toplam, 0);
 
   const option: EChartsOption = {
+    title: donutOrtasi(toplam, "şikayet"),
     tooltip: {
       trigger: "item",
       formatter: (p) => {
@@ -209,10 +227,11 @@ export function TypeChart({
     series: [
       {
         type: "pie",
-        radius: ["48%", "72%"],
+        radius: ["52%", "72%"],
         center: ["32%", "50%"],
         avoidLabelOverlap: true,
         label: { show: false },
+        itemStyle: { borderColor: "#ffffff", borderWidth: 2 },
         data: dilimler.map((d) => ({ name: d.name, value: d.toplam })),
       },
     ],
@@ -236,42 +255,61 @@ export function SlaChart({
 }: {
   data: { lt24h: number; d1to3: number; gt3d: number };
 }) {
-  const kategoriler = ["24 saatten az", "1–3 gün", "3 günden fazla"];
-  const degerler = [data.lt24h, data.d1to3, data.gt3d];
-  const renkler = [KB.success, KB.warning, KB.danger];
+  // Tek %100 şerit: oran bir bakışta okunur, üç ayrı bardan daha az yer kaplar
+  const dilimler = [
+    { ad: "24 saatten az", deger: data.lt24h, renk: KB.success },
+    { ad: "1–3 gün", deger: data.d1to3, renk: KB.warning },
+    { ad: "3 günden fazla", deger: data.gt3d, renk: KB.danger },
+  ];
+  const toplam = dilimler.reduce((a, d) => a + d.deger, 0);
 
   const option: EChartsOption = {
-    tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
-    grid: { left: 8, right: 24, top: 16, bottom: 4, containLabel: true },
-    xAxis: { ...valueAxis, minInterval: 1 },
-    yAxis: { ...categoryAxis, data: kategoriler },
-    series: [
-      {
-        type: "bar",
-        data: degerler.map((v, i) => ({
-          value: v,
-          itemStyle: { color: renkler[i] },
-        })),
-        barMaxWidth: 26,
-        label: {
-          show: true,
-          position: "right",
-          color: KB.muted,
-          fontSize: 11,
-          formatter: (p) => formatTr((p as { value: number }).value),
+    tooltip: {
+      trigger: "item",
+      formatter: (p) => {
+        const params = p as { seriesName: string; value: number };
+        const oran = toplam > 0 ? Math.round((params.value / toplam) * 100) : 0;
+        return `${params.seriesName}<br/><b>${formatTr(params.value)}</b> şikayet (%${oran})`;
+      },
+    },
+    legend: { data: dilimler.map((d) => d.ad), right: 0, top: 0 },
+    grid: { left: 8, right: 8, top: 36, bottom: 4, containLabel: true },
+    xAxis: { ...valueAxis, max: toplam, show: false },
+    yAxis: { ...categoryAxis, data: [""], show: false },
+    series: dilimler.map((d, i) => ({
+      name: d.ad,
+      type: "bar" as const,
+      stack: "yas",
+      data: [d.deger],
+      itemStyle: {
+        color: d.renk,
+        borderColor: "#ffffff",
+        borderWidth: d.deger > 0 ? 1 : 0,
+        borderRadius:
+          i === 0 ? [3, 0, 0, 3] : i === dilimler.length - 1 ? [0, 3, 3, 0] : 0,
+      },
+      barMaxWidth: 34,
+      label: {
+        show: true,
+        color: "#ffffff",
+        fontSize: 11,
+        fontWeight: 600,
+        formatter: (p: unknown) => {
+          const v = (p as { value: number }).value;
+          return v > 0 ? formatTr(v) : "";
         },
       },
-    ],
+    })),
   };
 
   return (
     <ChartCard
       title="Açık şikayet bekleme süresi"
       description="Şu an açık ve devam eden şikayetlerin yaşı"
-      empty={degerler.every((v) => v === 0)}
+      empty={toplam === 0}
       emptyText="Açık şikayet yok"
     >
-      <EChart option={option} height={200} ariaLabel="SLA bekleme süresi dağılımı" />
+      <EChart option={option} height={110} ariaLabel="SLA bekleme süresi dağılımı" />
     </ChartCard>
   );
 }
@@ -326,7 +364,7 @@ export function CostTrendChart({
         type: "bar",
         stack: "maliyet",
         data: data.map((d) => d.yakit),
-        itemStyle: { color: KB.accent },
+        itemStyle: { color: KB.accent, borderRadius: [3, 3, 0, 0] },
         barMaxWidth: 40,
       },
     ],
@@ -343,6 +381,175 @@ export function CostTrendChart({
   );
 }
 
+// ── Kanal dağılımı ───────────────────────────────────────────────────────
+
+export function ChannelChart({
+  data,
+}: {
+  data: Array<{ name: string; value: number }>;
+}) {
+  const toplam = data.reduce((a, d) => a + d.value, 0);
+  // Kanal sayısı az ve sabit; renkler tutarlı kalsın diye ada göre atanır
+  const renkByAd: Record<string, string> = {
+    Telefon: KB.navy,
+    WhatsApp: KB.success,
+    Web: KB.info,
+  };
+
+  const option: EChartsOption = {
+    title: donutOrtasi(toplam, "şikayet"),
+    tooltip: {
+      trigger: "item",
+      formatter: (p) => {
+        const params = p as { name: string; value: number; percent?: number };
+        return `${params.name}<br/><b>${formatTr(params.value)}</b> (%${params.percent ?? 0})`;
+      },
+    },
+    legend: { orient: "vertical", right: 0, top: "center", itemGap: 8 },
+    series: [
+      {
+        type: "pie",
+        radius: ["52%", "72%"],
+        center: ["32%", "50%"],
+        label: { show: false },
+        itemStyle: { borderColor: "#ffffff", borderWidth: 2 },
+        data: data.map((d) => ({
+          name: d.name,
+          value: d.value,
+          itemStyle: renkByAd[d.name] ? { color: renkByAd[d.name] } : undefined,
+        })),
+      },
+    ],
+  };
+
+  return (
+    <ChartCard
+      title="Kanal dağılımı"
+      description="Şikayetler hangi kanaldan geliyor"
+      empty={toplam === 0}
+    >
+      <EChart option={option} height={240} ariaLabel="Şikayet kanal dağılımı" />
+    </ChartCard>
+  );
+}
+
+// ── Mahalle yoğunluğu ────────────────────────────────────────────────────
+
+export function NeighborhoodChart({
+  data,
+}: {
+  data: Array<{ name: string; toplam: number }>;
+}) {
+  // Yatay bar: en yoğun mahalle en üstte
+  const siralanmis = [...data].reverse();
+
+  const option: EChartsOption = {
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+    grid: { left: 8, right: 32, top: 8, bottom: 4, containLabel: true },
+    xAxis: { ...valueAxis, minInterval: 1 },
+    yAxis: {
+      ...categoryAxis,
+      data: siralanmis.map((d) => d.name),
+      axisLabel: { ...categoryAxis.axisLabel, width: 130, overflow: "truncate" },
+    },
+    series: [
+      {
+        type: "bar",
+        data: siralanmis.map((d) => d.toplam),
+        itemStyle: { color: KB.navy, borderRadius: [0, 3, 3, 0] },
+        barMaxWidth: 18,
+        label: {
+          show: true,
+          position: "right",
+          color: KB.muted,
+          fontSize: 11,
+          formatter: (p) => formatTr((p as { value: number }).value),
+        },
+      },
+    ],
+  };
+
+  return (
+    <ChartCard
+      title="Mahalle yoğunluğu"
+      description="Seçili dönemde en çok şikayet üreten 10 mahalle"
+      empty={data.length === 0}
+    >
+      <EChart
+        option={option}
+        height={Math.max(180, siralanmis.length * 30 + 40)}
+        ariaLabel="Mahalle bazlı şikayet yoğunluğu"
+      />
+    </ChartCard>
+  );
+}
+
+// ── Saatlik yoğunluk ısı haritası ────────────────────────────────────────
+
+const HAFTA_GUNLERI = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+
+export function HourHeatmapChart({
+  data,
+}: {
+  data: Array<{ haftaGunu: number; saat: number; adet: number }>;
+}) {
+  const enYuksek = data.reduce((a, d) => Math.max(a, d.adet), 0);
+  const saatler = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+  // Isı haritasında y ekseni alttan yukarı gider; Pazartesi üstte dursun
+  const gunler = [...HAFTA_GUNLERI].reverse();
+
+  const option: EChartsOption = {
+    tooltip: {
+      formatter: (p) => {
+        const params = p as unknown as { value: [number, number, number] };
+        const [saat, gunIdx, adet] = params.value;
+        return `${gunler[gunIdx]} ${saat}:00–${saat + 1}:00<br/><b>${formatTr(adet)}</b> şikayet`;
+      },
+    },
+    grid: { left: 8, right: 8, top: 8, bottom: 40, containLabel: true },
+    xAxis: {
+      ...categoryAxis,
+      data: saatler,
+      axisLabel: { ...categoryAxis.axisLabel, interval: 2 },
+      splitArea: { show: true },
+    },
+    yAxis: { ...categoryAxis, data: gunler, splitArea: { show: true } },
+    visualMap: {
+      min: 0,
+      max: Math.max(enYuksek, 1),
+      calculable: false,
+      orient: "horizontal",
+      left: "center",
+      bottom: 0,
+      itemHeight: 90,
+      textStyle: { color: KB.muted, fontSize: 10 },
+      inRange: { color: ["#eef2f6", "#b9c8dd", KB.navy] },
+    },
+    series: [
+      {
+        type: "heatmap",
+        data: data.map((d) => [
+          d.saat,
+          gunler.indexOf(HAFTA_GUNLERI[d.haftaGunu - 1] ?? ""),
+          d.adet,
+        ]),
+        itemStyle: { borderColor: "#ffffff", borderWidth: 1 },
+        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: "rgba(21,42,69,0.3)" } },
+      },
+    ],
+  };
+
+  return (
+    <ChartCard
+      title="Saatlik yoğunluk"
+      description="Şikayetler haftanın hangi günü, günün hangi saatinde geliyor"
+      empty={data.length === 0}
+    >
+      <EChart option={option} height={240} ariaLabel="Gün ve saat bazlı şikayet yoğunluğu" />
+    </ChartCard>
+  );
+}
+
 // ── Araç durumu ──────────────────────────────────────────────────────────
 
 export function VehicleStatusChart({
@@ -351,8 +558,10 @@ export function VehicleStatusChart({
   data: Array<{ name: string; value: number; color: string }>;
 }) {
   const dolu = data.filter((d) => d.value > 0);
+  const toplam = dolu.reduce((a, d) => a + d.value, 0);
 
   const option: EChartsOption = {
+    title: donutOrtasi(toplam, "araç"),
     tooltip: {
       trigger: "item",
       formatter: (p) => {
@@ -364,9 +573,10 @@ export function VehicleStatusChart({
     series: [
       {
         type: "pie",
-        radius: ["48%", "72%"],
+        radius: ["52%", "72%"],
         center: ["32%", "50%"],
         label: { show: false },
+        itemStyle: { borderColor: "#ffffff", borderWidth: 2 },
         data: dolu.map((d) => ({
           name: d.name,
           value: d.value,
