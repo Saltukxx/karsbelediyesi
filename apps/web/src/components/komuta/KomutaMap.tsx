@@ -65,7 +65,8 @@ export default function KomutaMap({
   );
 
   return (
-    <div className="relative h-full overflow-hidden rounded-lg border border-kb-border">
+    // Leaflet katmanları z-index 200–1000 kullanır; uygulama overlay'lerine taşmasın.
+    <div className="relative isolate z-0 h-full overflow-hidden rounded-lg border border-kb-border">
       <div className="absolute right-2 top-2 z-[1000] flex gap-1 rounded-md bg-white/90 p-1 shadow">
         {(Object.keys(BASEMAPS) as Basemap[]).map((b) => (
           <button
@@ -103,7 +104,7 @@ export default function KomutaMap({
       <MapContainer
         center={KARS_CENTER}
         zoom={13}
-        className="h-full w-full"
+        className="z-0 h-full w-full"
         scrollWheelZoom
       >
         <TileLayer

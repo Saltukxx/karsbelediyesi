@@ -11,11 +11,29 @@ import { DataTable } from "@/components/ui/DataTable";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { StickyFilter } from "@/components/ui/StickyFilter";
 import { RowActions, RowActionLink } from "@/components/ui/RowActions";
-import { btnPrimary } from "@/lib/ui";
+import { btnPrimary, btnSecondary, inputCls } from "@/lib/ui";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
 import { Pagination, pageSize, parsePage } from "@/components/ui/Pagination";
+import { SortableTh } from "@/components/ui/SortableTh";
+import { orderByFor, parseSort, SORT_PARAM, type SortDir } from "@/lib/sort";
 
 export const dynamic = "force-dynamic";
+
+const SIRALAMA = {
+  plaka: (dir: SortDir) => [{ plaka: dir }],
+  ad: (dir: SortDir) => [{ ad: dir }],
+  cins: (dir: SortDir) => [{ vehicleType: { name: dir } }],
+  modelYili: (dir: SortDir) => [{ modelYili: dir }],
+  muayene: (dir: SortDir) => [{ muayeneTarihi: dir }],
+  sigorta: (dir: SortDir) => [{ sigortaBitis: dir }],
+  bakim: (dir: SortDir) => [{ sonrakiBakimTarihi: dir }],
+  birim: (dir: SortDir) => [{ department: { name: dir } }],
+  envanter: (dir: SortDir) => [{ envanterDurumu: dir }],
+  operasyon: (dir: SortDir) => [{ operasyonDurumu: dir }],
+  gorev: (dir: SortDir) => [{ tasks: { _count: dir } }],
+} satisfies Record<string, (dir: SortDir) => Prisma.VehicleOrderByWithRelationInput[]>;
+
+const SIRALANABILIR = Object.keys(SIRALAMA) as Array<keyof typeof SIRALAMA>;
 
 function tarihRengi(t: Date | null): string {
   if (!t) return "";
@@ -28,13 +46,21 @@ function tarihRengi(t: Date | null): string {
 export default async function AraclarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ara?: string; durum?: string; cins?: string; page?: string; size?: string }>;
+  searchParams: Promise<{
+    ara?: string;
+    durum?: string;
+    cins?: string;
+    page?: string;
+    size?: string;
+    sirala?: string;
+  }>;
 }) {
   const session = await requirePageAccess("/araclar");
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const take = pageSize(sp.size, 25);
   const skip = (page - 1) * take;
+  const sirala = parseSort(sp.sirala, SIRALANABILIR, { key: "plaka", dir: "asc" });
   const where: Prisma.VehicleWhereInput = { ...departmentScope(session) };
   if (sp.ara)
     where.OR = [
@@ -57,7 +83,7 @@ export default async function AraclarPage({
         atananSofor: true,
         _count: { select: { tasks: true } },
       },
-      orderBy: { plaka: "asc" },
+      orderBy: orderByFor(sirala, SIRALAMA),
     }),
     prisma.vehicleType.findMany({ where: { aktif: true }, orderBy: { name: "asc" } }),
   ]);
@@ -75,17 +101,22 @@ export default async function AraclarPage({
       />
 
       <StickyFilter>
-        <form className="flex flex-wrap gap-2" method="get">
+        {/* Sıralama ve sayfa boyutu gizli alanlarla korunur */}
+        <form className="flex flex-wrap items-end gap-2" method="get">
+          <input type="hidden" name={SORT_PARAM} value={`${sirala.key}:${sirala.dir}`} />
+          {sp.size && <input type="hidden" name="size" value={sp.size} />}
           <input
             name="ara"
             defaultValue={sp.ara ?? ""}
             placeholder="Plaka, ad, marka..."
-            className="w-56 rounded-md border border-kb-border px-3 py-1.5 text-sm"
+            aria-label="Araçlarda ara"
+            className={`${inputCls} w-56`}
           />
           <select
             name="durum"
             defaultValue={sp.durum ?? ""}
-            className="rounded-md border border-kb-border px-3 py-1.5 text-sm"
+            aria-label="Envanter durumu filtresi"
+            className={`${inputCls} w-auto`}
           >
             <option value="">Tüm Durumlar</option>
             {Object.entries(ENVANTER_DURUM_LABELS).map(([k, v]) => (
@@ -97,7 +128,8 @@ export default async function AraclarPage({
           <select
             name="cins"
             defaultValue={sp.cins ?? ""}
-            className="rounded-md border border-kb-border px-3 py-1.5 text-sm"
+            aria-label="Araç cinsi filtresi"
+            className={`${inputCls} w-auto`}
           >
             <option value="">Tüm Cinsler</option>
             {cinsler.map((c) => (
@@ -106,9 +138,12 @@ export default async function AraclarPage({
               </option>
             ))}
           </select>
-          <button className="rounded-md bg-kb-navy px-4 py-1.5 text-sm text-white">
-            Filtrele
-          </button>
+          <button className={btnPrimary}>Filtrele</button>
+          {(sp.ara || sp.durum || sp.cins) && (
+            <Link href="/araclar" className={btnSecondary}>
+              Temizle
+            </Link>
+          )}
         </form>
       </StickyFilter>
 
@@ -125,21 +160,43 @@ export default async function AraclarPage({
       >
         <thead>
           <tr>
-            <th>Plaka / Seri No</th>
-            <th>Araç Adı</th>
-            <th>Cinsi</th>
+            <SortableTh sortKey="plaka" current={sirala}>
+              Plaka / Seri No
+            </SortableTh>
+            <SortableTh sortKey="ad" current={sirala}>
+              Araç Adı
+            </SortableTh>
+            <SortableTh sortKey="cins" current={sirala}>
+              Cinsi
+            </SortableTh>
             <th>Marka / Model</th>
-            <th>Yıl</th>
+            <SortableTh sortKey="modelYili" current={sirala} defaultDir="desc">
+              Yıl
+            </SortableTh>
             <th>Yakıt</th>
             <th>Sayaç</th>
-            <th>Muayene</th>
-            <th>Sigorta</th>
-            <th>Sonraki Bakım</th>
-            <th>Birim</th>
+            <SortableTh sortKey="muayene" current={sirala}>
+              Muayene
+            </SortableTh>
+            <SortableTh sortKey="sigorta" current={sirala}>
+              Sigorta
+            </SortableTh>
+            <SortableTh sortKey="bakim" current={sirala}>
+              Sonraki Bakım
+            </SortableTh>
+            <SortableTh sortKey="birim" current={sirala}>
+              Birim
+            </SortableTh>
             <th>Şoför</th>
-            <th>Envanter</th>
-            <th>Operasyon</th>
-            <th>Görev</th>
+            <SortableTh sortKey="envanter" current={sirala}>
+              Envanter
+            </SortableTh>
+            <SortableTh sortKey="operasyon" current={sirala}>
+              Operasyon
+            </SortableTh>
+            <SortableTh sortKey="gorev" current={sirala} defaultDir="desc">
+              Görev
+            </SortableTh>
             <th className="!text-right">Aksiyon</th>
           </tr>
         </thead>
@@ -195,7 +252,13 @@ export default async function AraclarPage({
         page={page}
         totalPages={Math.max(1, Math.ceil(total / take))}
         basePath="/araclar"
-        searchParams={{ ara: sp.ara, durum: sp.durum, cins: sp.cins, size: sp.size }}
+        searchParams={{
+          ara: sp.ara,
+          durum: sp.durum,
+          cins: sp.cins,
+          size: sp.size,
+          [SORT_PARAM]: sp.sirala,
+        }}
       />
     </div>
   );

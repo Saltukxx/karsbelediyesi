@@ -3,6 +3,10 @@ import { sikayetOlustur } from "@/lib/actions/complaints";
 import { ONCELIK_LABELS } from "@kars/shared";
 import Link from "next/link";
 import { LocationPickerField } from "@/components/complaints/LocationPickerField";
+import { ActionForm } from "@/components/ui/form/ActionForm";
+import { FormInput, FormSelect, FormTextarea } from "@/components/ui/form/Fields";
+import { SubmitButton } from "@/components/ui/SubmitButton";
+import { buttonCls } from "@/lib/ui";
 import { requirePageAccess } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +25,10 @@ export default async function YeniSikayetPage() {
     prisma.personnel.findMany({ where: { durum: "AKTIF" }, orderBy: { adSoyad: "asc" } }),
   ]);
 
-  const inputCls =
-    "w-full rounded-md border border-kb-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kb-navy/30";
-  const labelCls = "block text-sm font-medium mb-1 text-kb-ink";
-
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex items-center gap-3">
-        <Link href="/sikayetler" className="text-kb-muted hover:text-kb-muted">←</Link>
+        <Link href="/sikayetler" className="text-kb-muted hover:text-kb-ink">←</Link>
         <h1 className="font-brand text-2xl font-semibold tracking-tight text-kb-navy">
           Yeni Şikayet Kaydı
         </h1>
@@ -38,106 +38,87 @@ export default async function YeniSikayetPage() {
         plaka seçildiğinde şoför bilgisi zimmetten gelir.
       </p>
 
-      <form action={sikayetOlustur} className="rounded-lg border border-kb-border bg-white shadow-sm p-6 space-y-5">
-        <div className="grid md:grid-cols-2 gap-4">
-          <div>
-            <label className={labelCls}>Arayan Kişi *</label>
-            <input name="arayanKisi" required className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Telefon</label>
-            <input name="telefon" type="tel" placeholder="05xxxxxxxxx" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Mahalle</label>
-            <select name="neighborhoodId" className={inputCls} defaultValue="">
-              <option value="">— Seçiniz —</option>
-              {mahalleler.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Açık Adres</label>
-            <input name="acikAdres" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Şikayet Türü</label>
-            <select name="complaintTypeId" className={inputCls} defaultValue="">
-              <option value="">— Seçiniz —</option>
-              {turler.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.defaultDepartment ? ` → ${t.defaultDepartment.name}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Yönlendirilen Müdürlük</label>
-            <select name="departmentId" className={inputCls} defaultValue="">
-              <option value="">— Türe göre otomatik —</option>
-              {mudurlukler.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Öncelik</label>
-            <select name="oncelik" className={inputCls} defaultValue="NORMAL">
-              {Object.entries(ONCELIK_LABELS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelCls}>Görevlendirilen Araç (Plaka)</label>
-            <select name="vehicleId" className={inputCls} defaultValue="">
-              <option value="">— Sonra atanabilir —</option>
-              {araclar.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.plaka}
-                  {a.atananSofor ? ` (Şoför: ${a.atananSofor.name})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+      <ActionForm
+        action={sikayetOlustur}
+        className="space-y-5 rounded-lg border border-kb-border bg-white p-6 shadow-sm"
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormInput name="arayanKisi" label="Arayan Kişi" required />
+          <FormInput
+            name="telefon"
+            label="Telefon"
+            type="tel"
+            placeholder="05xxxxxxxxx"
+          />
+          <FormSelect
+            name="neighborhoodId"
+            label="Mahalle"
+            placeholder="— Seçiniz —"
+            options={mahalleler.map((m) => ({ value: m.id, label: m.name }))}
+          />
+          <FormInput name="acikAdres" label="Açık Adres" />
+          <FormSelect
+            name="complaintTypeId"
+            label="Şikayet Türü"
+            placeholder="— Seçiniz —"
+            options={turler.map((t) => ({
+              value: t.id,
+              label: t.defaultDepartment
+                ? `${t.name} → ${t.defaultDepartment.name}`
+                : t.name,
+            }))}
+          />
+          <FormSelect
+            name="departmentId"
+            label="Yönlendirilen Müdürlük"
+            placeholder="— Türe göre otomatik —"
+            options={mudurlukler.map((m) => ({ value: m.id, label: m.name }))}
+          />
+          <FormSelect
+            name="oncelik"
+            label="Öncelik"
+            defaultValue="NORMAL"
+            options={Object.entries(ONCELIK_LABELS).map(([value, label]) => ({
+              value,
+              label,
+            }))}
+          />
+          <FormSelect
+            name="vehicleId"
+            label="Görevlendirilen Araç (Plaka)"
+            placeholder="— Sonra atanabilir —"
+            options={araclar.map((a) => ({
+              value: a.id,
+              label: a.atananSofor
+                ? `${a.plaka} (Şoför: ${a.atananSofor.name})`
+                : a.plaka,
+            }))}
+          />
         </div>
 
-        <div>
-          <label className={labelCls}>Açıklama</label>
-          <textarea name="aciklama" rows={3} className={inputCls} />
-        </div>
+        <FormTextarea name="aciklama" label="Açıklama" rows={3} />
 
         <LocationPickerField mahalleler={mahalleler} />
 
-        <div>
-          <label className={labelCls}>Görevlendirilen Personel</label>
-          <select name="personnelIds" multiple size={5} className={inputCls}>
-            {personeller.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.adSoyad} {p.unvan ? `— ${p.unvan}` : ""}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-kb-muted mt-1">Cmd/Ctrl ile birden fazla seçilebilir.</p>
-        </div>
+        <FormSelect
+          name="personnelIds"
+          label="Görevlendirilen Personel"
+          multiple
+          size={5}
+          hint="Cmd/Ctrl ile birden fazla seçilebilir."
+          options={personeller.map((p) => ({
+            value: p.id,
+            label: p.unvan ? `${p.adSoyad} — ${p.unvan}` : p.adSoyad,
+          }))}
+        />
 
         <div className="flex justify-end gap-2">
-          <Link
-            href="/sikayetler"
-            className="rounded-md border border-kb-border px-4 py-2 text-sm text-kb-muted"
-          >
+          <Link href="/sikayetler" className={buttonCls("secondary", "md")}>
             Vazgeç
           </Link>
-          <button
-            type="submit"
-            className="rounded-md bg-kb-navy hover:bg-kb-navy-soft text-white px-6 py-2 text-sm font-medium"
-          >
-            Kaydet
-          </button>
+          <SubmitButton>Kaydet</SubmitButton>
         </div>
-      </form>
+      </ActionForm>
     </div>
   );
 }

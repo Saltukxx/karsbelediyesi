@@ -1,4 +1,5 @@
 import { prisma } from "@kars/db";
+import type { Prisma } from "@kars/db";
 import { GOREV_DURUM_LABELS, OPERASYON_DURUM_LABELS } from "@kars/shared";
 import { gorevOlustur, gorevBaslat, gorevKapat } from "@/lib/actions/tasks";
 import { inputCls, btnPrimary, btnSecondary, cardCls, formCardCls } from "@/lib/ui";
@@ -9,14 +10,39 @@ import { StickyFilter } from "@/components/ui/StickyFilter";
 import { DataTable } from "@/components/ui/DataTable";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
 import { Pagination, pageSize, parsePage } from "@/components/ui/Pagination";
+import { SortableTh } from "@/components/ui/SortableTh";
+import { FilterChips } from "@/components/ui/FilterChips";
+import { orderByFor, parseSort, SORT_PARAM, type SortDir } from "@/lib/sort";
 import { gorevMaliyetleri, paraFormat } from "@/lib/task-cost";
 
 export const dynamic = "force-dynamic";
 
+const SIRALAMA = {
+  gorevNo: (dir: SortDir) => [{ yil: dir }, { sira: dir }],
+  talepTarihi: (dir: SortDir) => [{ talepTarihi: dir }],
+  plaka: (dir: SortDir) => [{ vehicle: { plaka: dir } }],
+  cins: (dir: SortDir) => [{ vehicle: { vehicleType: { name: dir } } }],
+  mudurluk: (dir: SortDir) => [{ talepEdenDepartment: { name: dir } }],
+  sofor: (dir: SortDir) => [{ driver: { name: dir } }],
+  sure: (dir: SortDir) => [{ sureSaat: dir }],
+  kmFarki: (dir: SortDir) => [{ kmFarki: dir }],
+  durum: (dir: SortDir) => [{ durum: dir }],
+} satisfies Record<
+  string,
+  (dir: SortDir) => Prisma.VehicleTaskOrderByWithRelationInput[]
+>;
+
+const SIRALANABILIR = Object.keys(SIRALAMA) as Array<keyof typeof SIRALAMA>;
+
 export default async function GorevlerPage({
   searchParams,
 }: {
-  searchParams: Promise<{ durum?: string; page?: string; size?: string }>;
+  searchParams: Promise<{
+    durum?: string;
+    page?: string;
+    size?: string;
+    sirala?: string;
+  }>;
 }) {
   const session = await requirePageAccess("/gorevler");
   const sp = await searchParams;
@@ -24,6 +50,10 @@ export default async function GorevlerPage({
   const page = parsePage(sp.page);
   const take = pageSize(sp.size, 25);
   const skip = (page - 1) * take;
+  const sirala = parseSort(sp.sirala, SIRALANABILIR, {
+    key: "talepTarihi",
+    dir: "desc",
+  });
   const dept = departmentScope(session);
 
   const taskWhere = {
@@ -43,7 +73,7 @@ export default async function GorevlerPage({
       prisma.vehicleTask.count({ where: taskWhere }),
       prisma.vehicleTask.findMany({
         where: taskWhere,
-        orderBy: { talepTarihi: "desc" },
+        orderBy: orderByFor(sirala, SIRALAMA),
         skip,
         take,
         include: {
@@ -228,20 +258,14 @@ export default async function GorevlerPage({
       </form>
 
       <StickyFilter>
-        <div className="flex flex-wrap gap-2 text-sm">
-          <Link href="/gorevler" className={!durumFilter ? "font-semibold text-kb-navy" : "text-kb-muted"}>
-            Tümü
-          </Link>
-          {Object.entries(GOREV_DURUM_LABELS).map(([k, v]) => (
-            <Link
-              key={k}
-              href={`/gorevler?durum=${k}`}
-              className={durumFilter === k ? "font-semibold text-kb-navy" : "text-kb-muted"}
-            >
-              {v}
-            </Link>
-          ))}
-        </div>
+        <FilterChips
+          param="durum"
+          label="Görev durumu filtresi"
+          options={Object.entries(GOREV_DURUM_LABELS).map(([id, label]) => ({
+            id,
+            label,
+          }))}
+        />
       </StickyFilter>
 
       <DataTable
@@ -252,17 +276,35 @@ export default async function GorevlerPage({
       >
         <thead>
           <tr>
-            <th>Görev No</th>
-            <th>Tarih</th>
-            <th>Plaka</th>
-            <th>Cinsi</th>
-            <th>Müdürlük</th>
+            <SortableTh sortKey="gorevNo" current={sirala} defaultDir="desc">
+              Görev No
+            </SortableTh>
+            <SortableTh sortKey="talepTarihi" current={sirala} defaultDir="desc">
+              Tarih
+            </SortableTh>
+            <SortableTh sortKey="plaka" current={sirala}>
+              Plaka
+            </SortableTh>
+            <SortableTh sortKey="cins" current={sirala}>
+              Cinsi
+            </SortableTh>
+            <SortableTh sortKey="mudurluk" current={sirala}>
+              Müdürlük
+            </SortableTh>
             <th>Yer / Tanım</th>
-            <th>Şoför</th>
-            <th>Süre</th>
-            <th>KM Fark</th>
+            <SortableTh sortKey="sofor" current={sirala}>
+              Şoför
+            </SortableTh>
+            <SortableTh sortKey="sure" current={sirala} defaultDir="desc">
+              Süre
+            </SortableTh>
+            <SortableTh sortKey="kmFarki" current={sirala} defaultDir="desc">
+              KM Fark
+            </SortableTh>
             <th>Maliyet</th>
-            <th>Durum</th>
+            <SortableTh sortKey="durum" current={sirala}>
+              Durum
+            </SortableTh>
             <th>İşlem</th>
           </tr>
         </thead>
@@ -433,7 +475,7 @@ export default async function GorevlerPage({
         page={page}
         totalPages={Math.max(1, Math.ceil(total / take))}
         basePath="/gorevler"
-        searchParams={{ durum: sp.durum, size: sp.size }}
+        searchParams={{ durum: sp.durum, size: sp.size, [SORT_PARAM]: sp.sirala }}
       />
     </div>
   );

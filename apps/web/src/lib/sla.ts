@@ -1,6 +1,14 @@
 import { prisma } from "@kars/db";
 import type { AppSession } from "@/lib/authz";
 import { departmentScope } from "@/lib/authz";
+import { deptSql } from "@/lib/dept-sql";
+
+/** Müdürlük başına 30 günlük kapanış özeti — satırlar veritabanında toplanır. */
+type ClosedAggRow = {
+  departmentId: string | null;
+  adet: number;
+  ortGun: number | null;
+};
 
 export type SlaSummary = {
   bucketLt24h: number;
@@ -67,18 +75,16 @@ export async function computeSlaSummary(session: AppSession): Promise<SlaSummary
       where: openWhere,
       _count: { _all: true },
     }),
-    prisma.complaint.findMany({
-      where: {
-        durum: "KAPATILDI",
-        kapanisTarihi: { gte: d30 },
-        ...dept,
-      },
-      select: {
-        departmentId: true,
-        kayitTarihi: true,
-        kapanisTarihi: true,
-      },
-    }),
+    prisma.$queryRaw<ClosedAggRow[]>`
+      SELECT "departmentId",
+             COUNT(*)::int AS adet,
+             AVG(EXTRACT(EPOCH FROM ("kapanisTarihi" - "kayitTarihi")) / 86400.0)::float AS "ortGun"
+      FROM "Complaint"
+      WHERE "durum" = 'KAPATILDI'
+        AND "kapanisTarihi" >= ${d30}
+        ${deptSql(dept)}
+      GROUP BY "departmentId"
+    `,
   ]);
 
   const deptIds = [
@@ -96,20 +102,9 @@ export async function computeSlaSummary(session: AppSession): Promise<SlaSummary
     : [];
   const nameById = new Map(departments.map((d) => [d.id, d.name]));
 
-  const closedAgg = new Map<
-    string | null,
-    { count: number; totalDays: number }
-  >();
-  for (const c of closed30) {
-    if (!c.kapanisTarihi) continue;
-    const key = c.departmentId;
-    const days =
-      (c.kapanisTarihi.getTime() - c.kayitTarihi.getTime()) / (24 * 60 * 60 * 1000);
-    const cur = closedAgg.get(key) ?? { count: 0, totalDays: 0 };
-    cur.count += 1;
-    cur.totalDays += days;
-    closedAgg.set(key, cur);
-  }
+  const closedAgg = new Map(
+    closed30.map((c) => [c.departmentId, { count: c.adet, ortGun: c.ortGun }]),
+  );
 
   const openMap = new Map(
     openByDept.map((g) => [g.departmentId, g._count._all]),
@@ -130,9 +125,7 @@ export async function computeSlaSummary(session: AppSession): Promise<SlaSummary
       acik: openMap.get(departmentId) ?? 0,
       kapatilan30g: closed?.count ?? 0,
       ortKapanisGun:
-        closed && closed.count > 0
-          ? Math.round((closed.totalDays / closed.count) * 10) / 10
-          : null,
+        closed?.ortGun != null ? Math.round(closed.ortGun * 10) / 10 : null,
     };
   }).sort((a, b) => b.acik - a.acik || b.kapatilan30g - a.kapatilan30g);
 

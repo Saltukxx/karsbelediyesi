@@ -14,6 +14,11 @@ import { canTransitionComplaint } from "@/lib/domain/complaint-status";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
+import {
+  actionBasarili,
+  actionHatasi,
+  type ActionState,
+} from "@/lib/action-state";
 
 const opsiyonelKoordinat = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -40,7 +45,18 @@ const yeniSikayetSchema = z.object({
   lng: opsiyonelKoordinat.pipe(z.number().min(-180).max(180).optional()),
 });
 
-export async function sikayetOlustur(formData: FormData) {
+export async function sikayetOlustur(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    return await sikayetOlusturGovde(formData);
+  } catch (e) {
+    return actionHatasi(e, formData);
+  }
+}
+
+async function sikayetOlusturGovde(formData: FormData): Promise<ActionState> {
   const session = await requireRoles(ACTION_ROLES.complaints);
 
   const parsed = yeniSikayetSchema.parse({
@@ -146,7 +162,20 @@ export async function sikayetOlustur(formData: FormData) {
 
 const durumSchema = z.enum(["ACIK", "DEVAM_EDIYOR", "KAPATILDI", "IPTAL"]);
 
-export async function sikayetDurumGuncelle(formData: FormData) {
+export async function sikayetDurumGuncelle(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    return await sikayetDurumGuncelleGovde(formData);
+  } catch (e) {
+    return actionHatasi(e, formData);
+  }
+}
+
+async function sikayetDurumGuncelleGovde(
+  formData: FormData,
+): Promise<ActionState> {
   const session = await requireRoles(ACTION_ROLES.complaints);
 
   const id = String(formData.get("id"));
@@ -187,9 +216,26 @@ export async function sikayetDurumGuncelle(formData: FormData) {
   revalidatePath(`/sikayetler/${id}`);
   revalidatePath("/sikayetler");
   revalidatePath("/");
+
+  return actionBasarili(
+    durum === "KAPATILDI" ? "Şikayet kapatıldı" : "Durum güncellendi",
+  );
 }
 
-export async function sikayetMudurlukAta(formData: FormData) {
+export async function sikayetMudurlukAta(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    return await sikayetMudurlukAtaGovde(formData);
+  } catch (e) {
+    return actionHatasi(e, formData);
+  }
+}
+
+async function sikayetMudurlukAtaGovde(
+  formData: FormData,
+): Promise<ActionState> {
   const session = await requireRoles(ACTION_ROLES.whatsapp); // ADMIN, CALL_CENTER
 
   const id = String(formData.get("id"));
@@ -197,7 +243,9 @@ export async function sikayetMudurlukAta(formData: FormData) {
 
   const mevcut = await loadComplaintForAccess(id);
   if (!mevcut) throw new Error("Şikayet bulunamadı");
-  if (mevcut.departmentId === departmentId) return;
+  if (mevcut.departmentId === departmentId) {
+    return actionBasarili("Müdürlük zaten seçili");
+  }
 
   await prisma.complaint.update({
     where: { id },
@@ -234,6 +282,10 @@ export async function sikayetMudurlukAta(formData: FormData) {
 
   revalidatePath(`/sikayetler/${id}`);
   revalidatePath("/sikayetler");
+
+  return actionBasarili(
+    departmentId ? "Müdürlüğe yönlendirildi" : "Müdürlük kaldırıldı",
+  );
 }
 
 /**
@@ -277,7 +329,20 @@ async function gecerliPersonelleriGetir(
   return personeller;
 }
 
-export async function sikayetPersonelAta(formData: FormData) {
+export async function sikayetPersonelAta(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    return await sikayetPersonelAtaGovde(formData);
+  } catch (e) {
+    return actionHatasi(e, formData);
+  }
+}
+
+async function sikayetPersonelAtaGovde(
+  formData: FormData,
+): Promise<ActionState> {
   const session = await requireRoles(["ADMIN", "DEPARTMENT_MANAGER"]);
 
   const id = String(formData.get("id"));
@@ -333,9 +398,24 @@ export async function sikayetPersonelAta(formData: FormData) {
   revalidatePath(`/sikayetler/${id}`);
   revalidatePath("/sikayetler");
   revalidatePath("/islerim");
+
+  return actionBasarili(
+    `${personeller.length} personel görevlendirildi`,
+  );
 }
 
-export async function sikayetAta(formData: FormData) {
+export async function sikayetAta(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    return await sikayetAtaGovde(formData);
+  } catch (e) {
+    return actionHatasi(e, formData);
+  }
+}
+
+async function sikayetAtaGovde(formData: FormData): Promise<ActionState> {
   const session = await requireRoles(ACTION_ROLES.complaints);
 
   const id = String(formData.get("id"));
@@ -415,6 +495,8 @@ export async function sikayetAta(formData: FormData) {
 
   revalidatePath(`/sikayetler/${id}`);
   revalidatePath("/sikayetler");
+
+  return actionBasarili("Görevlendirme kaydedildi");
 }
 
 const konumSchema = z.object({
@@ -423,7 +505,20 @@ const konumSchema = z.object({
 });
 
 /** Panel haritasından veya Adresten bul ile konum kaydı. */
-export async function sikayetKonumGuncelle(formData: FormData) {
+export async function sikayetKonumGuncelle(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    return await sikayetKonumGuncelleGovde(formData);
+  } catch (e) {
+    return actionHatasi(e, formData);
+  }
+}
+
+async function sikayetKonumGuncelleGovde(
+  formData: FormData,
+): Promise<ActionState> {
   const session = await requireRoles(ACTION_ROLES.complaints);
   const id = String(formData.get("id"));
   const { lat, lng } = konumSchema.parse({
@@ -466,6 +561,8 @@ export async function sikayetKonumGuncelle(formData: FormData) {
   revalidatePath("/sikayetler");
   revalidatePath("/");
   revalidatePath("/harita");
+
+  return actionBasarili("Konum kaydedildi");
 }
 
 /** Client "Adresten bul" — Nominatim; pin alanlarını doldurur, kaydetmez. */

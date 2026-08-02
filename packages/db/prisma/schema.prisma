@@ -369,6 +369,10 @@ model MaintenanceRecord {
   kaynakChecklistItemResultId String?    @unique
   createdAt                   DateTime   @default(now())
   updatedAt                   DateTime   @updatedAt
+
+  /// Dashboard: dönemsel bakım maliyeti toplamı (araç üzerinden müdürlük kapsamı)
+  @@index([bakimTarihi])
+  @@index([vehicleId, bakimTarihi])
 }
 
 /// Excel: "Yakıt Takip" (10 sütun) — tutar = litre × birimFiyat (server-side)
@@ -394,6 +398,9 @@ model FuelRecord {
   createdAt         DateTime        @default(now())
 
   @@index([vehicleTaskId])
+  /// Dashboard: dönemsel yakıt maliyeti toplamı
+  @@index([tarih])
+  @@index([vehicleId, tarih])
 }
 
 // ═══════════════════════ ŞİKAYET MODÜLÜ ═══════════════════════
@@ -439,9 +446,15 @@ model Complaint {
   whatsappMessages WhatsAppMessage[]
 
   @@unique([yil, sira])
-  @@index([durum])
   @@index([departmentId, durum])
   @@index([telefon])
+  /// Dashboard/SLA: açık kayıtların yaş kovaları (durum + kayıt tarihi)
+  @@index([durum, kayitTarihi])
+  /// Dashboard: dönemsel "yeni şikayet", trend ve saatlik yoğunluk sorguları
+  @@index([kayitTarihi])
+  @@index([departmentId, kayitTarihi])
+  /// Dashboard/SLA: dönemsel "kapatılan şikayet" ve ortalama kapanış süresi
+  @@index([kapanisTarihi])
 }
 
 model ComplaintPersonnel {
@@ -574,7 +587,8 @@ model VehicleTask {
 
   @@unique([yil, sira])
   @@index([vehicleId])
-  @@index([durum])
+  /// Dashboard: dönemsel "tamamlanan görev" ve durum kırılımı
+  @@index([durum, girisTarihi])
 }
 
 // ═══════════════════════ PERİYODİK BAKIM KONTROL ═══════════════════════

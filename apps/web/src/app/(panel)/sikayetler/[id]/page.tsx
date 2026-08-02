@@ -16,6 +16,9 @@ import {
 import { LocationPickerField } from "@/components/complaints/LocationPickerField";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ActionForm } from "@/components/ui/form/ActionForm";
+import { FormInput, FormSelect } from "@/components/ui/form/Fields";
+import { SubmitButton } from "@/components/ui/SubmitButton";
 import { canAccessComplaint, toAccessUser } from "@/lib/access";
 import { requirePageAccess } from "@/lib/authz";
 
@@ -60,7 +63,7 @@ export default async function SikayetDetayPage({
     rol === "ADMIN" ||
     (rol === "DEPARTMENT_MANAGER" && !!session.user.departmentId);
 
-  const [araclar, personeller, onaylayanlar, mudurlukler, atanabilirPersonel] =
+  const [araclar, personeller, mudurlukler, atanabilirPersonel] =
     await Promise.all([
       prisma.vehicle.findMany({
         where: { envanterDurumu: "AKTIF" },
@@ -68,7 +71,6 @@ export default async function SikayetDetayPage({
         orderBy: { plaka: "asc" },
       }),
       prisma.personnel.findMany({ where: { durum: "AKTIF" }, orderBy: { adSoyad: "asc" } }),
-      prisma.user.findMany({ where: { role: { in: ["APPROVER", "ADMIN"] }, aktif: true } }),
       mudurlukAtayabilir
         ? prisma.department.findMany({ where: { aktif: true }, orderBy: { name: "asc" } })
         : Promise.resolve([]),
@@ -86,8 +88,6 @@ export default async function SikayetDetayPage({
     ]);
 
   const acikMi = s.durum === "ACIK" || s.durum === "DEVAM_EDIYOR";
-  const inputCls =
-    "w-full rounded-md border border-kb-border px-3 py-2 text-sm";
 
   function Alan({ ad, deger }: { ad: string; deger?: string | null }) {
     return (
@@ -169,7 +169,7 @@ export default async function SikayetDetayPage({
               <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Konumu Güncelle
               </h2>
-              <form action={sikayetKonumGuncelle} className="space-y-4">
+              <ActionForm action={sikayetKonumGuncelle} className="space-y-4">
                 <input type="hidden" name="id" value={s.id} />
                 {/* Adresten bul için mahalle/adres alanları (görünmez; mevcut kayıttan) */}
                 <input type="hidden" name="acikAdres" value={s.acikAdres ?? ""} />
@@ -188,14 +188,9 @@ export default async function SikayetDetayPage({
                   }
                 />
                 <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="rounded-md bg-kb-navy hover:bg-kb-navy-soft px-4 py-2 text-sm font-medium text-white"
-                  >
-                    Konumu kaydet
-                  </button>
+                  <SubmitButton>Konumu kaydet</SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
             </section>
           )}
 
@@ -205,23 +200,23 @@ export default async function SikayetDetayPage({
               <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Müdürlüğe Yönlendir
               </h2>
-              <form action={sikayetMudurlukAta} className="grid md:grid-cols-3 gap-3">
+              <ActionForm
+                action={sikayetMudurlukAta}
+                className="grid gap-3 md:grid-cols-3"
+              >
                 <input type="hidden" name="id" value={s.id} />
-                <div className="md:col-span-2">
-                  <label className="text-xs text-kb-muted block mb-1">Müdürlük</label>
-                  <select name="departmentId" defaultValue={s.departmentId ?? ""} className={inputCls}>
-                    <option value="">— Müdürlük yok —</option>
-                    {mudurlukler.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <FormSelect
+                  name="departmentId"
+                  label="Müdürlük"
+                  className="md:col-span-2"
+                  placeholder="— Müdürlük yok —"
+                  defaultValue={s.departmentId ?? ""}
+                  options={mudurlukler.map((m) => ({ value: m.id, label: m.name }))}
+                />
                 <div className="flex items-end">
-                  <button className="rounded-md bg-kb-navy hover:bg-kb-navy-soft text-white px-4 py-2 text-sm w-full">
-                    Yönlendir
-                  </button>
+                  <SubmitButton className="w-full">Yönlendir</SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
             </section>
           )}
 
@@ -231,26 +226,26 @@ export default async function SikayetDetayPage({
               <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Personele Ata
               </h2>
-              <form action={sikayetPersonelAta} className="grid md:grid-cols-3 gap-3">
+              <ActionForm
+                action={sikayetPersonelAta}
+                className="grid gap-3 md:grid-cols-3"
+              >
                 <input type="hidden" name="id" value={s.id} />
-                <div className="md:col-span-2">
-                  <label className="text-xs text-kb-muted block mb-1">
-                    Personel (birden fazla seçilebilir)
-                  </label>
-                  <select name="personnelIds" multiple size={4} className={inputCls}>
-                    {atanabilirPersonel.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.adSoyad}{p.unvan ? ` — ${p.unvan}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <FormSelect
+                  name="personnelIds"
+                  label="Personel (birden fazla seçilebilir)"
+                  className="md:col-span-2"
+                  multiple
+                  size={4}
+                  options={atanabilirPersonel.map((p) => ({
+                    value: p.id,
+                    label: p.unvan ? `${p.adSoyad} — ${p.unvan}` : p.adSoyad,
+                  }))}
+                />
                 <div className="flex items-end">
-                  <button className="rounded-md bg-kb-navy hover:bg-kb-navy-soft text-white px-4 py-2 text-sm w-full">
-                    Personele Ata
-                  </button>
+                  <SubmitButton className="w-full">Personele Ata</SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
               {s.personel.length > 0 && (
                 <p className="mt-3 text-xs text-kb-muted">
                   Atanmış: {s.personel.map((p) => p.personnel.adSoyad).join(", ")}
@@ -275,39 +270,38 @@ export default async function SikayetDetayPage({
             </div>
 
             {acikMi && (
-              <form action={sikayetAta} className="border-t border-kb-border/60 pt-4 grid md:grid-cols-3 gap-3">
+              <ActionForm
+                action={sikayetAta}
+                className="grid gap-3 border-t border-kb-border/60 pt-4 md:grid-cols-3"
+              >
                 <input type="hidden" name="id" value={s.id} />
-                <div>
-                  <label className="text-xs text-kb-muted block mb-1">Araç (Plaka)</label>
-                  <select name="vehicleId" defaultValue={s.vehicleId ?? ""} className={inputCls}>
-                    <option value="">— Araç yok —</option>
-                    {araclar.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.plaka}{a.atananSofor ? ` (${a.atananSofor.name})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-kb-muted block mb-1">Personel</label>
-                  <select
-                    name="personnelIds"
-                    multiple
-                    size={3}
-                    defaultValue={s.personel.map((p) => p.personnelId)}
-                    className={inputCls}
-                  >
-                    {personeller.map((p) => (
-                      <option key={p.id} value={p.id}>{p.adSoyad}</option>
-                    ))}
-                  </select>
-                </div>
+                <FormSelect
+                  name="vehicleId"
+                  label="Araç (Plaka)"
+                  placeholder="— Araç yok —"
+                  defaultValue={s.vehicleId ?? ""}
+                  options={araclar.map((a) => ({
+                    value: a.id,
+                    label: a.atananSofor
+                      ? `${a.plaka} (${a.atananSofor.name})`
+                      : a.plaka,
+                  }))}
+                />
+                <FormSelect
+                  name="personnelIds"
+                  label="Personel"
+                  multiple
+                  size={3}
+                  defaultValue={s.personel.map((p) => p.personnelId)}
+                  options={personeller.map((p) => ({
+                    value: p.id,
+                    label: p.adSoyad,
+                  }))}
+                />
                 <div className="flex items-end">
-                  <button className="rounded-md bg-kb-navy hover:bg-kb-navy-soft text-white px-4 py-2 text-sm w-full">
-                    Görevlendir
-                  </button>
+                  <SubmitButton className="w-full">Görevlendir</SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
             )}
           </section>
 
@@ -317,38 +311,33 @@ export default async function SikayetDetayPage({
               <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Durum Güncelle / Kapat
               </h2>
-              <form action={sikayetDurumGuncelle} className="grid md:grid-cols-4 gap-3">
+              <ActionForm
+                action={sikayetDurumGuncelle}
+                className="grid gap-3 md:grid-cols-3"
+              >
                 <input type="hidden" name="id" value={s.id} />
-                <div>
-                  <label className="text-xs text-kb-muted block mb-1">Yeni Durum</label>
-                  <select name="durum" defaultValue={s.durum} className={inputCls}>
-                    <option value="ACIK">Açık</option>
-                    <option value="DEVAM_EDIYOR">Devam Ediyor</option>
-                    <option value="KAPATILDI">Kapatıldı</option>
-                    <option value="IPTAL">İptal</option>
-                  </select>
-                </div>
-                <div className="md:col-span-1">
-                  <label className="text-xs text-kb-muted block mb-1">
-                    Onaylayan (kapatmada)
-                  </label>
-                  <select name="onaylayanId" defaultValue="" className={inputCls}>
-                    <option value="">— Seçiniz —</option>
-                    {onaylayanlar.map((o) => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-kb-muted block mb-1">Çözüm Notu</label>
-                  <input name="cozumNotu" className={inputCls} />
-                </div>
+                <FormSelect
+                  name="durum"
+                  label="Yeni Durum"
+                  defaultValue={s.durum}
+                  options={[
+                    { value: "ACIK", label: "Açık" },
+                    { value: "DEVAM_EDIYOR", label: "Devam Ediyor" },
+                    { value: "KAPATILDI", label: "Kapatıldı" },
+                    { value: "IPTAL", label: "İptal" },
+                  ]}
+                />
+                <FormInput
+                  name="cozumNotu"
+                  label="Çözüm Notu"
+                  hint="Kapatmada onaylayan olarak oturum sahibi kaydedilir."
+                />
                 <div className="flex items-end">
-                  <button className="rounded-md bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm w-full">
+                  <SubmitButton variant="success" size="md" className="w-full">
                     Güncelle
-                  </button>
+                  </SubmitButton>
                 </div>
-              </form>
+              </ActionForm>
             </section>
           )}
         </div>

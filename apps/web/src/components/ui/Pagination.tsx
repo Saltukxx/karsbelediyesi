@@ -44,7 +44,7 @@ export function Pagination({ page, totalPages, basePath, searchParams = {} }: Pr
         {page > 1 ? (
           <Link
             href={href(page - 1)}
-            className="rounded-lg border border-kb-border bg-white px-3 py-2 font-medium text-kb-navy hover:bg-kb-bg"
+            className="rounded-lg border border-kb-border bg-white px-3 py-2 font-medium text-kb-navy hover:bg-kb-surface"
           >
             Önceki
           </Link>
@@ -54,7 +54,7 @@ export function Pagination({ page, totalPages, basePath, searchParams = {} }: Pr
         {page < totalPages ? (
           <Link
             href={href(page + 1)}
-            className="rounded-lg border border-kb-border bg-white px-3 py-2 font-medium text-kb-navy hover:bg-kb-bg"
+            className="rounded-lg border border-kb-border bg-white px-3 py-2 font-medium text-kb-navy hover:bg-kb-surface"
           >
             Sonraki
           </Link>

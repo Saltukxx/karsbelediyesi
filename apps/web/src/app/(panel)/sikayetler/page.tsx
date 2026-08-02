@@ -12,10 +12,26 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { StickyFilter } from "@/components/ui/StickyFilter";
 import { RowActions, RowActionLink } from "@/components/ui/RowActions";
 import { Pagination, pageSize, parsePage } from "@/components/ui/Pagination";
-import { btnPrimary, btnSecondary } from "@/lib/ui";
+import { SortableTh } from "@/components/ui/SortableTh";
+import { Tabs } from "@/components/ui/Tabs";
+import { btnPrimary, btnSecondary, inputCls } from "@/lib/ui";
+import { orderByFor, parseSort, SORT_PARAM, type SortDir } from "@/lib/sort";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
+
+const SIRALAMA = {
+  sikayetNo: (dir: SortDir) => [{ yil: dir }, { sira: dir }],
+  kayitTarihi: (dir: SortDir) => [{ kayitTarihi: dir }],
+  arayanKisi: (dir: SortDir) => [{ arayanKisi: dir }],
+  mahalle: (dir: SortDir) => [{ neighborhood: { name: dir } }],
+  tur: (dir: SortDir) => [{ complaintType: { name: dir } }],
+  mudurluk: (dir: SortDir) => [{ department: { name: dir } }],
+  oncelik: (dir: SortDir) => [{ oncelik: dir }],
+  durum: (dir: SortDir) => [{ durum: dir }],
+} satisfies Record<string, (dir: SortDir) => Prisma.ComplaintOrderByWithRelationInput[]>;
+
+const SIRALANABILIR = Object.keys(SIRALAMA) as Array<keyof typeof SIRALAMA>;
 
 export default async function SikayetlerPage({
   searchParams,
@@ -27,6 +43,7 @@ export default async function SikayetlerPage({
     ara?: string;
     page?: string;
     size?: string;
+    sirala?: string;
   }>;
 }) {
   const session = await requirePageAccess("/sikayetler");
@@ -35,6 +52,10 @@ export default async function SikayetlerPage({
   const page = parsePage(sp.page);
   const take = pageSize(sp.size, 25);
   const skip = (page - 1) * take;
+  const sirala = parseSort(sp.sirala, SIRALANABILIR, {
+    key: "sikayetNo",
+    dir: "desc",
+  });
 
   const where: Prisma.ComplaintWhereInput = {};
   if (sekme === "aktif") where.durum = { in: ["ACIK", "DEVAM_EDIYOR"] };
@@ -54,7 +75,7 @@ export default async function SikayetlerPage({
     prisma.complaint.count({ where }),
     prisma.complaint.findMany({
       where,
-      orderBy: [{ yil: "desc" }, { sira: "desc" }],
+      orderBy: orderByFor(sirala, SIRALAMA),
       skip,
       take,
       include: {
@@ -72,9 +93,9 @@ export default async function SikayetlerPage({
   const totalPages = Math.max(1, Math.ceil(total / take));
 
   const sekmeler = [
-    { key: "aktif", label: "Aktif İşler" },
-    { key: "kapali", label: "Kapalı İşler" },
-    { key: "tumu", label: "Tümü" },
+    { id: "aktif", label: "Aktif İşler" },
+    { id: "kapali", label: "Kapalı İşler" },
+    { id: "tumu", label: "Tümü" },
   ];
 
   return (
@@ -95,35 +116,26 @@ export default async function SikayetlerPage({
         }
       />
 
-      <div className="flex gap-1 border-b border-kb-border">
-        {sekmeler.map((s) => (
-          <Link
-            key={s.key}
-            href={`/sikayetler?sekme=${s.key}`}
-            className={`rounded-t-md px-4 py-2 text-sm font-medium ${
-              sekme === s.key
-                ? "border border-b-0 border-kb-border bg-white text-kb-navy"
-                : "text-kb-muted hover:text-kb-ink"
-            }`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
+      <Tabs tabs={sekmeler} param="sekme" defaultTab="aktif" />
 
       <StickyFilter>
+        {/* Sekme, sıralama ve sayfa boyutu gizli alanlarla korunur */}
         <form className="flex flex-wrap items-end gap-2" method="get">
           <input type="hidden" name="sekme" value={sekme} />
+          <input type="hidden" name={SORT_PARAM} value={`${sirala.key}:${sirala.dir}`} />
+          {sp.size && <input type="hidden" name="size" value={sp.size} />}
           <input
             name="ara"
             defaultValue={sp.ara ?? ""}
             placeholder="Şikayet no, ad, telefon, adres..."
-            className="w-64 rounded-md border border-kb-border px-3 py-1.5 text-sm"
+            aria-label="Şikayetlerde ara"
+            className={`${inputCls} w-64`}
           />
           <select
             name="mudurluk"
             defaultValue={sp.mudurluk ?? ""}
-            className="rounded-md border border-kb-border px-3 py-1.5 text-sm"
+            aria-label="Müdürlük filtresi"
+            className={`${inputCls} w-auto`}
           >
             <option value="">Tüm Müdürlükler</option>
             {mudurlukler.map((m) => (
@@ -135,7 +147,8 @@ export default async function SikayetlerPage({
           <select
             name="tur"
             defaultValue={sp.tur ?? ""}
-            className="rounded-md border border-kb-border px-3 py-1.5 text-sm"
+            aria-label="Şikayet türü filtresi"
+            className={`${inputCls} w-auto`}
           >
             <option value="">Tüm Türler</option>
             {turler.map((t) => (
@@ -144,11 +157,19 @@ export default async function SikayetlerPage({
               </option>
             ))}
           </select>
-          <button className="rounded-md bg-kb-navy px-4 py-1.5 text-sm text-white">
-            Filtrele
-          </button>
+          <button className={btnPrimary}>Filtrele</button>
+          {(sp.ara || sp.mudurluk || sp.tur) && (
+            <Link href={`/sikayetler?sekme=${sekme}`} className={btnSecondary}>
+              Temizle
+            </Link>
+          )}
         </form>
       </StickyFilter>
+
+      <p className="text-xs text-kb-muted" aria-live="polite">
+        {total.toLocaleString("tr-TR")} kayıt bulundu
+        {total > take && ` · ${skip + 1}–${Math.min(skip + take, total)} arası gösteriliyor`}
+      </p>
 
       <DataTable
         minWidth="1100px"
@@ -163,17 +184,33 @@ export default async function SikayetlerPage({
       >
         <thead>
           <tr>
-            <th>Şikayet No</th>
-            <th>Tarih</th>
-            <th>Arayan</th>
-            <th>Mahalle</th>
-            <th>Tür</th>
-            <th>Müdürlük</th>
+            <SortableTh sortKey="sikayetNo" current={sirala} defaultDir="desc">
+              Şikayet No
+            </SortableTh>
+            <SortableTh sortKey="kayitTarihi" current={sirala} defaultDir="desc">
+              Tarih
+            </SortableTh>
+            <SortableTh sortKey="arayanKisi" current={sirala}>
+              Arayan
+            </SortableTh>
+            <SortableTh sortKey="mahalle" current={sirala}>
+              Mahalle
+            </SortableTh>
+            <SortableTh sortKey="tur" current={sirala}>
+              Tür
+            </SortableTh>
+            <SortableTh sortKey="mudurluk" current={sirala}>
+              Müdürlük
+            </SortableTh>
             <th>Plaka</th>
             <th>Personel</th>
             <th>Kanal</th>
-            <th>Öncelik</th>
-            <th>Durum</th>
+            <SortableTh sortKey="oncelik" current={sirala} defaultDir="desc">
+              Öncelik
+            </SortableTh>
+            <SortableTh sortKey="durum" current={sirala}>
+              Durum
+            </SortableTh>
             {sekme === "kapali" && <th>Onaylayan</th>}
             <th className="!text-right">Aksiyon</th>
           </tr>
@@ -229,6 +266,7 @@ export default async function SikayetlerPage({
           tur: sp.tur,
           ara: sp.ara,
           size: sp.size,
+          [SORT_PARAM]: sp.sirala,
         }}
       />
     </div>

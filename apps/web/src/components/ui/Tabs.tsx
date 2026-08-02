@@ -24,6 +24,8 @@ export function Tabs({
       {tabs.map((t) => {
         const next = new URLSearchParams(sp.toString());
         next.set(param, t.id);
+        // Sekme değişince filtre/sıralama korunur, sayfa 1'e döner
+        next.delete("page");
         const href = `${pathname}?${next.toString()}`;
         const isActive = active === t.id;
         return (
