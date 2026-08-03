@@ -18,10 +18,12 @@ export const metadata: Metadata = {
   title: "Kars Belediyesi — Saha Operasyon Yönetim Sistemi",
   description:
     "Şikayet, araç, bakım, görevlendirme ve günlük çalışma takip sistemi",
+  // ?v= ile tarayıcı favicon cache'i kırılır (eski Next ikonu takılı kalmasın)
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon.png?v=3", type: "image/png", sizes: "32x32" },
+      { url: "/icon-192.png?v=3", type: "image/png", sizes: "192x192" },
+      { url: "/favicon.ico?v=3", sizes: "any" },
     ],
     apple: [{ url: "/apple-icon.png", sizes: "180x180" }],
   },
