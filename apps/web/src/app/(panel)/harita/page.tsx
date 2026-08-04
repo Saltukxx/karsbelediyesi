@@ -40,6 +40,7 @@ export default async function HaritaPage() {
       },
     }),
     prisma.roadHazard.findMany({
+      where: dept,
       orderBy: { createdAt: "desc" },
       include: {
         createdBy: { select: { name: true } },
@@ -219,6 +220,9 @@ export default async function HaritaPage() {
         mudurlukler={mudurlukler}
         atanabilirPersonel={atanabilirPersonel}
         personelAtayabilir={personelAtayabilir}
+        lockedDepartmentId={
+          rol === "DEPARTMENT_MANAGER" ? session.user.departmentId : null
+        }
       />
     </div>
   );

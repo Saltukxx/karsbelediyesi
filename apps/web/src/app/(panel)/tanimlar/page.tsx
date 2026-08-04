@@ -14,9 +14,9 @@ import {
 import { otomatikAtamaKaydet } from "@/lib/actions/dispatch";
 import { otomatikAtamaAcikMi } from "@/lib/dispatch";
 import {
-  ALL_MODULE_GROUPS,
+  ALL_MODULE_HREFS,
   loadAllDepartmentModuleMaps,
-  MODULE_GROUP_OPTIONS,
+  MODULE_HREF_OPTIONS,
 } from "@/lib/dept-modules";
 import { getMobilizSyncStatus } from "@/lib/mobiliz/sync";
 import { mobilizConfigured } from "@/lib/mobiliz/client";
@@ -153,13 +153,13 @@ export default async function TanimlarPage() {
           Müdürlük ekran yetkileri
         </h2>
         <p className="text-sm text-kb-muted">
-          Her müdürlük yöneticisinin göreceği menü grupları. Hiçbir kutu seçilmezse
-          (veya kayıt yoksa) tüm gruplar açıktır. Admin ve saha rolleri bu
-          matristen etkilenmez.
+          Her müdürlük yöneticisinin göreceği ekranlar (sayfa bazlı). Hiçbir kutu
+          seçilmezse (veya kayıt yoksa) tüm ekranlar açıktır. Admin ve saha
+          rolleri bu matristen etkilenmez. Dashboard her zaman görünür.
         </p>
         <div className="space-y-3">
           {mudurlukler.map((m) => {
-            const secili = modulMap[m.id] ?? ALL_MODULE_GROUPS;
+            const secili = modulMap[m.id] ?? ALL_MODULE_HREFS;
             return (
               <form
                 key={m.id}
@@ -178,20 +178,30 @@ export default async function TanimlarPage() {
                   </h3>
                   <button className={btnSecondary}>Modülleri kaydet</button>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  {MODULE_GROUP_OPTIONS.map((g) => (
-                    <label
-                      key={g.id}
-                      className="flex items-center gap-1.5 text-sm text-kb-ink"
-                    >
-                      <input
-                        type="checkbox"
-                        name="modules"
-                        value={g.id}
-                        defaultChecked={secili.includes(g.id)}
-                      />
-                      {g.label}
-                    </label>
+                <div className="space-y-3">
+                  {MODULE_HREF_OPTIONS.map((g) => (
+                    <div key={g.id}>
+                      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-kb-muted">
+                        {g.label}
+                      </p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                        {g.items.map((item) => (
+                          <label
+                            key={item.href}
+                            className="flex items-center gap-1.5 text-sm text-kb-ink"
+                          >
+                            <input
+                              type="checkbox"
+                              name="modules"
+                              value={item.href}
+                              defaultChecked={secili.includes(item.href)}
+                              disabled={item.href === "/"}
+                            />
+                            {item.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </form>

@@ -93,3 +93,58 @@ export async function saveComplaintPhotosFromForm(
 export async function cleanupComplaintPhotoFiles(names: string[]): Promise<void> {
   await Promise.all(names.map((n) => deleteComplaintPhotoFile(n)));
 }
+
+/**
+ * Mobil API için base64 / data-URL görselleri kaydeder (max 8).
+ * Örnek: "data:image/jpeg;base64,...." veya ham base64 (+ mime).
+ */
+export async function saveComplaintPhotosFromBase64(
+  inputs: Array<string | { data: string; mime?: string }>,
+): Promise<string[]> {
+  const slice = inputs.slice(0, 8);
+  const names: string[] = [];
+  try {
+    for (const item of slice) {
+      let mime = "image/jpeg";
+      let b64: string;
+      if (typeof item === "string") {
+        const m = /^data:([^;]+);base64,([\s\S]+)$/.exec(item);
+        if (m) {
+          mime = m[1]!.toLowerCase();
+          b64 = m[2]!;
+        } else {
+          b64 = item;
+        }
+      } else {
+        mime = (item.mime ?? "image/jpeg").toLowerCase();
+        const m = /^data:([^;]+);base64,([\s\S]+)$/.exec(item.data);
+        if (m) {
+          mime = m[1]!.toLowerCase();
+          b64 = m[2]!;
+        } else {
+          b64 = item.data;
+        }
+      }
+      if (!isAllowedComplaintPhotoMime(mime)) {
+        throw new Error("Sadece JPEG/PNG/WebP fotoğraf yüklenebilir");
+      }
+      const ext = EXT_BY_MIME[mime];
+      if (!ext) throw new Error("Desteklenmeyen dosya türü");
+      const buffer = Buffer.from(b64, "base64");
+      if (buffer.length > MAX_PHOTO_BYTES) {
+        throw new Error("Dosya çok büyük (max 8MB)");
+      }
+      if (buffer.length === 0) continue;
+
+      const dir = complaintPhotoDir();
+      await fs.mkdir(dir, { recursive: true });
+      const fileName = `${crypto.randomUUID()}.${ext}`;
+      await fs.writeFile(path.join(dir, fileName), buffer);
+      names.push(fileName);
+    }
+  } catch (e) {
+    await cleanupComplaintPhotoFiles(names);
+    throw e;
+  }
+  return names;
+}

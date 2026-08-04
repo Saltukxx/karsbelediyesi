@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Clock,
   Flame,
+  MapPin,
   MessageCircle,
   Package,
   Siren,
@@ -350,6 +351,15 @@ async function DashboardContent({
       hint="Sahada devam eden işler"
       tone={anlik.devamGorev > 0 ? "warning" : "navy"}
       icon={ClipboardList}
+    />,
+    <ActionCard
+      key="konum"
+      href="/harita"
+      title="Konum eksik"
+      count={anlik.konumEksikAcik}
+      hint="Açık şikayet — haritada görünmez"
+      tone={anlik.konumEksikAcik > 0 ? "warning" : "navy"}
+      icon={MapPin}
     />,
   ];
   const aksiyonKartlari =

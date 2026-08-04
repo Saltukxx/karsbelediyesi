@@ -66,6 +66,15 @@ async function asfaltMudurlukBildir(
   );
 }
 
+function assertAsfaltDeptWrite(
+  session: Awaited<ReturnType<typeof requireRoles>>,
+  departmentId: string | null | undefined,
+) {
+  if (session.user.role !== "DEPARTMENT_MANAGER") return;
+  if (!session.user.departmentId) throw new Error("Yetkisiz");
+  if (departmentId !== session.user.departmentId) throw new Error("Yetkisiz");
+}
+
 export async function asfaltYolKaydet(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.harita);
 
@@ -77,7 +86,11 @@ export async function asfaltYolKaydet(formData: FormData) {
     ? (durumRaw as AsfaltDurum)
     : "TAMAMLANDI";
   const dokumTarihi = bos(formData.get("dokumTarihi"));
-  const departmentId = bos(formData.get("departmentId"));
+  let departmentId = bos(formData.get("departmentId"));
+  if (session.user.role === "DEPARTMENT_MANAGER") {
+    if (!session.user.departmentId) throw new Error("Yetkisiz");
+    departmentId = session.user.departmentId;
+  }
 
   await prisma.asphaltRoad.create({
     data: {
@@ -106,12 +119,18 @@ export async function asfaltYolGuncelle(formData: FormData) {
   const durumRaw = bos(formData.get("durum"));
   const dokumTarihi = bos(formData.get("dokumTarihi"));
   const koordinatlarRaw = bos(formData.get("koordinatlar"));
-  const departmentId = bos(formData.get("departmentId")) ?? null;
+  let departmentId = bos(formData.get("departmentId")) ?? null;
 
   const eski = await prisma.asphaltRoad.findUnique({
     where: { id },
     select: { departmentId: true },
   });
+  if (!eski) throw new Error("Kayıt bulunamadı");
+  assertAsfaltDeptWrite(session, eski.departmentId);
+
+  if (session.user.role === "DEPARTMENT_MANAGER") {
+    departmentId = session.user.departmentId;
+  }
 
   const guncel = await prisma.asphaltRoad.update({
     where: { id },
@@ -126,7 +145,7 @@ export async function asfaltYolGuncelle(formData: FormData) {
       departmentId,
     },
   });
-  if (departmentId && departmentId !== eski?.departmentId) {
+  if (departmentId && departmentId !== eski.departmentId) {
     await asfaltMudurlukBildir(session, guncel.ad, departmentId);
   }
   revalidatePath("/harita");
@@ -204,13 +223,33 @@ export async function asfaltYolSil(formData: FormData) {
 
   const id = bos(formData.get("id"));
   if (!id) throw new Error("Kayıt bulunamadı");
-  const silinen = await prisma.asphaltRoad.delete({ where: { id } });
+  const mevcut = await prisma.asphaltRoad.findUnique({
+    where: { id },
+    select: { id: true, ad: true, departmentId: true },
+  });
+  if (!mevcut) throw new Error("Kayıt bulunamadı");
+  assertAsfaltDeptWrite(session, mevcut.departmentId);
+
+  await prisma.asphaltRoad.delete({ where: { id } });
   await auditKaydet(session, "ASFALT_YOL_SIL", {
     varlik: "AsphaltRoad",
     varlikId: id,
-    detay: { ad: silinen.ad },
+    detay: { ad: mevcut.ad },
   });
   revalidatePath("/harita");
+}
+
+async function assertEngelDeptWrite(
+  session: Awaited<ReturnType<typeof requireRoles>>,
+  departmentId: string | null | undefined,
+) {
+  if (session.user.role !== "DEPARTMENT_MANAGER") return;
+  if (!session.user.departmentId) throw new Error("Yetkisiz");
+  if (departmentId != null && departmentId !== session.user.departmentId) {
+    throw new Error("Yetkisiz");
+  }
+  // departmentId null eski kayıt: müdür dokunamasın
+  if (departmentId == null) throw new Error("Yetkisiz");
 }
 
 export async function engelKaydet(formData: FormData) {
@@ -225,6 +264,14 @@ export async function engelKaydet(formData: FormData) {
   const tip = HAZARD_TIPLER.includes(tipRaw as HazardTip)
     ? (tipRaw as HazardTip)
     : "CUKUR";
+
+  let departmentId = bos(formData.get("departmentId"));
+  if (session.user.role === "DEPARTMENT_MANAGER") {
+    if (!session.user.departmentId) throw new Error("Yetkisiz");
+    departmentId = session.user.departmentId;
+  } else if (!departmentId) {
+    departmentId = session.user.departmentId ?? undefined;
+  }
 
   const photoFiles = formData
     .getAll("photos")
@@ -246,6 +293,7 @@ export async function engelKaydet(formData: FormData) {
       lat,
       lng,
       aciklama: bos(formData.get("aciklama")),
+      departmentId,
       createdById: session.user.id,
       photos: { create: savedNames.map((url) => ({ url })) },
     },
@@ -254,9 +302,14 @@ export async function engelKaydet(formData: FormData) {
   await auditKaydet(session, "ENGEL_KAYDET", {
     varlik: "RoadHazard",
     varlikId: engel.id,
-    detay: { tip, lat, lng },
+    detay: { tip, lat, lng, departmentId },
   });
-  const ilgililer = await kullaniciIdleri(["ADMIN", "DEPARTMENT_MANAGER"]);
+  const ilgililer = departmentId
+    ? [
+        ...(await kullaniciIdleri(["ADMIN"])),
+        ...(await kullaniciIdleri(["DEPARTMENT_MANAGER"], departmentId)),
+      ]
+    : await kullaniciIdleri(["ADMIN", "DEPARTMENT_MANAGER"]);
   await bildirimGonder(
     ilgililer.filter((uid) => uid !== session.user.id),
     {
@@ -271,13 +324,20 @@ export async function engelKaydet(formData: FormData) {
 }
 
 export async function engelDurumGuncelle(formData: FormData) {
-  await requireRoles(ACTION_ROLES.harita);
+  const session = await requireRoles(ACTION_ROLES.harita);
 
   const id = bos(formData.get("id"));
   const durumRaw = bos(formData.get("durum"));
   if (!id || !HAZARD_DURUMLAR.includes(durumRaw as HazardDurum)) {
     throw new Error("Geçersiz istek");
   }
+  const mevcut = await prisma.roadHazard.findUnique({
+    where: { id },
+    select: { departmentId: true },
+  });
+  if (!mevcut) throw new Error("Kayıt bulunamadı");
+  await assertEngelDeptWrite(session, mevcut.departmentId);
+
   await prisma.roadHazard.update({
     where: { id },
     data: { durum: durumRaw as HazardDurum },
@@ -290,6 +350,13 @@ export async function engelSil(formData: FormData) {
 
   const id = bos(formData.get("id"));
   if (!id) throw new Error("Kayıt bulunamadı");
+
+  const mevcut = await prisma.roadHazard.findUnique({
+    where: { id },
+    select: { departmentId: true },
+  });
+  if (!mevcut) throw new Error("Kayıt bulunamadı");
+  await assertEngelDeptWrite(session, mevcut.departmentId);
 
   const photos = await prisma.roadHazardPhoto.findMany({
     where: { hazardId: id },

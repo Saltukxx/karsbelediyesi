@@ -146,6 +146,7 @@ export default function RoadMap({
   mudurlukler,
   atanabilirPersonel,
   personelAtayabilir,
+  lockedDepartmentId = null,
 }: {
   roads: RoadDto[];
   hazards: HazardDto[];
@@ -155,6 +156,8 @@ export default function RoadMap({
   mudurlukler: DepartmentOptionDto[];
   atanabilirPersonel: PersonnelOptionDto[];
   personelAtayabilir: boolean;
+  /** Müdür için müdürlük select kilitlenir */
+  lockedDepartmentId?: string | null;
 }) {
   const [mode, setMode] = useState<Mode>("gezinme");
   const [is3D, setIs3D] = useState(false);
@@ -884,18 +887,28 @@ export default function RoadMap({
                 </div>
                 <div>
                   <label className={labelCls}>Müdürlük</label>
-                  <select
-                    name="departmentId"
-                    defaultValue={editingRoad?.departmentId ?? ""}
-                    className={inputCls}
-                  >
-                    <option value="">— Müdürlük yok —</option>
-                    {mudurlukler.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
+                  {lockedDepartmentId ? (
+                    <>
+                      <input type="hidden" name="departmentId" value={lockedDepartmentId} />
+                      <p className={`${inputCls} bg-kb-surface text-kb-muted`}>
+                        {mudurlukler.find((m) => m.id === lockedDepartmentId)?.name ??
+                          "Kendi biriminiz"}
+                      </p>
+                    </>
+                  ) : (
+                    <select
+                      name="departmentId"
+                      defaultValue={editingRoad?.departmentId ?? ""}
+                      className={inputCls}
+                    >
+                      <option value="">— Müdürlük yok —</option>
+                      {mudurlukler.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className={labelCls}>Döküm tarihi</label>

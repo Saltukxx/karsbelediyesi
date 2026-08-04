@@ -36,6 +36,7 @@ export type DashboardData = {
     devamGorev: number;
     yaklasanMuayene: number;
     yaklasanMuayeneKirilim: { muayene: number; sigorta: number; bakim: number };
+    konumEksikAcik: number;
     kritikStokToplam: number;
     kritikMalzeme: number;
     kritikBeton: number;
@@ -120,6 +121,7 @@ export async function computeDashboard(
     yaklasanMuayeneSay,
     yaklasanSigortaSay,
     yaklasanBakimSay,
+    konumEksikAcik,
     aracDurum,
     envanterDurum,
     deptDurum,
@@ -242,6 +244,13 @@ export async function computeDashboard(
       where: {
         sonrakiBakimTarihi: { lte: in30 },
         envanterDurumu: { not: "HURDAYA_AYRILDI" },
+        ...dept,
+      },
+    }),
+    prisma.complaint.count({
+      where: {
+        durum: { in: ["ACIK", "DEVAM_EDIYOR"] },
+        OR: [{ lat: null }, { lng: null }],
         ...dept,
       },
     }),
@@ -588,6 +597,7 @@ export async function computeDashboard(
         sigorta: yaklasanSigortaSay,
         bakim: yaklasanBakimSay,
       },
+      konumEksikAcik,
       kritikStokToplam: kritikMalzeme + kritikBeton + kritikBitum,
       kritikMalzeme,
       kritikBeton,

@@ -3,7 +3,7 @@ import type { Rol } from "@kars/shared";
 import { auth } from "@/auth";
 import { landingPathForRole, NAV_ITEMS } from "@/lib/nav";
 import {
-  loadDepartmentModuleGroups,
+  loadDepartmentModuleHrefs,
   pathAllowedByModules,
 } from "@/lib/dept-modules";
 
@@ -118,13 +118,13 @@ export async function requirePageAccess(pathname: string): Promise<AppSession> {
   }
 
   // Müdürlük / çağrı merkezi modül matrisi — menüyü atlayarak URL ile erişimi engeller
-  const moduleGroups = await loadDepartmentModuleGroups(
+  const moduleHrefs = await loadDepartmentModuleHrefs(
     (session as AppSession).user.departmentId,
   );
   if (
     !pathAllowedByModules(pathname, {
       role,
-      moduleGroups,
+      moduleHrefs,
     })
   ) {
     redirect(landingPathForRole(role));

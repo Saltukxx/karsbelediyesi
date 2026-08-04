@@ -28,6 +28,7 @@ export default function RoadMapPanel(props: {
   mudurlukler: DepartmentOptionDto[];
   atanabilirPersonel: PersonnelOptionDto[];
   personelAtayabilir: boolean;
+  lockedDepartmentId?: string | null;
 }) {
   return <RoadMap {...props} />;
 }

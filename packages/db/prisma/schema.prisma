@@ -213,6 +213,7 @@ model Department {
   personnelWorkLogs PersonnelWorkLog[]
   materialMovements MaterialMovement[]
   asphaltRoads      AsphaltRoad[]
+  roadHazards       RoadHazard[]
 }
 
 model ComplaintType {
@@ -988,19 +989,23 @@ model AsphaltRoadPersonnel {
 
 /// Yol üzerindeki çukur / engel noktası
 model RoadHazard {
-  id          String            @id @default(cuid())
-  tip         HazardTip         @default(CUKUR)
-  lat         Float
-  lng         Float
-  aciklama    String?
-  durum       HazardDurum       @default(ACIK)
-  photos      RoadHazardPhoto[]
-  createdById String
-  createdBy   User              @relation("EngelOlusturan", fields: [createdById], references: [id])
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id           String            @id @default(cuid())
+  tip          HazardTip         @default(CUKUR)
+  lat          Float
+  lng          Float
+  aciklama     String?
+  durum        HazardDurum       @default(ACIK)
+  photos       RoadHazardPhoto[]
+  /// Atanan / oluşturan müdürlük — müdür scope için
+  departmentId String?
+  department   Department?       @relation(fields: [departmentId], references: [id])
+  createdById  String
+  createdBy    User              @relation("EngelOlusturan", fields: [createdById], references: [id])
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@index([durum])
+  @@index([departmentId])
 }
 
 model RoadHazardPhoto {

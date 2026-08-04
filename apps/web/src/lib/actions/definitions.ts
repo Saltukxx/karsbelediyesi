@@ -6,7 +6,7 @@ import { prisma } from "@kars/db";
 import bcrypt from "bcryptjs";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
-import { deptModulesSettingKey } from "@/lib/dept-modules";
+import { ALL_MODULE_HREFS, deptModulesSettingKey } from "@/lib/dept-modules";
 
 /** Şifre politikası: en az 8 karakter, en az bir harf ve bir rakam */
 const sifreSchema = z
@@ -79,26 +79,26 @@ export async function mudurlukGuncelle(formData: FormData) {
   revalidatePath("/tanimlar");
 }
 
-/** Müdürlük → görünür menü grupları (AppSetting JSON) */
+/** Müdürlük → görünür menü href'leri (AppSetting JSON) */
 export async function mudurlukModulleriKaydet(formData: FormData) {
   await requireRoles(ACTION_ROLES.definitions);
   const departmentId = String(formData.get("departmentId") ?? "").trim();
   if (!departmentId) throw new Error("Müdürlük seçilmedi");
 
-  const groups = formData
+  const allowed = new Set(ALL_MODULE_HREFS);
+  const hrefs = formData
     .getAll("modules")
     .map(String)
-    .filter((g) =>
-      ["operasyon", "vatandas", "saha", "filo_uretim", "kurum"].includes(g),
-    );
+    .filter((h) => allowed.has(h));
+  if (!hrefs.includes("/")) hrefs.unshift("/");
 
   await prisma.appSetting.upsert({
     where: { key: deptModulesSettingKey(departmentId) },
     create: {
       key: deptModulesSettingKey(departmentId),
-      value: JSON.stringify(groups),
+      value: JSON.stringify(hrefs),
     },
-    update: { value: JSON.stringify(groups) },
+    update: { value: JSON.stringify(hrefs) },
   });
 
   revalidatePath("/tanimlar");

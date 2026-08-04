@@ -5,9 +5,10 @@ import { AppShell } from "@/components/AppShell";
 import { favoritesForRole, navForRole } from "@/lib/nav";
 import {
   filterNavByDepartmentModules,
-  loadDepartmentModuleGroups,
+  loadDepartmentModuleHrefs,
 } from "@/lib/dept-modules";
 import { ROL_LABELS } from "@kars/shared";
+import { FleetExpiryBanner } from "@/components/FleetExpiryBanner";
 
 export default async function PanelLayout({
   children,
@@ -18,16 +19,14 @@ export default async function PanelLayout({
   if (!session) redirect("/giris");
 
   const role = session.user.role;
-  const moduleGroups = await loadDepartmentModuleGroups(
+  const moduleHrefs = await loadDepartmentModuleHrefs(
     session.user.departmentId,
   );
   const items = filterNavByDepartmentModules(navForRole(role), {
     role,
-    moduleGroups,
+    moduleHrefs,
   });
   const allowedHrefs = new Set(items.map((i) => i.href));
-  // Favoriler menüde olmayan ama pathAllowedByModules ile açık yolları da tutabilir
-  // (ör. CALL_CENTER → /sikayetler/yeni)
   const favorites = favoritesForRole(role).filter(
     (f) =>
       allowedHrefs.has(f.href) ||
@@ -38,6 +37,9 @@ export default async function PanelLayout({
       ),
   );
 
+  const showFleetBanner =
+    role === "ADMIN" || role === "DEPARTMENT_MANAGER";
+
   return (
     <Suspense fallback={null}>
       <AppShell
@@ -47,6 +49,7 @@ export default async function PanelLayout({
         roleLabel={ROL_LABELS[role]}
         role={role}
       >
+        {showFleetBanner ? <FleetExpiryBanner /> : null}
         {children}
       </AppShell>
     </Suspense>
