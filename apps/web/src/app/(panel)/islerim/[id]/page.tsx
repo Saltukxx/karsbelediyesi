@@ -114,7 +114,11 @@ export default async function IslerimSikayetPage({
               <h2 className="mb-4 font-brand text-[0.95rem] font-semibold text-kb-ink">
                 Durum Güncelle
               </h2>
-              <form action={islerimSikayetDurum} className="grid gap-3 md:grid-cols-3">
+              <form
+                action={islerimSikayetDurum}
+                encType="multipart/form-data"
+                className="grid gap-3 md:grid-cols-3"
+              >
                 <input type="hidden" name="id" value={s.id} />
                 <div>
                   <label className="mb-1 block text-xs text-kb-muted">Yeni Durum</label>
@@ -130,12 +134,50 @@ export default async function IslerimSikayetPage({
                   </label>
                   <input name="cozumNotu" className={inputCls} />
                 </div>
-                <div className="flex items-end">
-                  <button className="w-full rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700">
+                <div>
+                  <label className="mb-1 block text-xs text-kb-muted">
+                    Çözüm görselleri
+                  </label>
+                  <input
+                    type="file"
+                    name="cozumFotolari"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="block w-full text-sm text-kb-muted file:mr-2 file:rounded-md file:border-0 file:bg-kb-navy file:px-3 file:py-1.5 file:text-xs file:text-white"
+                  />
+                </div>
+                <div className="flex items-end md:col-span-3">
+                  <button className="w-full rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 md:w-auto">
                     Güncelle
                   </button>
                 </div>
               </form>
+            </section>
+          )}
+
+          {s.photos && s.photos.length > 0 && (
+            <section className="rounded-lg border border-kb-border bg-white p-5 shadow-sm">
+              <h2 className="mb-3 font-brand text-[0.95rem] font-semibold text-kb-ink">
+                Görseller
+              </h2>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {s.photos.map((p) => (
+                  <a
+                    key={p.id}
+                    href={`/api/ops/complaint-photo/${p.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block overflow-hidden rounded-md border border-kb-border"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/ops/complaint-photo/${p.id}`}
+                      alt={p.tip === "COZUM" ? "Çözüm" : "Vatandaş"}
+                      className="h-28 w-full object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
             </section>
           )}
         </div>

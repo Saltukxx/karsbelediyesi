@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { prisma } from "@kars/db";
 import { SIKAYET_DURUM_LABELS } from "@kars/shared";
 import { PageHeader } from "@/components/ui/PageHeader";
 import RoadMapPanel from "@/components/map/RoadMapPanel";
 import RoadMapStats from "@/components/map/RoadMapStats";
-import { ACTION_ROLES, requirePageAccess } from "@/lib/authz";
+import { ACTION_ROLES, departmentScope, requirePageAccess } from "@/lib/authz";
 import { KONUM_TAZELIK_MS } from "@/lib/location";
 import type {
   AsfaltDurumDto,
@@ -21,14 +22,16 @@ export const dynamic = "force-dynamic";
 export default async function HaritaPage() {
   const session = await requirePageAccess("/harita");
   const canEdit = ACTION_ROLES.harita.includes(session.user.role);
+  const dept = departmentScope(session);
 
   const rol = session.user.role;
   const personelAtayabilir =
     rol === "ADMIN" || (rol === "DEPARTMENT_MANAGER" && !!session.user.departmentId);
 
-  const [roadRows, hazardRows, complaintRows, vehicleRows, mudurlukRows, personelRows] =
+  const [roadRows, hazardRows, complaintRows, missingLocRows, vehicleRows, mudurlukRows, personelRows] =
     await Promise.all([
     prisma.asphaltRoad.findMany({
+      where: dept,
       orderBy: { createdAt: "desc" },
       include: {
         createdBy: { select: { name: true } },
@@ -44,7 +47,7 @@ export default async function HaritaPage() {
       },
     }),
     prisma.complaint.findMany({
-      where: { lat: { not: null }, lng: { not: null } },
+      where: { lat: { not: null }, lng: { not: null }, ...dept },
       select: {
         id: true,
         sikayetNo: true,
@@ -54,11 +57,28 @@ export default async function HaritaPage() {
         aciklama: true,
       },
     }),
+    prisma.complaint.findMany({
+      where: {
+        OR: [{ lat: null }, { lng: null }],
+        durum: { in: ["ACIK", "DEVAM_EDIYOR"] },
+        ...dept,
+      },
+      select: {
+        id: true,
+        sikayetNo: true,
+        durum: true,
+        acikAdres: true,
+        arayanKisi: true,
+      },
+      orderBy: { kayitTarihi: "desc" },
+      take: 40,
+    }),
     prisma.vehicle.findMany({
       where: {
         sonKonumLat: { not: null },
         sonKonumLng: { not: null },
         sonKonumZamani: { gte: new Date(Date.now() - KONUM_TAZELIK_MS) },
+        ...dept,
       },
       select: {
         id: true,
@@ -148,6 +168,48 @@ export default async function HaritaPage() {
         description="Asfalt dökülen yollar, çukur/engel noktaları ve konumu bilinen şikayetler"
       />
       <RoadMapStats roads={roads} hazards={hazards} complaints={complaints} />
+
+      {missingLocRows.length > 0 && (
+        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <h2 className="mb-1 text-sm font-semibold text-amber-950">
+            Konumu eksik açık şikayetler ({missingLocRows.length})
+          </h2>
+          <p className="mb-3 text-xs text-amber-900/80">
+            Bu kayıtlar haritada görünmez. Detaydan pin veya adres ile konum ekleyin.
+          </p>
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {missingLocRows.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-md border border-amber-200 bg-white px-3 py-2 text-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    href={`/sikayetler/${c.id}`}
+                    className="font-mono text-kb-navy hover:underline"
+                  >
+                    {c.sikayetNo}
+                  </Link>
+                  <span className="text-xs text-kb-muted">
+                    {SIKAYET_DURUM_LABELS[c.durum] ?? c.durum}
+                  </span>
+                </div>
+                <p className="mt-0.5 truncate text-xs text-kb-muted">
+                  {c.arayanKisi}
+                  {c.acikAdres ? ` · ${c.acikAdres}` : ""}
+                </p>
+                <Link
+                  href={`/sikayetler/${c.id}#konum`}
+                  className="mt-1 inline-block text-xs font-medium text-kb-navy underline"
+                >
+                  Konumu güncelle
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <RoadMapPanel
         roads={roads}
         hazards={hazards}

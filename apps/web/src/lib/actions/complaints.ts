@@ -19,6 +19,10 @@ import {
   actionHatasi,
   type ActionState,
 } from "@/lib/action-state";
+import {
+  cleanupComplaintPhotoFiles,
+  saveComplaintPhotosFromForm,
+} from "@/lib/complaint-photos";
 
 const opsiyonelKoordinat = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -190,27 +194,61 @@ async function sikayetDurumGuncelleGovde(
   const transition = canTransitionComplaint(eski.durum, durum, session.user.role);
   if (!transition.ok) throw new Error(transition.error);
 
-  await prisma.complaint.update({
-    where: { id },
-    data: {
-      durum,
-      ...(durum === "KAPATILDI"
-        ? { kapanisTarihi: new Date(), cozumNotu, onaylayanId: session.user.id }
-        : {}),
-      events: {
-        create: {
-          userId: session.user.id,
-          tip: "DURUM_DEGISTI",
-          detay: { eski: eski.durum, yeni: durum, cozumNotu },
+  const cozumFotolari =
+    durum === "KAPATILDI"
+      ? await saveComplaintPhotosFromForm(formData, "cozumFotolari")
+      : [];
+
+  try {
+    await prisma.complaint.update({
+      where: { id },
+      data: {
+        durum,
+        ...(durum === "KAPATILDI"
+          ? {
+              kapanisTarihi: new Date(),
+              cozumNotu,
+              onaylayanId: session.user.id,
+              ...(cozumFotolari.length > 0
+                ? {
+                    photos: {
+                      create: cozumFotolari.map((url) => ({
+                        url,
+                        tip: "COZUM",
+                      })),
+                    },
+                  }
+                : {}),
+            }
+          : {}),
+        events: {
+          create: {
+            userId: session.user.id,
+            tip: "DURUM_DEGISTI",
+            detay: {
+              eski: eski.durum,
+              yeni: durum,
+              cozumNotu,
+              fotoAdet: cozumFotolari.length,
+            },
+          },
         },
       },
-    },
-  });
+    });
+  } catch (e) {
+    await cleanupComplaintPhotoFiles(cozumFotolari);
+    throw e;
+  }
 
   await auditKaydet(session, "SIKAYET_DURUM_GUNCELLE", {
     varlik: "Complaint",
     varlikId: id,
-    detay: { sikayetNo: eski.sikayetNo, eski: eski.durum, yeni: durum },
+    detay: {
+      sikayetNo: eski.sikayetNo,
+      eski: eski.durum,
+      yeni: durum,
+      fotoAdet: cozumFotolari.length,
+    },
   });
 
   revalidatePath(`/sikayetler/${id}`);

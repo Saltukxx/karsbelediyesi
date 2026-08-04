@@ -4,6 +4,7 @@ import {
   mahalleOlustur,
   mudurlukOlustur,
   mudurlukGuncelle,
+  mudurlukModulleriKaydet,
   sikayetTuruOlustur,
   sikayetTuruGuncelle,
   aracCinsiOlustur,
@@ -12,15 +13,24 @@ import {
 } from "@/lib/actions/definitions";
 import { otomatikAtamaKaydet } from "@/lib/actions/dispatch";
 import { otomatikAtamaAcikMi } from "@/lib/dispatch";
+import {
+  ALL_MODULE_GROUPS,
+  loadAllDepartmentModuleMaps,
+  MODULE_GROUP_OPTIONS,
+} from "@/lib/dept-modules";
+import { getMobilizSyncStatus } from "@/lib/mobiliz/sync";
+import { mobilizConfigured } from "@/lib/mobiliz/client";
 import { inputCls, btnPrimary, btnSecondary, cardCls } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { requirePageAccess } from "@/lib/authz";
+import { MobilizAdminCard } from "./MobilizAdminCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function TanimlarPage() {
   await requirePageAccess("/tanimlar");
-  const [mahalleler, mudurlukler, turler, aracCinsleri, kullanicilar, otomatikAtama] = await Promise.all([
+  const [mahalleler, mudurlukler, turler, aracCinsleri, kullanicilar, otomatikAtama, modulMap] =
+    await Promise.all([
     prisma.neighborhood.findMany({ orderBy: { name: "asc" } }),
     prisma.department.findMany({ orderBy: { name: "asc" } }),
     prisma.complaintType.findMany({
@@ -33,6 +43,7 @@ export default async function TanimlarPage() {
       include: { department: true },
     }),
     otomatikAtamaAcikMi(),
+    loadAllDepartmentModuleMaps(),
   ]);
 
   return (
@@ -43,6 +54,14 @@ export default async function TanimlarPage() {
           Mahalle, müdürlük, şikayet türü (→müdürlük eşleme), araç cinsi, kullanıcı/rol.
         </p>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-kb-ink">Mobiliz araç takip</h2>
+        <MobilizAdminCard
+          configured={mobilizConfigured()}
+          status={getMobilizSyncStatus()}
+        />
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-kb-ink">Akıllı Dispatch</h2>
@@ -126,6 +145,58 @@ export default async function TanimlarPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-kb-ink">
+          Müdürlük ekran yetkileri
+        </h2>
+        <p className="text-sm text-kb-muted">
+          Her müdürlük yöneticisinin göreceği menü grupları. Hiçbir kutu seçilmezse
+          (veya kayıt yoksa) tüm gruplar açıktır. Admin ve saha rolleri bu
+          matristen etkilenmez.
+        </p>
+        <div className="space-y-3">
+          {mudurlukler.map((m) => {
+            const secili = modulMap[m.id] ?? ALL_MODULE_GROUPS;
+            return (
+              <form
+                key={m.id}
+                action={mudurlukModulleriKaydet}
+                className={`${cardCls} space-y-3 p-4`}
+              >
+                <input type="hidden" name="departmentId" value={m.id} />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-kb-ink">
+                    {m.name}
+                    {m.shortName ? (
+                      <span className="ml-2 text-xs font-normal text-kb-muted">
+                        ({m.shortName})
+                      </span>
+                    ) : null}
+                  </h3>
+                  <button className={btnSecondary}>Modülleri kaydet</button>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {MODULE_GROUP_OPTIONS.map((g) => (
+                    <label
+                      key={g.id}
+                      className="flex items-center gap-1.5 text-sm text-kb-ink"
+                    >
+                      <input
+                        type="checkbox"
+                        name="modules"
+                        value={g.id}
+                        defaultChecked={secili.includes(g.id)}
+                      />
+                      {g.label}
+                    </label>
+                  ))}
+                </div>
+              </form>
+            );
+          })}
         </div>
       </section>
 

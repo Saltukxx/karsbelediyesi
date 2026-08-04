@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import type { Rol } from "@kars/shared";
 import { auth } from "@/auth";
 import { landingPathForRole, NAV_ITEMS } from "@/lib/nav";
+import {
+  loadDepartmentModuleGroups,
+  pathAllowedByModules,
+} from "@/lib/dept-modules";
 
 export type SessionUser = {
   id: string;
@@ -107,10 +111,25 @@ export async function requirePageAccess(pathname: string): Promise<AppSession> {
   const session = await auth();
   if (!session?.user?.id) redirect("/giris");
 
+  const role = session.user.role as Rol;
   const allowed = rolesForPath(pathname);
-  if (allowed && !allowed.includes(session.user.role as Rol)) {
-    redirect(landingPathForRole(session.user.role as Rol));
+  if (allowed && !allowed.includes(role)) {
+    redirect(landingPathForRole(role));
   }
+
+  // Müdürlük / çağrı merkezi modül matrisi — menüyü atlayarak URL ile erişimi engeller
+  const moduleGroups = await loadDepartmentModuleGroups(
+    (session as AppSession).user.departmentId,
+  );
+  if (
+    !pathAllowedByModules(pathname, {
+      role,
+      moduleGroups,
+    })
+  ) {
+    redirect(landingPathForRole(role));
+  }
+
   return session as AppSession;
 }
 

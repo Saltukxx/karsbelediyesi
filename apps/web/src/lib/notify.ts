@@ -1,7 +1,7 @@
 import { prisma } from "@kars/db";
 import type { Rol } from "@kars/shared";
 
-export type BildirimTip = "ATAMA" | "GOREV" | "ONAY" | "SLA" | "SISTEM";
+export type BildirimTip = "ATAMA" | "GOREV" | "ONAY" | "SLA" | "SISTEM" | "UYARI";
 
 type BildirimIcerik = {
   tip: BildirimTip;

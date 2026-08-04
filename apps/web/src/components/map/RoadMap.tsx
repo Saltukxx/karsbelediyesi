@@ -53,7 +53,7 @@ const KARS_VIEWBOX = "42.9,40.65,43.3,40.55";
 type Mode = "gezinme" | "yolCiz" | "engelEkle";
 type RoadFilter = "ALL" | AsfaltDurumDto;
 type HazardFilter = "ALL" | "ACIK" | "GIDERILDI";
-type ComplaintFilter = "ALL" | "ACIK";
+type ComplaintFilter = "ALL" | "ACIK" | "KAPATILDI";
 
 interface GeocodeResult {
   displayName: string;
@@ -191,16 +191,15 @@ export default function RoadMap({
     () => hazards.filter((h) => hazardFilter === "ALL" || h.durum === hazardFilter),
     [hazards, hazardFilter],
   );
-  const visibleComplaints = useMemo(
-    () =>
-      complaints.filter(
-        (c) =>
-          complaintFilter === "ALL" ||
-          c.durumKodu === "ACIK" ||
-          c.durumKodu === "DEVAM_EDIYOR",
-      ),
-    [complaints, complaintFilter],
-  );
+  const visibleComplaints = useMemo(() => {
+    if (complaintFilter === "ALL") return complaints;
+    if (complaintFilter === "ACIK") {
+      return complaints.filter(
+        (c) => c.durumKodu === "ACIK" || c.durumKodu === "DEVAM_EDIYOR",
+      );
+    }
+    return complaints.filter((c) => c.durumKodu === "KAPATILDI");
+  }, [complaints, complaintFilter]);
 
   const heatPoints = useMemo<Array<[number, number]>>(
     () => visibleComplaints.map((c) => [c.lat, c.lng]),
@@ -781,7 +780,8 @@ export default function RoadMap({
                     className={`${inputCls} mt-1 py-1 text-xs`}
                   >
                     <option value="ALL">Tümü</option>
-                    <option value="ACIK">Sadece açık / devam eden</option>
+                    <option value="ACIK">Açık / devam eden</option>
+                    <option value="KAPATILDI">Kapatılanlar</option>
                   </select>
                   <label className="mt-1.5 flex items-center gap-2 text-xs">
                     <input

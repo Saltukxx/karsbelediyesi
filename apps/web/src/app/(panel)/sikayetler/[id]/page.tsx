@@ -165,7 +165,10 @@ export default async function SikayetDetayPage({
 
           {/* KONUM — manuel pin veya adresten bul */}
           {acikMi && (
-            <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
+            <section
+              id="konum"
+              className="rounded-lg border border-kb-border bg-white shadow-sm p-5 scroll-mt-24"
+            >
               <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
                 Konumu Güncelle
               </h2>
@@ -313,6 +316,7 @@ export default async function SikayetDetayPage({
               </h2>
               <ActionForm
                 action={sikayetDurumGuncelle}
+                encType="multipart/form-data"
                 className="grid gap-3 md:grid-cols-3"
               >
                 <input type="hidden" name="id" value={s.id} />
@@ -332,12 +336,66 @@ export default async function SikayetDetayPage({
                   label="Çözüm Notu"
                   hint="Kapatmada onaylayan olarak oturum sahibi kaydedilir."
                 />
-                <div className="flex items-end">
-                  <SubmitButton variant="success" size="md" className="w-full">
+                <div>
+                  <label className="mb-1 block text-xs text-kb-muted">
+                    Çözüm görselleri
+                  </label>
+                  <input
+                    type="file"
+                    name="cozumFotolari"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="block w-full text-sm text-kb-muted file:mr-2 file:rounded-md file:border-0 file:bg-kb-navy file:px-3 file:py-1.5 file:text-xs file:text-white"
+                  />
+                  <p className="mt-1 text-xs text-kb-muted">
+                    Kapatırken JPEG/PNG/WebP, en fazla 8 dosya.
+                  </p>
+                </div>
+                <div className="flex items-end md:col-span-3">
+                  <SubmitButton variant="success" size="md" className="w-full md:w-auto">
                     Güncelle
                   </SubmitButton>
                 </div>
               </ActionForm>
+            </section>
+          )}
+
+          {s.photos.length > 0 && (
+            <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5">
+              <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-4">
+                Görseller
+              </h2>
+              <div className="space-y-4">
+                {(["VATANDAS", "COZUM"] as const).map((tip) => {
+                  const grup = s.photos.filter((p) => p.tip === tip);
+                  if (grup.length === 0) return null;
+                  return (
+                    <div key={tip}>
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-kb-muted">
+                        {tip === "COZUM" ? "Çözüm görselleri" : "Vatandaş görselleri"}
+                      </h3>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {grup.map((p) => (
+                          <a
+                            key={p.id}
+                            href={`/api/ops/complaint-photo/${p.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block overflow-hidden rounded-md border border-kb-border"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`/api/ops/complaint-photo/${p.id}`}
+                              alt={tip === "COZUM" ? "Çözüm" : "Vatandaş"}
+                              className="h-28 w-full object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           )}
         </div>

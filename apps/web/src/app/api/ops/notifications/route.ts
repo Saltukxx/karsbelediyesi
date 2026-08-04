@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@kars/db";
 import { requireSession } from "@/lib/authz";
 import { slaTaramasiCalistir } from "@/lib/sla-notify";
+import { aracSuresiTaramasiCalistir } from "@/lib/vehicle-expiry-notify";
+import { mobilizConfigured } from "@/lib/mobiliz/client";
+import { mobilizSyncCalistir } from "@/lib/mobiliz/sync";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +17,12 @@ export async function GET() {
     return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
   }
 
-  // Ayrı cron kurmadan SLA taraması (en fazla 10 dakikada bir çalışır)
+  // Ayrı cron kurmadan SLA + araç süresi (+ Mobiliz varsa) taraması
   await slaTaramasiCalistir();
+  await aracSuresiTaramasiCalistir();
+  if (mobilizConfigured()) {
+    void mobilizSyncCalistir();
+  }
 
   const [items, unread] = await Promise.all([
     prisma.notification.findMany({

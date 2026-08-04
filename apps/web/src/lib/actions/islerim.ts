@@ -8,6 +8,10 @@ import { canTransitionComplaint } from "@/lib/domain/complaint-status";
 import { requireSession } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
+import {
+  cleanupComplaintPhotoFiles,
+  saveComplaintPhotosFromForm,
+} from "@/lib/complaint-photos";
 
 const SIKAYET_DURUMLAR: SikayetDurum[] = ["ACIK", "DEVAM_EDIYOR", "KAPATILDI", "IPTAL"];
 const ASFALT_DURUMLAR: AsfaltDurum[] = ["PLANLANDI", "DEVAM_EDIYOR", "TAMAMLANDI"];
@@ -45,22 +49,52 @@ export async function islerimSikayetDurum(formData: FormData) {
   const transition = canTransitionComplaint(eski.durum, durum, session.user.role);
   if (!transition.ok) throw new Error(transition.error);
 
-  await prisma.complaint.update({
-    where: { id },
-    data: {
-      durum,
-      ...(durum === "KAPATILDI"
-        ? { kapanisTarihi: new Date(), cozumNotu, onaylayanId: session.user.id }
-        : {}),
-      events: {
-        create: {
-          userId: session.user.id,
-          tip: "DURUM_DEGISTI",
-          detay: { eski: eski.durum, yeni: durum, cozumNotu, kaynak: "islerim" },
+  const cozumFotolari =
+    durum === "KAPATILDI"
+      ? await saveComplaintPhotosFromForm(formData, "cozumFotolari")
+      : [];
+
+  try {
+    await prisma.complaint.update({
+      where: { id },
+      data: {
+        durum,
+        ...(durum === "KAPATILDI"
+          ? {
+              kapanisTarihi: new Date(),
+              cozumNotu,
+              onaylayanId: session.user.id,
+              ...(cozumFotolari.length > 0
+                ? {
+                    photos: {
+                      create: cozumFotolari.map((url) => ({
+                        url,
+                        tip: "COZUM",
+                      })),
+                    },
+                  }
+                : {}),
+            }
+          : {}),
+        events: {
+          create: {
+            userId: session.user.id,
+            tip: "DURUM_DEGISTI",
+            detay: {
+              eski: eski.durum,
+              yeni: durum,
+              cozumNotu,
+              kaynak: "islerim",
+              fotoAdet: cozumFotolari.length,
+            },
+          },
         },
       },
-    },
-  });
+    });
+  } catch (e) {
+    await cleanupComplaintPhotoFiles(cozumFotolari);
+    throw e;
+  }
 
   await auditKaydet(session, "ISLERIM_SIKAYET_DURUM", {
     varlik: "Complaint",

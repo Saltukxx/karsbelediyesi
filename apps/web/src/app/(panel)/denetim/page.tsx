@@ -32,6 +32,7 @@ const ISLEM_LABELS: Record<string, string> = {
   STOK_HAREKET_OLUSTUR: "Stok hareketi",
   PERSONEL_OLUSTUR: "Personel oluşturuldu",
   PERSONEL_GUNCELLE: "Personel güncellendi",
+  PERSONEL_PASIFE_AL: "Personel pasife alındı",
   PERSONEL_GUNLUK_OLUSTUR: "Personel günlük kaydı",
   ARAC_GUNLUK_OLUSTUR: "Araç günlük kaydı",
   BETON_URETIM_OLUSTUR: "Beton üretimi",

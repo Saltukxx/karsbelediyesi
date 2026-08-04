@@ -24,6 +24,7 @@ const TIP_RENK: Record<string, string> = {
   ONAY: "bg-emerald-500",
   SLA: "bg-red-500",
   SISTEM: "bg-slate-400",
+  UYARI: "bg-orange-500",
 };
 
 function zamanEtiketi(iso: string): string {

@@ -47,12 +47,14 @@ export function ActionForm({
   children,
   className = "",
   hideAlert = false,
+  encType,
 }: {
   action: ActionFn;
   children: ReactNode;
   className?: string;
   /** Uyarı bloğunu kendin yerleştireceksen kapat */
   hideAlert?: boolean;
+  encType?: string;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     action,
@@ -70,7 +72,7 @@ export function ActionForm({
   return (
     <Ctx.Provider value={{ state, pending }}>
       {!hideAlert && <FormAlert />}
-      <form action={formAction} className={className}>
+      <form action={formAction} className={className} encType={encType}>
         {children}
       </form>
     </Ctx.Provider>

@@ -53,6 +53,7 @@ export default async function AraclarPage({
     page?: string;
     size?: string;
     sirala?: string;
+    yaklasan?: string;
   }>;
 }) {
   const session = await requirePageAccess("/araclar");
@@ -61,6 +62,7 @@ export default async function AraclarPage({
   const take = pageSize(sp.size, 25);
   const skip = (page - 1) * take;
   const sirala = parseSort(sp.sirala, SIRALANABILIR, { key: "plaka", dir: "asc" });
+  const yaklasan = sp.yaklasan === "1";
   const where: Prisma.VehicleWhereInput = { ...departmentScope(session) };
   if (sp.ara)
     where.OR = [
@@ -70,6 +72,21 @@ export default async function AraclarPage({
     ];
   if (sp.durum) where.envanterDurumu = sp.durum as never;
   if (sp.cins) where.vehicleTypeId = sp.cins;
+  if (yaklasan) {
+    const in30 = new Date();
+    in30.setDate(in30.getDate() + 30);
+    where.envanterDurumu = where.envanterDurumu ?? { not: "HURDAYA_AYRILDI" };
+    where.AND = [
+      ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+      {
+        OR: [
+          { muayeneTarihi: { lte: in30 } },
+          { sigortaBitis: { lte: in30 } },
+          { sonrakiBakimTarihi: { lte: in30 } },
+        ],
+      },
+    ];
+  }
 
   const [total, araclar, cinsler] = await Promise.all([
     prisma.vehicle.count({ where }),
@@ -99,6 +116,16 @@ export default async function AraclarPage({
           </Link>
         }
       />
+
+      {yaklasan && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Muayene, sigorta veya bakımı 30 gün içinde dolacak ya da tarihi geçmiş
+          araçlar listeleniyor.{" "}
+          <Link href="/araclar" className="font-semibold underline">
+            Filtreyi kaldır
+          </Link>
+        </div>
+      )}
 
       <StickyFilter>
         {/* Sıralama ve sayfa boyutu gizli alanlarla korunur */}
@@ -138,8 +165,18 @@ export default async function AraclarPage({
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 text-sm text-kb-ink">
+            <input
+              type="checkbox"
+              name="yaklasan"
+              value="1"
+              defaultChecked={yaklasan}
+              className="rounded border-kb-border"
+            />
+            Yaklaşan süreler
+          </label>
           <button className={btnPrimary}>Filtrele</button>
-          {(sp.ara || sp.durum || sp.cins) && (
+          {(sp.ara || sp.durum || sp.cins || yaklasan) && (
             <Link href="/araclar" className={btnSecondary}>
               Temizle
             </Link>
@@ -256,6 +293,7 @@ export default async function AraclarPage({
           ara: sp.ara,
           durum: sp.durum,
           cins: sp.cins,
+          yaklasan: yaklasan ? "1" : undefined,
           size: sp.size,
           [SORT_PARAM]: sp.sirala,
         }}

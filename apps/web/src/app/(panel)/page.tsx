@@ -335,10 +335,10 @@ async function DashboardContent({
     />,
     <ActionCard
       key="bakim"
-      href="/bakim"
-      title="Yaklaşan bakım"
+      href="/araclar?yaklasan=1"
+      title="Muayene / sigorta"
       count={anlik.yaklasanMuayene}
-      hint="30 gün içinde muayene / sigorta / bakım"
+      hint={`Muayene ${anlik.yaklasanMuayeneKirilim.muayene} · Sigorta ${anlik.yaklasanMuayeneKirilim.sigorta} · Bakım ${anlik.yaklasanMuayeneKirilim.bakim} (≤30 gün veya geçmiş)`}
       tone={anlik.yaklasanMuayene > 0 ? "warning" : "navy"}
       icon={Wrench}
     />,
@@ -476,12 +476,15 @@ async function DashboardContent({
             tone={anlik.kritikStokToplam > 0 ? "danger" : "success"}
             icon={Package}
           />
-          <StatCard
-            label="Yaklaşan bakım"
-            value={anlik.yaklasanMuayene}
-            tone={anlik.yaklasanMuayene > 0 ? "warning" : "neutral"}
-            icon={Wrench}
-          />
+          <Link href="/araclar?yaklasan=1" className="block hover:opacity-90">
+            <StatCard
+              label="Yaklaşan bakım"
+              value={anlik.yaklasanMuayene}
+              tone={anlik.yaklasanMuayene > 0 ? "warning" : "neutral"}
+              icon={Wrench}
+              hint={`M ${anlik.yaklasanMuayeneKirilim.muayene} · S ${anlik.yaklasanMuayeneKirilim.sigorta} · B ${anlik.yaklasanMuayeneKirilim.bakim}`}
+            />
+          </Link>
         </div>
       </section>
 

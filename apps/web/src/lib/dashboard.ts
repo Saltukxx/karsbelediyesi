@@ -35,6 +35,7 @@ export type DashboardData = {
     onayBekleyenWhatsApp: number;
     devamGorev: number;
     yaklasanMuayene: number;
+    yaklasanMuayeneKirilim: { muayene: number; sigorta: number; bakim: number };
     kritikStokToplam: number;
     kritikMalzeme: number;
     kritikBeton: number;
@@ -116,6 +117,9 @@ export async function computeDashboard(
     onayBekleyenWhatsApp,
     devamGorev,
     yaklasanMuayene,
+    yaklasanMuayeneSay,
+    yaklasanSigortaSay,
+    yaklasanBakimSay,
     aracDurum,
     envanterDurum,
     deptDurum,
@@ -216,6 +220,27 @@ export async function computeDashboard(
           { sigortaBitis: { lte: in30 } },
           { sonrakiBakimTarihi: { lte: in30 } },
         ],
+        envanterDurumu: { not: "HURDAYA_AYRILDI" },
+        ...dept,
+      },
+    }),
+    prisma.vehicle.count({
+      where: {
+        muayeneTarihi: { lte: in30 },
+        envanterDurumu: { not: "HURDAYA_AYRILDI" },
+        ...dept,
+      },
+    }),
+    prisma.vehicle.count({
+      where: {
+        sigortaBitis: { lte: in30 },
+        envanterDurumu: { not: "HURDAYA_AYRILDI" },
+        ...dept,
+      },
+    }),
+    prisma.vehicle.count({
+      where: {
+        sonrakiBakimTarihi: { lte: in30 },
         envanterDurumu: { not: "HURDAYA_AYRILDI" },
         ...dept,
       },
@@ -558,6 +583,11 @@ export async function computeDashboard(
       onayBekleyenWhatsApp,
       devamGorev,
       yaklasanMuayene,
+      yaklasanMuayeneKirilim: {
+        muayene: yaklasanMuayeneSay,
+        sigorta: yaklasanSigortaSay,
+        bakim: yaklasanBakimSay,
+      },
       kritikStokToplam: kritikMalzeme + kritikBeton + kritikBitum,
       kritikMalzeme,
       kritikBeton,
