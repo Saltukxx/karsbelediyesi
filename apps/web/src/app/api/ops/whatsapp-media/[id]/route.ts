@@ -2,7 +2,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { prisma } from "@kars/db";
-import { ACTION_ROLES, requireRoles } from "@/lib/authz";
+import { ACTION_ROLES } from "@/lib/authz";
+import { requireRolesOrApi } from "@/lib/api-session";
 
 export const dynamic = "force-dynamic";
 
@@ -66,11 +67,11 @@ async function resolveSafeMediaPath(medyaUrl: string): Promise<string | null> {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireRoles(ACTION_ROLES.whatsapp);
+    await requireRolesOrApi(req, ACTION_ROLES.whatsapp);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unauthorized";
     const status = msg === "Yetkisiz" ? 403 : 401;

@@ -1,9 +1,17 @@
 import { prisma } from "@kars/db";
 import { CALISMA_TIPI_LABELS, YAKIT_TURU_LABELS } from "@kars/shared";
-import { personelGunlukOlustur, aracGunlukOlustur } from "@/lib/actions/worklogs";
+import {
+  personelGunlukOlustur,
+  personelGunlukGuncelle,
+  personelGunlukSil,
+  aracGunlukOlustur,
+  aracGunlukGuncelle,
+  aracGunlukSil,
+} from "@/lib/actions/worklogs";
 import { inputCls, btnPrimary, cardCls } from "@/lib/ui";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ConfirmSubmit } from "@/components/ui/ConfirmSubmit";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function GunlukCalismaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ay?: string; yil?: string }>;
+  searchParams: Promise<{ ay?: string; yil?: string; personelDuzenle?: string; aracDuzenle?: string }>;
 }) {
   const session = await requirePageAccess("/gunluk-calisma");
   const dept = departmentScope(session);
@@ -45,7 +53,7 @@ export default async function GunlukCalismaPage({
         ...(dept.departmentId ? { vehicle: { departmentId: dept.departmentId } } : {}),
       },
       orderBy: { tarih: "desc" },
-      include: { vehicle: true, driver: true },
+      include: { vehicle: true, driver: true, fuelRecord: true },
     }),
     prisma.personnel.findMany({
       where: { durum: "AKTIF", ...dept },
@@ -99,6 +107,13 @@ export default async function GunlukCalismaPage({
   }
 
   const today = now.toISOString().slice(0, 10);
+  const filtreHref = `/gunluk-calisma?ay=${ay}&yil=${yil}`;
+  const duzenlenenPersonel = sp.personelDuzenle
+    ? personelKayitlar.find((k) => k.id === sp.personelDuzenle) ?? null
+    : null;
+  const duzenlenenArac = sp.aracDuzenle
+    ? aracKayitlar.find((k) => k.id === sp.aracDuzenle) ?? null
+    : null;
 
   return (
     <div className="space-y-6">
@@ -143,16 +158,38 @@ export default async function GunlukCalismaPage({
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-kb-ink">Personel Günlük Takip</h2>
         <form
-          action={personelGunlukOlustur}
+          action={duzenlenenPersonel ? personelGunlukGuncelle : personelGunlukOlustur}
           className={`${cardCls} p-4 grid md:grid-cols-3 lg:grid-cols-5 gap-3 items-end`}
         >
+          {duzenlenenPersonel && <input type="hidden" name="id" value={duzenlenenPersonel.id} />}
+          {duzenlenenPersonel && (
+            <p className="md:col-span-3 lg:col-span-5 text-sm font-semibold text-kb-navy">
+              Personel kaydı düzenleniyor ·{" "}
+              <Link href={filtreHref} className="font-normal underline">Vazgeç</Link>
+            </p>
+          )}
           <div>
             <label className="text-xs text-kb-muted block mb-1">Tarih *</label>
-            <input name="tarih" type="date" required defaultValue={today} className={inputCls} />
+            <input
+              name="tarih"
+              type="date"
+              required
+              defaultValue={
+                duzenlenenPersonel
+                  ? duzenlenenPersonel.tarih.toISOString().slice(0, 10)
+                  : today
+              }
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Personel *</label>
-            <select name="personnelId" required className={inputCls}>
+            <select
+              name="personnelId"
+              required
+              defaultValue={duzenlenenPersonel?.personnelId ?? ""}
+              className={inputCls}
+            >
               <option value="">—</option>
               {personeller.map((p) => (
                 <option key={p.id} value={p.id}>{p.adSoyad}</option>
@@ -161,15 +198,31 @@ export default async function GunlukCalismaPage({
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Giriş *</label>
-            <input name="girisSaati" type="time" required defaultValue="08:00" className={inputCls} />
+            <input
+              name="girisSaati"
+              type="time"
+              required
+              defaultValue={duzenlenenPersonel?.girisSaati ?? "08:00"}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Çıkış *</label>
-            <input name="cikisSaati" type="time" required defaultValue="17:00" className={inputCls} />
+            <input
+              name="cikisSaati"
+              type="time"
+              required
+              defaultValue={duzenlenenPersonel?.cikisSaati ?? "17:00"}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Çalışma Tipi</label>
-            <select name="calismaTipi" className={inputCls}>
+            <select
+              name="calismaTipi"
+              defaultValue={duzenlenenPersonel?.calismaTipi ?? "NORMAL_MESAI"}
+              className={inputCls}
+            >
               {Object.entries(CALISMA_TIPI_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}
@@ -177,11 +230,19 @@ export default async function GunlukCalismaPage({
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Yapılan İş</label>
-            <input name="yapilanIs" className={inputCls} />
+            <input
+              name="yapilanIs"
+              defaultValue={duzenlenenPersonel?.yapilanIs ?? ""}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Görevlendirilen Birim</label>
-            <select name="gorevlendirilenBirimId" className={inputCls}>
+            <select
+              name="gorevlendirilenBirimId"
+              defaultValue={duzenlenenPersonel?.gorevlendirilenBirimId ?? ""}
+              className={inputCls}
+            >
               <option value="">—</option>
               {mudurlukler.map((m) => (
                 <option key={m.id} value={m.id}>{m.name}</option>
@@ -190,7 +251,11 @@ export default async function GunlukCalismaPage({
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Onaylayan</label>
-            <select name="onaylayanId" className={inputCls}>
+            <select
+              name="onaylayanId"
+              defaultValue={duzenlenenPersonel?.onaylayanId ?? ""}
+              className={inputCls}
+            >
               <option value="">—</option>
               {onaylayanlar.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
@@ -199,9 +264,15 @@ export default async function GunlukCalismaPage({
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Notlar</label>
-            <input name="notlar" className={inputCls} />
+            <input
+              name="notlar"
+              defaultValue={duzenlenenPersonel?.notlar ?? ""}
+              className={inputCls}
+            />
           </div>
-          <button className={`${btnPrimary} lg:col-span-5 md:col-span-3`}>+ Personel Kaydı</button>
+          <button className={`${btnPrimary} lg:col-span-5 md:col-span-3`}>
+            {duzenlenenPersonel ? "Güncelle" : "+ Personel Kaydı"}
+          </button>
         </form>
 
         <div className={`${cardCls} overflow-x-auto`}>
@@ -217,6 +288,7 @@ export default async function GunlukCalismaPage({
                 <th className="p-3">Toplam</th>
                 <th className="p-3">Tip</th>
                 <th className="p-3">İş</th>
+                <th className="p-3" />
               </tr>
             </thead>
             <tbody>
@@ -231,6 +303,23 @@ export default async function GunlukCalismaPage({
                   <td className="p-3 font-medium">{k.toplamSaat.toFixed(2)}</td>
                   <td className="p-3">{CALISMA_TIPI_LABELS[k.calismaTipi]}</td>
                   <td className="p-3">{k.yapilanIs ?? "—"}</td>
+                  <td className="p-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        href={`${filtreHref}&personelDuzenle=${k.id}`}
+                        className="text-xs text-kb-navy hover:underline"
+                      >
+                        Düzenle
+                      </Link>
+                      <ConfirmSubmit
+                        action={personelGunlukSil}
+                        id={k.id}
+                        message="Bu personel günlük kaydı silinsin mi?"
+                      >
+                        Sil
+                      </ConfirmSubmit>
+                    </div>
+                  </td>
                 </tr>
               ))}
               <tr className="bg-[#eef2f6] font-semibold">
@@ -238,7 +327,7 @@ export default async function GunlukCalismaPage({
                 <td className="p-3">{normalToplam.toFixed(2)}</td>
                 <td className="p-3">{mesaiToplam.toFixed(2)}</td>
                 <td className="p-3">{personelToplam.toFixed(2)}</td>
-                <td colSpan={2} />
+                <td colSpan={3} />
               </tr>
             </tbody>
           </table>
@@ -248,16 +337,34 @@ export default async function GunlukCalismaPage({
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-kb-ink">Araç Günlük Takip</h2>
         <form
-          action={aracGunlukOlustur}
+          action={duzenlenenArac ? aracGunlukGuncelle : aracGunlukOlustur}
           className={`${cardCls} p-4 grid md:grid-cols-3 lg:grid-cols-5 gap-3 items-end`}
         >
+          {duzenlenenArac && <input type="hidden" name="id" value={duzenlenenArac.id} />}
+          {duzenlenenArac && (
+            <p className="md:col-span-3 lg:col-span-5 text-sm font-semibold text-kb-navy">
+              Araç kaydı düzenleniyor ·{" "}
+              <Link href={filtreHref} className="font-normal underline">Vazgeç</Link>
+            </p>
+          )}
           <div>
             <label className="text-xs text-kb-muted block mb-1">Tarih *</label>
-            <input name="tarih" type="date" required defaultValue={today} className={inputCls} />
+            <input
+              name="tarih"
+              type="date"
+              required
+              defaultValue={duzenlenenArac ? duzenlenenArac.tarih.toISOString().slice(0, 10) : today}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Plaka *</label>
-            <select name="vehicleId" required className={inputCls}>
+            <select
+              name="vehicleId"
+              required
+              defaultValue={duzenlenenArac?.vehicleId ?? ""}
+              className={inputCls}
+            >
               <option value="">—</option>
               {araclar.map((a) => (
                 <option key={a.id} value={a.id}>{a.plaka} — {a.ad ?? ""}</option>
@@ -266,7 +373,11 @@ export default async function GunlukCalismaPage({
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Şoför</label>
-            <select name="driverId" className={inputCls}>
+            <select
+              name="driverId"
+              defaultValue={duzenlenenArac?.driverId ?? ""}
+              className={inputCls}
+            >
               <option value="">—</option>
               {soforler.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -275,27 +386,59 @@ export default async function GunlukCalismaPage({
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Giriş *</label>
-            <input name="girisSaati" type="time" required defaultValue="08:00" className={inputCls} />
+            <input
+              name="girisSaati"
+              type="time"
+              required
+              defaultValue={duzenlenenArac?.girisSaati ?? "08:00"}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Çıkış *</label>
-            <input name="cikisSaati" type="time" required defaultValue="17:00" className={inputCls} />
+            <input
+              name="cikisSaati"
+              type="time"
+              required
+              defaultValue={duzenlenenArac?.cikisSaati ?? "17:00"}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Görev / İş</label>
-            <input name="gorevTanimi" className={inputCls} />
+            <input
+              name="gorevTanimi"
+              defaultValue={duzenlenenArac?.gorevTanimi ?? ""}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Yer / Bölge</label>
-            <input name="yerBolge" className={inputCls} />
+            <input
+              name="yerBolge"
+              defaultValue={duzenlenenArac?.yerBolge ?? ""}
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Yakıt (Lt)</label>
-            <input name="yakitLitre" type="number" step="0.01" className={inputCls} />
+            <input
+              name="yakitLitre"
+              type="number"
+              step="0.01"
+              defaultValue={
+                duzenlenenArac?.yakitLitre != null ? Number(duzenlenenArac.yakitLitre) : ""
+              }
+              className={inputCls}
+            />
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Yakıt Türü</label>
-            <select name="yakitTuru" className={inputCls}>
+            <select
+              name="yakitTuru"
+              defaultValue={duzenlenenArac?.fuelRecord?.yakitTuru ?? "MOTORIN"}
+              className={inputCls}
+            >
               {Object.entries(YAKIT_TURU_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}
@@ -303,9 +446,21 @@ export default async function GunlukCalismaPage({
           </div>
           <div>
             <label className="text-xs text-kb-muted block mb-1">Birim Fiyat (yakıt için)</label>
-            <input name="birimFiyat" type="number" step="0.01" className={inputCls} />
+            <input
+              name="birimFiyat"
+              type="number"
+              step="0.01"
+              defaultValue={
+                duzenlenenArac?.fuelRecord
+                  ? Number(duzenlenenArac.fuelRecord.birimFiyat)
+                  : ""
+              }
+              className={inputCls}
+            />
           </div>
-          <button className={`${btnPrimary} lg:col-span-5 md:col-span-3`}>+ Araç Kaydı</button>
+          <button className={`${btnPrimary} lg:col-span-5 md:col-span-3`}>
+            {duzenlenenArac ? "Güncelle" : "+ Araç Kaydı"}
+          </button>
         </form>
 
         <div className={`${cardCls} overflow-x-auto`}>
@@ -321,6 +476,7 @@ export default async function GunlukCalismaPage({
                 <th className="p-3">Çıkış</th>
                 <th className="p-3">Çalışma Saati</th>
                 <th className="p-3">Yakıt</th>
+                <th className="p-3" />
               </tr>
             </thead>
             <tbody>
@@ -341,12 +497,30 @@ export default async function GunlukCalismaPage({
                   <td className="p-3">
                     {k.yakitLitre != null ? Number(k.yakitLitre).toLocaleString("tr-TR") : "—"}
                   </td>
+                  <td className="p-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        href={`${filtreHref}&aracDuzenle=${k.id}`}
+                        className="text-xs text-kb-navy hover:underline"
+                      >
+                        Düzenle
+                      </Link>
+                      <ConfirmSubmit
+                        action={aracGunlukSil}
+                        id={k.id}
+                        message="Bu araç günlük kaydı ve bağlı yakıt kaydı silinsin mi?"
+                      >
+                        Sil
+                      </ConfirmSubmit>
+                    </div>
+                  </td>
                 </tr>
               ))}
               <tr className="bg-[#eef2f6] font-semibold">
                 <td colSpan={7} className="p-3">TOPLAM</td>
                 <td className="p-3">{aracSaat.toFixed(2)}</td>
                 <td className="p-3">{aracYakit.toLocaleString("tr-TR")}</td>
+                <td />
               </tr>
             </tbody>
           </table>

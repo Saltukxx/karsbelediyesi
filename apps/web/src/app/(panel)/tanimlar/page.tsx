@@ -2,12 +2,14 @@ import { prisma } from "@kars/db";
 import { ROL_LABELS } from "@kars/shared";
 import {
   mahalleOlustur,
+  mahalleGuncelle,
   mudurlukOlustur,
   mudurlukGuncelle,
   mudurlukModulleriKaydet,
   sikayetTuruOlustur,
   sikayetTuruGuncelle,
   aracCinsiOlustur,
+  aracCinsiGuncelle,
   kullaniciOlustur,
   kullaniciGuncelle,
 } from "@/lib/actions/definitions";
@@ -92,15 +94,32 @@ export default async function TanimlarPage() {
           <input name="name" required placeholder="Yeni mahalle" className={inputCls} />
           <button className={btnPrimary}>Ekle</button>
         </form>
-        <div className={`${cardCls} p-4 flex flex-wrap gap-2`}>
-          {mahalleler.map((m) => (
-            <span
-              key={m.id}
-              className={`text-xs px-2 py-1 rounded ${m.aktif ? "bg-kb-surface" : "bg-red-50 text-red-600"}`}
-            >
-              {m.name}
-            </span>
-          ))}
+        <div className={`${cardCls} overflow-x-auto`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-kb-muted border-b bg-[#eef2f6]">
+                <th className="p-3">Ad</th>
+                <th className="p-3">Aktif</th>
+                <th className="p-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {mahalleler.map((m) => (
+                <tr key={m.id} className="border-b border-kb-border/60">
+                  <td className="p-3" colSpan={3}>
+                    <form action={mahalleGuncelle} className="grid md:grid-cols-3 gap-2 items-center">
+                      <input type="hidden" name="id" value={m.id} />
+                      <input name="name" defaultValue={m.name} className={inputCls} />
+                      <label className="text-sm flex items-center gap-2">
+                        <input type="checkbox" name="aktif" defaultChecked={m.aktif} /> Aktif
+                      </label>
+                      <button className={btnSecondary}>Kaydet</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -266,12 +285,32 @@ export default async function TanimlarPage() {
           <input name="name" required placeholder="Yeni araç cinsi" className={inputCls} />
           <button className={btnPrimary}>Ekle</button>
         </form>
-        <div className={`${cardCls} p-4 flex flex-wrap gap-2`}>
-          {aracCinsleri.map((a) => (
-            <span key={a.id} className="text-xs px-2 py-1 rounded bg-kb-surface">
-              {a.name}
-            </span>
-          ))}
+        <div className={`${cardCls} overflow-x-auto`}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-kb-muted border-b bg-[#eef2f6]">
+                <th className="p-3">Ad</th>
+                <th className="p-3">Aktif</th>
+                <th className="p-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {aracCinsleri.map((a) => (
+                <tr key={a.id} className="border-b border-kb-border/60">
+                  <td className="p-3" colSpan={3}>
+                    <form action={aracCinsiGuncelle} className="grid md:grid-cols-3 gap-2 items-center">
+                      <input type="hidden" name="id" value={a.id} />
+                      <input name="name" defaultValue={a.name} className={inputCls} />
+                      <label className="text-sm flex items-center gap-2">
+                        <input type="checkbox" name="aktif" defaultChecked={a.aktif} /> Aktif
+                      </label>
+                      <button className={btnSecondary}>Kaydet</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
 

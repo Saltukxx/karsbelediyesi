@@ -9,6 +9,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { requirePageAccess } from "@/lib/authz";
 import { islerimAsfaltDurum } from "@/lib/actions/islerim";
+import { gorevBaslat, gorevKapat } from "@/lib/actions/tasks";
+import { inputCls, btnSecondary } from "@/lib/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +49,9 @@ export default async function IslerimPage() {
         cikisTarihi: true,
         girisTarihi: true,
         dispatchJobId: true,
-        vehicle: { select: { plaka: true } },
+        kmSayacCikis: true,
+        kmSayacGiris: true,
+        vehicle: { select: { plaka: true, sayacDeger: true } },
       },
     }),
   ]);
@@ -102,7 +106,7 @@ export default async function IslerimPage() {
     (g) => g.durum === "PLANLANDI" || g.durum === "DEVAM_EDIYOR",
   );
 
-  const inputCls = "rounded-md border border-kb-border px-3 py-2 text-sm";
+  const today = new Date().toISOString().slice(0, 10);
 
   function SikayetKart({ s }: { s: (typeof sikayetler)[number] }) {
     return (
@@ -182,6 +186,39 @@ export default async function IslerimPage() {
                     </Link>
                   )}
                 </div>
+                {g.durum === "PLANLANDI" && (
+                  <form action={gorevBaslat} className="mt-3 flex flex-col gap-1">
+                    <input type="hidden" name="id" value={g.id} />
+                    <input
+                      name="kmSayacCikis"
+                      type="number"
+                      step="0.1"
+                      placeholder="KM çıkış"
+                      defaultValue={g.kmSayacCikis ?? g.vehicle.sayacDeger ?? ""}
+                      className={inputCls}
+                    />
+                    <button className={btnSecondary}>Başlat</button>
+                  </form>
+                )}
+                {(g.durum === "PLANLANDI" || g.durum === "DEVAM_EDIYOR") && (
+                  <form action={gorevKapat} className="mt-2 flex flex-col gap-1">
+                    <input type="hidden" name="id" value={g.id} />
+                    <input name="girisTarihi" type="date" defaultValue={today} className={inputCls} />
+                    <input name="girisSaati" type="time" className={inputCls} />
+                    <input
+                      name="kmSayacGiris"
+                      type="number"
+                      step="0.1"
+                      placeholder="KM giriş"
+                      className={inputCls}
+                    />
+                    <select name="durum" defaultValue="TAMAMLANDI" className={inputCls}>
+                      <option value="TAMAMLANDI">Tamamlandı</option>
+                      <option value="IPTAL_EDILDI">İptal</option>
+                    </select>
+                    <button className={btnSecondary}>Kapat</button>
+                  </form>
+                )}
               </div>
             ))}
           </div>

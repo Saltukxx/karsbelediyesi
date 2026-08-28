@@ -1,8 +1,9 @@
 import { prisma } from "@kars/db";
-import { yakitOlustur } from "@/lib/actions/vehicles";
+import { yakitOlustur, yakitGuncelle, yakitSil } from "@/lib/actions/vehicles";
 import { YAKIT_TURU_LABELS } from "@kars/shared";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ConfirmSubmit } from "@/components/ui/ConfirmSubmit";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,20 @@ export const dynamic = "force-dynamic";
 const inputCls =
   "w-full rounded-md border border-kb-border px-3 py-2 text-sm";
 
-export default async function YakitPage() {
+function isoGun(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const gun = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${gun}`;
+}
+
+export default async function YakitPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ duzenle?: string }>;
+}) {
   const session = await requirePageAccess("/yakit");
+  const { duzenle } = await searchParams;
   const dept = departmentScope(session);
   const vehicleWhere = {
     envanterDurumu: { not: "HURDAYA_AYRILDI" as const },
@@ -58,6 +71,14 @@ export default async function YakitPage() {
     }),
   ]);
 
+  const duzenlenen = duzenle
+    ? kayitlar.find((k) => k.id === duzenle) ?? null
+    : null;
+  const formAraclar =
+    duzenlenen && !araclar.some((a) => a.id === duzenlenen.vehicleId)
+      ? [duzenlenen.vehicle, ...araclar]
+      : araclar;
+
   return (
     <div className="space-y-4">
       <PageHeader title="Yakıt Takip Çizelgesi" />
@@ -65,23 +86,49 @@ export default async function YakitPage() {
         Toplam tutar otomatik hesaplanır: litre × birim fiyat (Excel formülü).
       </p>
 
-      <form action={yakitOlustur} className="rounded-lg border border-kb-border bg-white shadow-sm p-4 grid md:grid-cols-4 lg:grid-cols-7 gap-3 items-end">
+      <form
+        action={duzenlenen ? yakitGuncelle : yakitOlustur}
+        className="rounded-lg border border-kb-border bg-white shadow-sm p-4 grid md:grid-cols-4 lg:grid-cols-7 gap-3 items-end"
+      >
+        {duzenlenen && <input type="hidden" name="id" value={duzenlenen.id} />}
+        {duzenlenen && (
+          <p className="md:col-span-4 lg:col-span-7 text-sm font-semibold text-kb-navy">
+            Kayıt düzenleniyor ·{" "}
+            <Link href="/yakit" className="font-normal underline">
+              Vazgeç
+            </Link>
+          </p>
+        )}
         <div>
           <label className="text-xs text-kb-muted block mb-1">Tarih</label>
-          <input name="tarih" type="date" defaultValue={new Date().toISOString().slice(0, 10)} className={inputCls} />
+          <input
+            name="tarih"
+            type="date"
+            defaultValue={isoGun(duzenlenen?.tarih ?? new Date())}
+            className={inputCls}
+          />
         </div>
         <div>
           <label className="text-xs text-kb-muted block mb-1">Plaka *</label>
-          <select name="vehicleId" required className={inputCls}>
+          <select
+            name="vehicleId"
+            required
+            defaultValue={duzenlenen?.vehicleId ?? ""}
+            className={inputCls}
+          >
             <option value="">— Seçiniz —</option>
-            {araclar.map((a) => (
+            {formAraclar.map((a) => (
               <option key={a.id} value={a.id}>{a.plaka} — {a.ad ?? ""}</option>
             ))}
           </select>
         </div>
         <div>
           <label className="text-xs text-kb-muted block mb-1">Yakıt Türü</label>
-          <select name="yakitTuru" className={inputCls}>
+          <select
+            name="yakitTuru"
+            defaultValue={duzenlenen?.yakitTuru ?? "MOTORIN"}
+            className={inputCls}
+          >
             {Object.entries(YAKIT_TURU_LABELS).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
@@ -89,19 +136,43 @@ export default async function YakitPage() {
         </div>
         <div>
           <label className="text-xs text-kb-muted block mb-1">Miktar (Litre) *</label>
-          <input name="litre" type="number" step="0.01" required className={inputCls} />
+          <input
+            name="litre"
+            type="number"
+            step="0.01"
+            required
+            defaultValue={duzenlenen ? Number(duzenlenen.litre) : ""}
+            className={inputCls}
+          />
         </div>
         <div>
           <label className="text-xs text-kb-muted block mb-1">Birim Fiyat (TL) *</label>
-          <input name="birimFiyat" type="number" step="0.01" required className={inputCls} />
+          <input
+            name="birimFiyat"
+            type="number"
+            step="0.01"
+            required
+            defaultValue={duzenlenen ? Number(duzenlenen.birimFiyat) : ""}
+            className={inputCls}
+          />
         </div>
         <div>
           <label className="text-xs text-kb-muted block mb-1">Sayaç (KM/Saat)</label>
-          <input name="sayac" type="number" step="0.1" className={inputCls} />
+          <input
+            name="sayac"
+            type="number"
+            step="0.1"
+            defaultValue={duzenlenen?.sayac ?? ""}
+            className={inputCls}
+          />
         </div>
         <div>
           <label className="text-xs text-kb-muted block mb-1">Sorumlu Personel</label>
-          <select name="sorumluPersonelId" className={inputCls}>
+          <select
+            name="sorumluPersonelId"
+            defaultValue={duzenlenen?.sorumluPersonelId ?? ""}
+            className={inputCls}
+          >
             <option value="">— Seçiniz —</option>
             {personeller.map((p) => (
               <option key={p.id} value={p.id}>{p.adSoyad}</option>
@@ -110,7 +181,11 @@ export default async function YakitPage() {
         </div>
         <div>
           <label className="text-xs text-kb-muted block mb-1">Görev (maliyet takibi)</label>
-          <select name="vehicleTaskId" className={inputCls}>
+          <select
+            name="vehicleTaskId"
+            defaultValue={duzenlenen?.vehicleTaskId ?? ""}
+            className={inputCls}
+          >
             <option value="">— Bağlanmadı —</option>
             {gorevler.map((g) => (
               <option key={g.id} value={g.id}>
@@ -121,7 +196,7 @@ export default async function YakitPage() {
           </select>
         </div>
         <button className="rounded-md bg-kb-navy hover:bg-kb-navy-soft text-white px-4 py-2 text-sm font-medium lg:col-span-7 md:col-span-4">
-          + Yakıt Kaydı Ekle
+          {duzenlenen ? "Güncelle" : "+ Yakıt Kaydı Ekle"}
         </button>
       </form>
 
@@ -139,6 +214,7 @@ export default async function YakitPage() {
               <th className="p-3">Toplam Tutar</th>
               <th className="p-3">Sayaç</th>
               <th className="p-3">Sorumlu</th>
+              <th className="p-3" />
             </tr>
           </thead>
           <tbody>
@@ -158,6 +234,20 @@ export default async function YakitPage() {
                 <td className="p-3 font-medium">{Number(y.tutar).toLocaleString("tr-TR")} ₺</td>
                 <td className="p-3">{y.sayac?.toLocaleString("tr-TR") ?? "—"}</td>
                 <td className="p-3">{y.sorumluPersonel?.adSoyad ?? "—"}</td>
+                <td className="p-3">
+                  <div className="flex items-center justify-end gap-2">
+                    <Link href={`/yakit?duzenle=${y.id}`} className="text-xs text-kb-navy hover:underline">
+                      Düzenle
+                    </Link>
+                    <ConfirmSubmit
+                      action={yakitSil}
+                      id={y.id}
+                      message="Bu yakıt kaydı silinsin mi?"
+                    >
+                      Sil
+                    </ConfirmSubmit>
+                  </div>
+                </td>
               </tr>
             ))}
             <tr className="bg-[#eef2f6] font-semibold">
@@ -165,7 +255,7 @@ export default async function YakitPage() {
               <td className="p-3">{Number(toplam._sum.litre ?? 0).toLocaleString("tr-TR")} Lt</td>
               <td />
               <td className="p-3">{Number(toplam._sum.tutar ?? 0).toLocaleString("tr-TR")} ₺</td>
-              <td colSpan={2} />
+              <td colSpan={3} />
             </tr>
           </tbody>
         </table>

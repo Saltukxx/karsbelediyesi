@@ -7,6 +7,11 @@ import bcrypt from "bcryptjs";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { ALL_MODULE_HREFS, deptModulesSettingKey } from "@/lib/dept-modules";
+import {
+  mahalleOlusturForUser,
+  mudurlukOlusturForUser,
+  sikayetTuruOlusturForUser,
+} from "@/lib/domain/crud-for-user";
 
 /** Şifre politikası: en az 8 karakter, en az bir harf ve bir rakam */
 const sifreSchema = z
@@ -49,18 +54,39 @@ const userCreateSchema = z
   });
 
 export async function mahalleOlustur(formData: FormData) {
-  await requireRoles(ACTION_ROLES.definitions);
+  const session = await requireRoles(ACTION_ROLES.definitions);
+  await mahalleOlusturForUser(session.user, { name: String(formData.get("name")).trim() });
+  revalidatePath("/tanimlar");
+}
+
+export async function mahalleGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.definitions);
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Kayıt bulunamadı");
   const name = String(formData.get("name")).trim();
-  await prisma.neighborhood.create({ data: { name } });
+  if (!name) throw new Error("Mahalle adı gerekli");
+
+  await prisma.neighborhood.update({
+    where: { id },
+    data: {
+      name,
+      aktif: formData.get("aktif") === "on" || formData.get("aktif") === "true",
+    },
+  });
+  await auditKaydet(session, "MAHALLE_GUNCELLE", {
+    varlik: "Neighborhood",
+    varlikId: id,
+    detay: { name },
+  });
   revalidatePath("/tanimlar");
 }
 
 export async function mudurlukOlustur(formData: FormData) {
-  await requireRoles(ACTION_ROLES.definitions);
+  const session = await requireRoles(ACTION_ROLES.definitions);
   const name = String(formData.get("name")).trim();
-  const shortName = bos(formData.get("shortName")) ?? name.slice(0, 20);
-  await prisma.department.create({
-    data: { name, shortName },
+  await mudurlukOlusturForUser(session.user, {
+    name,
+    shortName: bos(formData.get("shortName")),
   });
   revalidatePath("/tanimlar");
 }
@@ -106,12 +132,10 @@ export async function mudurlukModulleriKaydet(formData: FormData) {
 }
 
 export async function sikayetTuruOlustur(formData: FormData) {
-  await requireRoles(ACTION_ROLES.definitions);
-  await prisma.complaintType.create({
-    data: {
-      name: String(formData.get("name")).trim(),
-      defaultDepartmentId: bos(formData.get("defaultDepartmentId")),
-    },
+  const session = await requireRoles(ACTION_ROLES.definitions);
+  await sikayetTuruOlusturForUser(session.user, {
+    name: String(formData.get("name")).trim(),
+    defaultDepartmentId: bos(formData.get("defaultDepartmentId")),
   });
   revalidatePath("/tanimlar");
 }
@@ -134,6 +158,28 @@ export async function aracCinsiOlustur(formData: FormData) {
   await requireRoles(ACTION_ROLES.definitions);
   await prisma.vehicleType.create({
     data: { name: String(formData.get("name")).trim() },
+  });
+  revalidatePath("/tanimlar");
+}
+
+export async function aracCinsiGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.definitions);
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Kayıt bulunamadı");
+  const name = String(formData.get("name")).trim();
+  if (!name) throw new Error("Araç cinsi adı gerekli");
+
+  await prisma.vehicleType.update({
+    where: { id },
+    data: {
+      name,
+      aktif: formData.get("aktif") === "on" || formData.get("aktif") === "true",
+    },
+  });
+  await auditKaydet(session, "ARAC_CINSI_GUNCELLE", {
+    varlik: "VehicleType",
+    varlikId: id,
+    detay: { name },
   });
   revalidatePath("/tanimlar");
 }

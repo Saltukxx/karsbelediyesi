@@ -1,5 +1,5 @@
 import { prisma } from "@kars/db";
-import { withApiUser, json, forbidIfNot } from "@/lib/api-v1";
+import { withApiUser, json, forbidIfNot, listLimit } from "@/lib/api-v1";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   const rows = await prisma.whatsAppMessage.findMany({
     where: { onayDurumu: "ONAY_BEKLIYOR" },
     orderBy: { createdAt: "desc" },
-    take: 100,
+    take: listLimit(req, 100),
   });
 
   return json(

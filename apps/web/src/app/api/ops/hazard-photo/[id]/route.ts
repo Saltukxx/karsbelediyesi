@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { prisma } from "@kars/db";
-import { requireSession } from "@/lib/authz";
+import { trySessionOrApiUser } from "@/lib/api-session";
 import { resolveHazardPhotoPath } from "@/lib/hazard-photos";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +15,11 @@ const MIME_BY_EXT: Record<string, string> = {
 };
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  try {
-    await requireSession();
-  } catch {
+  const session = await trySessionOrApiUser(req);
+  if (!session) {
     return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
   }
 

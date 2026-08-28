@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/authz";
+import { trySessionOrApiUser } from "@/lib/api-session";
 import { testMobilizConnection } from "@/lib/mobiliz/client";
 import {
   getMobilizSyncStatus,
@@ -13,14 +13,13 @@ export const dynamic = "force-dynamic";
  * Cron: POST -H "x-cron-secret: ..." /api/ops/mobiliz-sync
  * Admin panel: aynı endpoint veya GET ile durum.
  */
-export async function GET() {
-  try {
-    const session = await requireSession();
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
-    }
-  } catch {
+export async function GET(req: Request) {
+  const session = await trySessionOrApiUser(req);
+  if (!session) {
     return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
+  }
+  if (session.user.role !== "ADMIN") {
+    return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
   }
 
   return NextResponse.json(getMobilizSyncStatus());
@@ -32,13 +31,12 @@ export async function POST(req: Request) {
   const testOnly = new URL(req.url).searchParams.get("test") === "1";
 
   if (!secret || gelen !== secret) {
-    try {
-      const session = await requireSession();
-      if (session.user.role !== "ADMIN") {
-        return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
-      }
-    } catch {
+    const session = await trySessionOrApiUser(req);
+    if (!session) {
       return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
+    }
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Yetkisiz" }, { status: 403 });
     }
   }
 

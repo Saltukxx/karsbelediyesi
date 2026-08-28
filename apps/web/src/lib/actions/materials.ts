@@ -5,6 +5,7 @@ import { prisma } from "@kars/db";
 import { mevcutStok } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
+import { malzemeOlusturForUser } from "@/lib/domain/crud-for-user";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -17,23 +18,56 @@ function sayi(v: FormDataEntryValue | null): number | undefined {
 
 export async function malzemeOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.materials);
+  await malzemeOlusturForUser(session.user, {
+    kod: String(formData.get("kod")).trim(),
+    ad: String(formData.get("ad")).trim(),
+    kategori: String(formData.get("kategori")).trim(),
+    birim: String(formData.get("birim")).trim(),
+    depoLokasyon: bos(formData.get("depoLokasyon")),
+    kritikStok: sayi(formData.get("kritikStok")) ?? 0,
+    birimFiyat: sayi(formData.get("birimFiyat")),
+    aciklama: bos(formData.get("aciklama")),
+  });
+  revalidatePath("/malzeme-depo");
+}
 
-  const malzeme = await prisma.material.create({
+export async function malzemeGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.materials);
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Kayıt bulunamadı");
+
+  await prisma.material.update({
+    where: { id },
     data: {
       kod: String(formData.get("kod")).trim(),
       ad: String(formData.get("ad")).trim(),
       kategori: String(formData.get("kategori")).trim(),
       birim: String(formData.get("birim")).trim(),
-      depoLokasyon: bos(formData.get("depoLokasyon")),
+      depoLokasyon: bos(formData.get("depoLokasyon")) ?? null,
       kritikStok: sayi(formData.get("kritikStok")) ?? 0,
-      birimFiyat: sayi(formData.get("birimFiyat")),
-      aciklama: bos(formData.get("aciklama")),
+      birimFiyat: sayi(formData.get("birimFiyat")) ?? null,
+      aciklama: bos(formData.get("aciklama")) ?? null,
     },
   });
-  await auditKaydet(session, "MALZEME_OLUSTUR", {
+  await auditKaydet(session, "MALZEME_GUNCELLE", {
     varlik: "Material",
-    varlikId: malzeme.id,
-    detay: { kod: malzeme.kod, ad: malzeme.ad },
+    varlikId: id,
+  });
+  revalidatePath("/malzeme-depo");
+}
+
+export async function malzemePasifeAl(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.materials);
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Kayıt bulunamadı");
+
+  await prisma.material.update({
+    where: { id },
+    data: { aktif: false },
+  });
+  await auditKaydet(session, "MALZEME_PASIFE_AL", {
+    varlik: "Material",
+    varlikId: id,
   });
   revalidatePath("/malzeme-depo");
 }
@@ -84,6 +118,20 @@ export async function stokHareketOlustur(formData: FormData) {
   await auditKaydet(session, "STOK_HAREKET_OLUSTUR", {
     varlik: "MaterialMovement",
     detay: { materialId, tip, miktar },
+  });
+  revalidatePath("/malzeme-depo");
+}
+
+export async function stokHareketSil(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.materials);
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Kayıt bulunamadı");
+
+  const kayit = await prisma.materialMovement.delete({ where: { id } });
+  await auditKaydet(session, "STOK_HAREKET_SIL", {
+    varlik: "MaterialMovement",
+    varlikId: id,
+    detay: { materialId: kayit.materialId, tip: kayit.tip },
   });
   revalidatePath("/malzeme-depo");
 }

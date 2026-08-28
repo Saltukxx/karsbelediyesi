@@ -200,6 +200,7 @@ export async function gorevKapat(formData: FormData) {
 
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
+  revalidatePath("/islerim");
 }
 
 /** Görevi başlat: çıkış zamanı yazılır, araç GOREVDE olur */
@@ -241,4 +242,5 @@ export async function gorevBaslat(formData: FormData) {
 
   revalidatePath("/gorevler");
   revalidatePath("/araclar");
+  revalidatePath("/islerim");
 }

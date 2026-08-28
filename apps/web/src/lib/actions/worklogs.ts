@@ -1,16 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@kars/db";
-import {
-  normalSaatHesapla,
-  mesaiSaatHesapla,
-  toplamSaatHesapla,
-  aracCalismaSaatiHesapla,
-  yakitTutari,
-} from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
-import { auditKaydet } from "@/lib/audit";
+import {
+  aracGunlukGuncelleForUser,
+  aracGunlukOlusturForUser,
+  aracGunlukSilForUser,
+  personelGunlukGuncelleForUser,
+  personelGunlukOlusturForUser,
+  personelGunlukSilForUser,
+} from "@/lib/domain/worklogs";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -24,92 +23,89 @@ function sayi(v: FormDataEntryValue | null): number | undefined {
 
 export async function personelGunlukOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.worklogs);
-
-  const girisSaati = String(formData.get("girisSaati"));
-  const cikisSaati = String(formData.get("cikisSaati"));
-  const tarih = new Date(String(formData.get("tarih")));
-
-  await prisma.personnelWorkLog.create({
-    data: {
-      personnelId: String(formData.get("personnelId")),
-      tarih,
-      girisSaati,
-      cikisSaati,
-      normalSaat: normalSaatHesapla(girisSaati, cikisSaati),
-      mesaiSaat: mesaiSaatHesapla(girisSaati, cikisSaati),
-      toplamSaat: toplamSaatHesapla(girisSaati, cikisSaati),
-      calismaTipi: (bos(formData.get("calismaTipi")) ?? "NORMAL_MESAI") as never,
-      yapilanIs: bos(formData.get("yapilanIs")),
-      gorevlendirilenBirimId: bos(formData.get("gorevlendirilenBirimId")),
-      notlar: bos(formData.get("notlar")),
-      onaylayanId: bos(formData.get("onaylayanId")),
-    },
+  await personelGunlukOlusturForUser(session, {
+    personnelId: String(formData.get("personnelId")),
+    tarih: String(formData.get("tarih")),
+    girisSaati: String(formData.get("girisSaati")),
+    cikisSaati: String(formData.get("cikisSaati")),
+    calismaTipi: bos(formData.get("calismaTipi")),
+    yapilanIs: bos(formData.get("yapilanIs")),
+    gorevlendirilenBirimId: bos(formData.get("gorevlendirilenBirimId")),
+    notlar: bos(formData.get("notlar")),
+    onaylayanId: bos(formData.get("onaylayanId")),
   });
+  revalidatePath("/gunluk-calisma");
+}
 
-  await auditKaydet(session, "PERSONEL_GUNLUK_OLUSTUR", {
-    varlik: "PersonnelWorkLog",
-    detay: { tarih: tarih.toISOString().slice(0, 10) },
+export async function personelGunlukGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.worklogs);
+  await personelGunlukGuncelleForUser(session, {
+    id: String(formData.get("id") ?? "").trim(),
+    personnelId: String(formData.get("personnelId")),
+    tarih: String(formData.get("tarih")),
+    girisSaati: String(formData.get("girisSaati")),
+    cikisSaati: String(formData.get("cikisSaati")),
+    calismaTipi: bos(formData.get("calismaTipi")),
+    yapilanIs: bos(formData.get("yapilanIs")),
+    gorevlendirilenBirimId: bos(formData.get("gorevlendirilenBirimId")),
+    notlar: bos(formData.get("notlar")),
+    onaylayanId: bos(formData.get("onaylayanId")),
   });
+  revalidatePath("/gunluk-calisma");
+}
 
+export async function personelGunlukSil(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.worklogs);
+  await personelGunlukSilForUser(session, String(formData.get("id") ?? "").trim());
   revalidatePath("/gunluk-calisma");
 }
 
 export async function aracGunlukOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.worklogs);
-
-  const vehicleId = String(formData.get("vehicleId"));
-  const girisSaati = String(formData.get("girisSaati"));
-  const cikisSaati = String(formData.get("cikisSaati"));
-  const tarih = new Date(String(formData.get("tarih")));
-  const yakitLitre = sayi(formData.get("yakitLitre"));
-  const driverId = bos(formData.get("driverId"));
-
-  let soforAdi = bos(formData.get("soforAdi"));
-  if (driverId && !soforAdi) {
-    const u = await prisma.user.findUnique({ where: { id: driverId } });
-    soforAdi = u?.name;
-  }
-
-  await prisma.$transaction(async (tx) => {
-    const log = await tx.vehicleWorkLog.create({
-      data: {
-        vehicleId,
-        tarih,
-        driverId,
-        soforAdi,
-        gorevTanimi: bos(formData.get("gorevTanimi")),
-        yerBolge: bos(formData.get("yerBolge")),
-        girisSaati,
-        cikisSaati,
-        calismaSaati: aracCalismaSaatiHesapla(girisSaati, cikisSaati),
-        yakitLitre,
-        notlar: bos(formData.get("notlar")),
-        onaylayanId: bos(formData.get("onaylayanId")),
-      },
-    });
-
-    // Yakıt litresi varsa FuelRecord tek kaynak olarak yazılır
-    if (yakitLitre != null && yakitLitre > 0) {
-      const birimFiyat = sayi(formData.get("birimFiyat")) ?? 0;
-      await tx.fuelRecord.create({
-        data: {
-          vehicleId,
-          tarih,
-          yakitTuru: (bos(formData.get("yakitTuru")) ?? "MOTORIN") as never,
-          litre: yakitLitre,
-          birimFiyat,
-          tutar: yakitTutari(yakitLitre, birimFiyat),
-          vehicleWorkLogId: log.id,
-        },
-      });
-    }
+  await aracGunlukOlusturForUser(session, {
+    vehicleId: String(formData.get("vehicleId")),
+    tarih: String(formData.get("tarih")),
+    girisSaati: String(formData.get("girisSaati")),
+    cikisSaati: String(formData.get("cikisSaati")),
+    driverId: bos(formData.get("driverId")),
+    soforAdi: bos(formData.get("soforAdi")),
+    gorevTanimi: bos(formData.get("gorevTanimi")),
+    yerBolge: bos(formData.get("yerBolge")),
+    yakitLitre: sayi(formData.get("yakitLitre")),
+    birimFiyat: sayi(formData.get("birimFiyat")),
+    yakitTuru: bos(formData.get("yakitTuru")),
+    notlar: bos(formData.get("notlar")),
+    onaylayanId: bos(formData.get("onaylayanId")),
   });
+  revalidatePath("/gunluk-calisma");
+  revalidatePath("/yakit");
+}
 
-  await auditKaydet(session, "ARAC_GUNLUK_OLUSTUR", {
-    varlik: "VehicleWorkLog",
-    detay: { vehicleId, tarih: tarih.toISOString().slice(0, 10) },
+export async function aracGunlukGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.worklogs);
+  await aracGunlukGuncelleForUser(session, {
+    id: String(formData.get("id") ?? "").trim(),
+    vehicleId: String(formData.get("vehicleId")),
+    tarih: String(formData.get("tarih")),
+    girisSaati: String(formData.get("girisSaati")),
+    cikisSaati: String(formData.get("cikisSaati")),
+    driverId: bos(formData.get("driverId")),
+    soforAdi: bos(formData.get("soforAdi")),
+    gorevTanimi: bos(formData.get("gorevTanimi")),
+    yerBolge: bos(formData.get("yerBolge")),
+    yakitLitre: sayi(formData.get("yakitLitre")),
+    birimFiyat: sayi(formData.get("birimFiyat")),
+    yakitTuru: bos(formData.get("yakitTuru")),
+    notlar: bos(formData.get("notlar")),
+    onaylayanId: bos(formData.get("onaylayanId")),
   });
+  revalidatePath("/gunluk-calisma");
+  revalidatePath("/yakit");
+}
 
+export async function aracGunlukSil(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.worklogs);
+  await aracGunlukSilForUser(session, String(formData.get("id") ?? "").trim());
   revalidatePath("/gunluk-calisma");
   revalidatePath("/yakit");
 }

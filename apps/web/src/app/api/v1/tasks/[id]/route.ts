@@ -5,6 +5,9 @@ import { assertTaskApiAccess, toAccessUser } from "@/lib/access";
 import { canTransitionTask, validateKmPair } from "@/lib/domain/task-status";
 import { auditKaydet } from "@/lib/audit";
 import { gorevIziAnalizDene } from "@/lib/route-analysis";
+import { ACTION_ROLES } from "@/lib/authz";
+import { handleV1Write, str } from "@/lib/v1-handler";
+import { gorevYenidenAnalizForUser } from "@/lib/domain/crud-for-user";
 
 export const dynamic = "force-dynamic";
 
@@ -142,4 +145,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   return badRequest("action: start | close");
+}
+
+export async function POST(req: Request, ctx: Ctx) {
+  const { id } = await ctx.params;
+  return handleV1Write(req, ACTION_ROLES.tasks, (session, body) => {
+    if (str(body, "action") === "reanalyze") {
+      return gorevYenidenAnalizForUser(session.user, id);
+    }
+    throw new Error("action: reanalyze");
+  });
 }

@@ -1,6 +1,6 @@
 import { nextComplaintSerial, prisma, withSerialRetry, type Prisma } from "@kars/db";
 import type { Oncelik } from "@kars/db";
-import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
+import { withApiUser, json, badRequest, forbidIfNot, listLimit } from "@/lib/api-v1";
 import { departmentWhere, toAccessUser } from "@/lib/access";
 import { complaintCreateSchema } from "@/lib/api-schemas";
 import { serializeComplaint } from "@/lib/v1-serialize";
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     where,
     include: complaintInclude,
     orderBy: { kayitTarihi: "desc" },
-    take: 200,
+    take: listLimit(req),
   });
 
   return json(rows.map(serializeComplaint));

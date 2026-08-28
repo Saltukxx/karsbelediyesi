@@ -24,9 +24,9 @@ import { sheetFromRows, workbookToBuffer } from "@/lib/excel";
 import {
   departmentScope,
   EXPORT_ENTITY_ROLES,
-  requireSession,
   type AppSession,
 } from "@/lib/authz";
+import { trySessionOrApiUser } from "@/lib/api-session";
 
 const EXPORT_MAX_ROWS = 10_000;
 const DEFAULT_RANGE_DAYS = 90;
@@ -47,10 +47,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ entity: string }> },
 ) {
-  let session: AppSession;
-  try {
-    session = await requireSession();
-  } catch {
+  const session = await trySessionOrApiUser(req);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

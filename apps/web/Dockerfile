@@ -4,14 +4,13 @@ COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
 COPY packages/db/package.json packages/db/
 COPY packages/shared/package.json packages/shared/
-COPY packages/api-client/package.json packages/api-client/
 RUN npm ci --workspace=apps/web --include-workspace-root
 
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run db:generate && npm run build --workspace=apps/web
+RUN npm run db:generate && npm exec --workspace=apps/web -- next build
 
 FROM node:20-alpine AS runner
 WORKDIR /app

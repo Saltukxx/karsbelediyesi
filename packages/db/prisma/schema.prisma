@@ -270,6 +270,8 @@ model User {
   temizlikRotalari     CleaningRoute[]       @relation("TemizlikRotaOlusturan")
   copToplamalari       WasteCollection[]     @relation("CopToplamaOlusturan")
   copSuruculukleri     WasteCollection[]     @relation("CopToplamaSofor")
+  temizlikOperasyonlari CleaningOperation[]  @relation("TemizlikOperasyonOlusturan")
+  temizlikSuruculukleri CleaningOperation[]  @relation("TemizlikOperasyonSofor")
   konumPingleri        VehicleLocation[]     @relation("KonumSofor")
   notifications        Notification[]
   gonderilenWhatsapp   WhatsAppMessage[]     @relation("WhatsAppGonderen")
@@ -349,6 +351,7 @@ model Vehicle {
   checklistSubmissions ChecklistSubmission[]
   kisOperasyonlari     WinterOperation[]     @relation("KisOperasyonArac")
   copToplamalar        WasteCollection[]     @relation("CopToplamaArac")
+  temizlikOperasyonlari CleaningOperation[]  @relation("TemizlikOperasyonArac")
   locations            VehicleLocation[]
   dispatchJobs         DispatchJob[]         @relation("DispatchArac")
 }
@@ -1229,22 +1232,49 @@ model WasteCollection {
 
 // ═══════════════════════ YOL TEMİZLİĞİ ═══════════════════════
 
+enum TemizlikOperasyonTip {
+  SUPURME
+  YIKAMA
+  KARMA
+}
+
 /// Yol temizliği güzergahı (süpürme/yıkama)
 model CleaningRoute {
-  id           String   @id @default(cuid())
+  id           String               @id @default(cuid())
   ad           String
   /// [[lat,lng], ...] — WinterRoute.koordinatlar ile aynı konvansiyon
   koordinatlar Json
   /// 1 = en yüksek öncelik
-  oncelik      Int      @default(2)
-  aktif        Boolean  @default(true)
+  oncelik      Int                  @default(2)
+  aktif        Boolean              @default(true)
   notlar       String?
   createdById  String
-  createdBy    User     @relation("TemizlikRotaOlusturan", fields: [createdById], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdBy    User                 @relation("TemizlikRotaOlusturan", fields: [createdById], references: [id])
+  operations   CleaningOperation[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
   @@index([aktif])
+}
+
+/// Bir rotanın süpürme/yıkama geçişi
+model CleaningOperation {
+  id          String                @id @default(cuid())
+  routeId     String
+  route       CleaningRoute         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  vehicleId   String?
+  vehicle     Vehicle?              @relation("TemizlikOperasyonArac", fields: [vehicleId], references: [id])
+  driverId    String?
+  driver      User?                 @relation("TemizlikOperasyonSofor", fields: [driverId], references: [id])
+  tip         TemizlikOperasyonTip
+  baslangic   DateTime
+  bitis       DateTime?
+  notlar      String?
+  createdById String
+  createdBy   User                  @relation("TemizlikOperasyonOlusturan", fields: [createdById], references: [id])
+  createdAt   DateTime              @default(now())
+
+  @@index([routeId, baslangic])
 }
 
 // ═══════════════════════ ROTA TAKİP ANALİZİ ═══════════════════════

@@ -3,25 +3,30 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { prisma } from "@kars/db";
-import { yakitTutari } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
-import { auditKaydet } from "@/lib/audit";
+import {
+  aracGuncelleForUser,
+  aracHurdayaAyirForUser,
+  aracOlusturForUser,
+  bakimGuncelleForUser,
+  bakimOlusturForUser,
+  bakimSilForUser,
+  yakitGuncelleForUser,
+  yakitOlusturForUser,
+  yakitSilForUser,
+} from "@/lib/domain/fleet";
 
 function bosIseUndefined(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
   return s === "" ? undefined : s;
 }
-function tarih(v: FormDataEntryValue | null): Date | undefined {
-  const s = bosIseUndefined(v);
-  return s ? new Date(s) : undefined;
+function tarih(v: FormDataEntryValue | null): string | undefined {
+  return bosIseUndefined(v);
 }
 function sayi(v: FormDataEntryValue | null): number | undefined {
   const s = bosIseUndefined(v);
   return s ? Number(s.replace(",", ".")) : undefined;
 }
-
-// ── ARAÇ (Excel: Araç Envanteri + Araç Havuzu birleşik) ──────────────────────
 
 const aracSchema = z.object({
   plaka: z.string().min(1, "Plaka zorunlu"),
@@ -36,10 +41,10 @@ const aracSchema = z.object({
   sayacBirim: z.string().optional(),
   sayacTipi: z.enum(["KM", "SAAT"]).optional(),
   normTuketim: z.number().optional(),
-  muayeneTarihi: z.date().optional(),
-  sigortaBitis: z.date().optional(),
-  sonBakimTarihi: z.date().optional(),
-  sonrakiBakimTarihi: z.date().optional(),
+  muayeneTarihi: z.string().optional(),
+  sigortaBitis: z.string().optional(),
+  sonBakimTarihi: z.string().optional(),
+  sonrakiBakimTarihi: z.string().optional(),
   bakimKmSaati: z.string().optional(),
   departmentId: z.string().optional(),
   atananSoforId: z.string().optional(),
@@ -77,13 +82,7 @@ function aracVerisi(formData: FormData) {
 
 export async function aracOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.vehicles);
-  const data = aracVerisi(formData);
-  const arac = await prisma.vehicle.create({ data });
-  await auditKaydet(session, "ARAC_OLUSTUR", {
-    varlik: "Vehicle",
-    varlikId: arac.id,
-    detay: { plaka: data.plaka },
-  });
+  const arac = await aracOlusturForUser(session, aracVerisi(formData));
   revalidatePath("/araclar");
   redirect(`/araclar/${arac.id}`);
 }
@@ -91,99 +90,101 @@ export async function aracOlustur(formData: FormData) {
 export async function aracGuncelle(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.vehicles);
   const id = String(formData.get("id"));
-  const data = aracVerisi(formData);
-  await prisma.vehicle.update({ where: { id }, data });
-  await auditKaydet(session, "ARAC_GUNCELLE", {
-    varlik: "Vehicle",
-    varlikId: id,
-    detay: { plaka: data.plaka },
-  });
+  await aracGuncelleForUser(session, { id, ...aracVerisi(formData) });
   revalidatePath("/araclar");
   revalidatePath(`/araclar/${id}`);
   redirect(`/araclar/${id}`);
 }
 
-// ── BAKIM (Excel: Bakım Takip — 11 sütun) ────────────────────────────────────
+export async function aracHurdayaAyir(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.vehicles);
+  const id = String(formData.get("id") ?? "").trim();
+  await aracHurdayaAyirForUser(session, id);
+  revalidatePath("/araclar");
+  revalidatePath(`/araclar/${id}`);
+}
 
 export async function bakimOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.vehicles);
-
-  const vehicleId = String(formData.get("vehicleId"));
-  const durum = (bosIseUndefined(formData.get("durum")) ?? "PLANLANDI") as
-    | "TAMAMLANDI"
-    | "DEVAM_EDIYOR"
-    | "PLANLANDI";
-  const sonrakiBakim = tarih(formData.get("sonrakiBakimTarihi"));
-
-  await prisma.$transaction(async (tx) => {
-    await tx.maintenanceRecord.create({
-      data: {
-        vehicleId,
-        bakimTarihi: tarih(formData.get("bakimTarihi")) ?? new Date(),
-        bakimTuru: (bosIseUndefined(formData.get("bakimTuru")) ?? "PERIYODIK") as never,
-        yapilanIslemler: bosIseUndefined(formData.get("yapilanIslemler")),
-        kullanilanMalzeme: bosIseUndefined(formData.get("kullanilanMalzeme")),
-        maliyet: sayi(formData.get("maliyet")),
-        yapanFirmaPersonel: bosIseUndefined(formData.get("yapanFirmaPersonel")),
-        sonrakiBakimTarihi: sonrakiBakim,
-        durum,
-      },
-    });
-    // Araç kartındaki bakım tarihleri güncellenir (Excel'de manuel yapılıyordu)
-    await tx.vehicle.update({
-      where: { id: vehicleId },
-      data: {
-        ...(durum === "TAMAMLANDI" ? { sonBakimTarihi: new Date() } : {}),
-        ...(sonrakiBakim ? { sonrakiBakimTarihi: sonrakiBakim } : {}),
-        ...(durum === "DEVAM_EDIYOR" ? { envanterDurumu: "BAKIMDA", operasyonDurumu: "BAKIMDA" } : {}),
-      },
-    });
+  await bakimOlusturForUser(session, {
+    vehicleId: String(formData.get("vehicleId") ?? "").trim(),
+    bakimTarihi: tarih(formData.get("bakimTarihi")),
+    bakimTuru: bosIseUndefined(formData.get("bakimTuru")),
+    yapilanIslemler: bosIseUndefined(formData.get("yapilanIslemler")),
+    kullanilanMalzeme: bosIseUndefined(formData.get("kullanilanMalzeme")),
+    maliyet: sayi(formData.get("maliyet")),
+    yapanFirmaPersonel: bosIseUndefined(formData.get("yapanFirmaPersonel")),
+    sonrakiBakimTarihi: tarih(formData.get("sonrakiBakimTarihi")),
+    durum: bosIseUndefined(formData.get("durum")),
   });
-
-  await auditKaydet(session, "BAKIM_OLUSTUR", {
-    varlik: "MaintenanceRecord",
-    detay: { vehicleId, durum },
-  });
-
   revalidatePath("/bakim");
   revalidatePath("/araclar");
   redirect("/bakim");
 }
 
-// ── YAKIT (Excel: Yakıt Takip — tutar = litre × birim fiyat, server-side) ────
+export async function bakimGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.vehicles);
+  await bakimGuncelleForUser(session, {
+    id: String(formData.get("id") ?? "").trim(),
+    vehicleId: String(formData.get("vehicleId") ?? "").trim(),
+    bakimTarihi: tarih(formData.get("bakimTarihi")),
+    bakimTuru: bosIseUndefined(formData.get("bakimTuru")),
+    yapilanIslemler: bosIseUndefined(formData.get("yapilanIslemler")),
+    kullanilanMalzeme: bosIseUndefined(formData.get("kullanilanMalzeme")),
+    maliyet: sayi(formData.get("maliyet")),
+    yapanFirmaPersonel: bosIseUndefined(formData.get("yapanFirmaPersonel")),
+    sonrakiBakimTarihi: tarih(formData.get("sonrakiBakimTarihi")),
+    durum: bosIseUndefined(formData.get("durum")),
+  });
+  revalidatePath("/bakim");
+  revalidatePath("/araclar");
+  redirect("/bakim");
+}
+
+export async function bakimSil(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.vehicles);
+  await bakimSilForUser(session, String(formData.get("id") ?? "").trim());
+  revalidatePath("/bakim");
+  revalidatePath("/araclar");
+}
 
 export async function yakitOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.vehicles);
-
-  const litre = sayi(formData.get("litre")) ?? 0;
-  const birimFiyat = sayi(formData.get("birimFiyat")) ?? 0;
-  const sayac = sayi(formData.get("sayac"));
-  const vehicleId = String(formData.get("vehicleId"));
-
-  await prisma.$transaction(async (tx) => {
-    await tx.fuelRecord.create({
-      data: {
-        vehicleId,
-        tarih: tarih(formData.get("tarih")) ?? new Date(),
-        yakitTuru: (bosIseUndefined(formData.get("yakitTuru")) ?? "MOTORIN") as never,
-        litre,
-        birimFiyat,
-        tutar: yakitTutari(litre, birimFiyat), // Excel H sütunu formülü
-        sayac,
-        sorumluPersonelId: bosIseUndefined(formData.get("sorumluPersonelId")),
-        vehicleTaskId: bosIseUndefined(formData.get("vehicleTaskId")),
-      },
-    });
-    if (sayac) {
-      await tx.vehicle.update({ where: { id: vehicleId }, data: { sayacDeger: sayac } });
-    }
+  await yakitOlusturForUser(session, {
+    vehicleId: String(formData.get("vehicleId")),
+    tarih: tarih(formData.get("tarih")) ?? new Date().toISOString(),
+    litre: sayi(formData.get("litre")) ?? 0,
+    birimFiyat: sayi(formData.get("birimFiyat")) ?? 0,
+    yakitTuru: bosIseUndefined(formData.get("yakitTuru")),
+    sayac: sayi(formData.get("sayac")),
+    sorumluPersonelId: bosIseUndefined(formData.get("sorumluPersonelId")),
+    vehicleTaskId: bosIseUndefined(formData.get("vehicleTaskId")),
   });
-
-  await auditKaydet(session, "YAKIT_OLUSTUR", {
-    varlik: "FuelRecord",
-    detay: { vehicleId, litre, birimFiyat },
-  });
-
   revalidatePath("/yakit");
   redirect("/yakit");
+}
+
+export async function yakitGuncelle(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.vehicles);
+  await yakitGuncelleForUser(session, {
+    id: String(formData.get("id") ?? "").trim(),
+    vehicleId: String(formData.get("vehicleId")),
+    tarih: tarih(formData.get("tarih")) ?? new Date().toISOString(),
+    litre: sayi(formData.get("litre")) ?? 0,
+    birimFiyat: sayi(formData.get("birimFiyat")) ?? 0,
+    yakitTuru: bosIseUndefined(formData.get("yakitTuru")),
+    sayac: sayi(formData.get("sayac")),
+    sorumluPersonelId: bosIseUndefined(formData.get("sorumluPersonelId")),
+    vehicleTaskId: bosIseUndefined(formData.get("vehicleTaskId")),
+  });
+  revalidatePath("/yakit");
+  revalidatePath("/gunluk-calisma");
+  redirect("/yakit");
+}
+
+export async function yakitSil(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.vehicles);
+  await yakitSilForUser(session, String(formData.get("id") ?? "").trim());
+  revalidatePath("/yakit");
+  revalidatePath("/gunluk-calisma");
 }

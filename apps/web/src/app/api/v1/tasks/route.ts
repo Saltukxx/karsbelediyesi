@@ -1,5 +1,5 @@
 import { nextTaskSerial, prisma, withSerialRetry } from "@kars/db";
-import { withApiUser, json, badRequest, forbidIfNot } from "@/lib/api-v1";
+import { withApiUser, json, badRequest, forbidIfNot, listLimit } from "@/lib/api-v1";
 import { gorevOlusturmaKapsami, toAccessUser } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -143,7 +143,7 @@ export async function GET(req: Request) {
       },
     },
     orderBy: { talepTarihi: "desc" },
-    take: 200,
+    take: listLimit(req),
   });
 
   const servisler = await servisRotalari(
@@ -160,6 +160,8 @@ export async function POST(req: Request) {
     "ADMIN",
     "DEPARTMENT_MANAGER",
     "APPROVER",
+    "DRIVER",
+    "FIELD_WORKER",
   ]);
   if (forbidden) return forbidden;
 

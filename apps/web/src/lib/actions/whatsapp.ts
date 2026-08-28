@@ -6,7 +6,7 @@ import { geocodeKarsAdres } from "@kars/shared";
 import { ACTION_ROLES, requireRoles, requireSession } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { bildirimGonder, kullaniciIdleri } from "@/lib/notify";
-import { whatsappMesajKuyrugaEkle, yeniOutboundKey } from "@/lib/whatsapp-outbound";
+import { whatsappCevapGonderForUser } from "@/lib/domain/whatsapp-reply";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -149,82 +149,12 @@ export async function whatsappOnayla(formData: FormData) {
  */
 export async function whatsappCevapGonder(formData: FormData) {
   const session = await requireSession();
-
-  const complaintId = String(formData.get("complaintId"));
-  const text = String(formData.get("text") ?? "").trim();
-  if (!text) throw new Error("Mesaj boş olamaz");
-  if (text.length > 2000) throw new Error("Mesaj çok uzun (en fazla 2000 karakter)");
-
-  const complaint = await prisma.complaint.findUnique({
-    where: { id: complaintId },
-    include: { personel: { include: { personnel: { select: { userId: true } } } } },
+  await whatsappCevapGonderForUser(session, {
+    complaintId: String(formData.get("complaintId")),
+    text: String(formData.get("text") ?? ""),
   });
-  if (!complaint) throw new Error("Şikayet bulunamadı");
-  if (!complaint.telefon) throw new Error("Şikayette telefon numarası yok");
-
-  const { role, id: userId, departmentId } = session.user;
-  const atanmisPersonel = complaint.personel.some(
-    (p) => p.personnel?.userId === userId,
-  );
-  const mudurYetkili =
-    role === "DEPARTMENT_MANAGER" &&
-    !!departmentId &&
-    complaint.departmentId === departmentId;
-  if (role !== "ADMIN" && !mudurYetkili && !atanmisPersonel) {
-    throw new Error("Bu şikayete cevap yazma yetkiniz yok");
-  }
-
-  // Önce kayıt, sonra kuyruk: kuyruk hatası mesajın izini kaybettirmesin
-  const outboundKey = yeniOutboundKey();
-  const mesaj = await prisma.$transaction(async (tx) => {
-    const created = await tx.whatsAppMessage.create({
-      data: {
-        telefon: complaint.telefon!,
-        yon: "GIDEN",
-        icerik: text,
-        complaintId: complaint.id,
-        sentByUserId: userId,
-        outboundKey,
-        gonderimDurumu: "KUYRUKTA",
-      },
-    });
-    await tx.complaintEvent.create({
-      data: {
-        complaintId: complaint.id,
-        userId,
-        tip: "WHATSAPP_CEVAP",
-        detay: { mesaj: text.slice(0, 200), outboundKey },
-      },
-    });
-    return created;
-  });
-
-  try {
-    await whatsappMesajKuyrugaEkle({
-      telefon: complaint.telefon,
-      text,
-      complaintId: complaint.id,
-      sentByUserId: userId,
-      outboundKey,
-    });
-  } catch (err) {
-    await prisma.whatsAppMessage.update({
-      where: { id: mesaj.id },
-      data: { gonderimDurumu: "BASARISIZ" },
-    });
-    console.error("WhatsApp kuyruğa eklenemedi", { outboundKey, err });
-    throw new Error("Mesaj kuyruğa alınamadı, lütfen tekrar deneyin");
-  }
-
-  await auditKaydet(session, "WHATSAPP_CEVAP_GONDER", {
-    varlik: "Complaint",
-    varlikId: complaint.id,
-    detay: { sikayetNo: complaint.sikayetNo },
-  });
-
   revalidatePath("/islerim");
-  revalidatePath(`/islerim/${complaint.id}`);
-  revalidatePath(`/sikayetler/${complaint.id}`);
+  revalidatePath(`/sikayetler/${String(formData.get("complaintId"))}`);
 }
 
 export async function whatsappReddet(formData: FormData) {

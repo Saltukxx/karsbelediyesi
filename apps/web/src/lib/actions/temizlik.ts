@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
+import type { TemizlikOperasyonTip } from "@kars/db";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
 import { rotaSilVeyaPasifle } from "@/lib/route-delete";
@@ -118,4 +119,59 @@ export async function temizlikRotaSil(formData: FormData) {
   });
   revalidatePath("/temizlik");
   if (!karar.silindi) throw new Error(karar.sebep);
+}
+
+const OPERASYON_TIPLER: TemizlikOperasyonTip[] = ["SUPURME", "YIKAMA", "KARMA"];
+
+export async function temizlikOperasyonKaydet(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.temizlik);
+
+  const routeId = bos(formData.get("routeId"));
+  if (!routeId) throw new Error("Rota seçimi gerekli");
+  const tipRaw = bos(formData.get("tip"));
+  const tip = OPERASYON_TIPLER.includes(tipRaw as TemizlikOperasyonTip)
+    ? (tipRaw as TemizlikOperasyonTip)
+    : "KARMA";
+
+  const baslangicRaw = bos(formData.get("baslangic"));
+  const baslangic = baslangicRaw ? new Date(baslangicRaw) : new Date();
+  if (Number.isNaN(baslangic.getTime())) throw new Error("Geçersiz başlangıç zamanı");
+  const bitisRaw = bos(formData.get("bitis"));
+  const bitis = bitisRaw ? new Date(bitisRaw) : undefined;
+  if (bitis && Number.isNaN(bitis.getTime())) throw new Error("Geçersiz bitiş zamanı");
+  if (bitis && bitis < baslangic) throw new Error("Bitiş başlangıçtan önce olamaz");
+
+  const operasyon = await prisma.cleaningOperation.create({
+    data: {
+      routeId,
+      vehicleId: bos(formData.get("vehicleId")),
+      driverId: bos(formData.get("driverId")),
+      tip,
+      baslangic,
+      bitis,
+      notlar: bos(formData.get("notlar")),
+      createdById: session.user.id,
+    },
+  });
+
+  await auditKaydet(session, "TEMIZLIK_OPERASYON_OLUSTUR", {
+    varlik: "CleaningOperation",
+    varlikId: operasyon.id,
+    detay: { routeId, tip },
+  });
+  revalidatePath("/temizlik");
+}
+
+export async function temizlikOperasyonSil(formData: FormData) {
+  const session = await requireRoles(ACTION_ROLES.temizlik);
+
+  const id = bos(formData.get("id"));
+  if (!id) throw new Error("Kayıt bulunamadı");
+  await prisma.cleaningOperation.delete({ where: { id } });
+
+  await auditKaydet(session, "TEMIZLIK_OPERASYON_SIL", {
+    varlik: "CleaningOperation",
+    varlikId: id,
+  });
+  revalidatePath("/temizlik");
 }

@@ -15,9 +15,34 @@ export default async function TemizlikPage() {
   const session = await requirePageAccess("/temizlik");
   const canEdit = ACTION_ROLES.temizlik.includes(session.user.role);
 
-  const [routes, bekleyenOneriler, sonGorevler] = await Promise.all([
+  const [routes, vehicles, drivers, bekleyenOneriler, sonGorevler] = await Promise.all([
     prisma.cleaningRoute.findMany({
       orderBy: [{ oncelik: "asc" }, { ad: "asc" }],
+      include: {
+        operations: {
+          orderBy: { baslangic: "desc" },
+          take: 5,
+          include: {
+            vehicle: { select: { plaka: true } },
+            driver: { select: { name: true } },
+          },
+        },
+      },
+    }),
+    prisma.vehicle.findMany({
+      where: { envanterDurumu: { not: "HURDAYA_AYRILDI" } },
+      orderBy: { plaka: "asc" },
+      select: {
+        id: true,
+        plaka: true,
+        ad: true,
+        vehicleType: { select: { name: true } },
+      },
+    }),
+    prisma.user.findMany({
+      where: { role: { in: ["DRIVER", "FIELD_WORKER"] }, aktif: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
     }),
     prisma.dispatchJob.findMany({
       where: { tip: "TEMIZLIK", durum: "ONERILDI" },
@@ -57,7 +82,26 @@ export default async function TemizlikPage() {
     oncelik: r.oncelik,
     aktif: r.aktif,
     notlar: r.notlar,
-    sonGorev: sonGorevByRoute.get(r.id) ?? null,
+    sonGorev:
+      r.operations[0]?.baslangic.toISOString() ??
+      sonGorevByRoute.get(r.id) ??
+      null,
+    sonOperasyonlar: r.operations.map((o) => ({
+      id: o.id,
+      tip: o.tip,
+      baslangic: o.baslangic.toISOString(),
+      bitis: o.bitis?.toISOString() ?? null,
+      arac: o.vehicle?.plaka ?? null,
+      sofor: o.driver?.name ?? null,
+      notlar: o.notlar,
+    })),
+  }));
+
+  const vehicleDtos = vehicles.map((v) => ({
+    id: v.id,
+    plaka: v.plaka,
+    ad: v.ad,
+    tip: v.vehicleType?.name ?? null,
   }));
 
   const aktifRotalar = routeDtos.filter((r) => r.aktif);
@@ -95,7 +139,12 @@ export default async function TemizlikPage() {
 
       <DispatchPanel tip="TEMIZLIK" oneriler={oneriDtos} canEdit={canEdit} />
 
-      <CleaningMapPanel routes={routeDtos} canEdit={canEdit} />
+      <CleaningMapPanel
+        routes={routeDtos}
+        vehicles={vehicleDtos}
+        drivers={drivers}
+        canEdit={canEdit}
+      />
     </div>
   );
 }

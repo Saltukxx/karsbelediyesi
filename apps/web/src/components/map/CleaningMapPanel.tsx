@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { CleaningRouteDto } from "@/components/map/cleaning-types";
+import type { WinterDriverDto, WinterVehicleDto } from "@/components/map/winter-types";
 
 const CleaningMap = dynamic(() => import("@/components/map/CleaningMap"), {
   ssr: false,
@@ -14,6 +15,8 @@ const CleaningMap = dynamic(() => import("@/components/map/CleaningMap"), {
 
 export default function CleaningMapPanel(props: {
   routes: CleaningRouteDto[];
+  vehicles: WinterVehicleDto[];
+  drivers: WinterDriverDto[];
   canEdit: boolean;
 }) {
   return <CleaningMap {...props} />;

@@ -18,6 +18,8 @@ import {
 import { format } from "date-fns";
 import "leaflet/dist/leaflet.css";
 import {
+  temizlikOperasyonKaydet,
+  temizlikOperasyonSil,
   temizlikRotaGuncelle,
   temizlikRotaKaydet,
   temizlikRotaSil,
@@ -26,7 +28,11 @@ import { btnPrimary, btnSecondary, inputCls, labelCls } from "@/lib/ui";
 import { formatLength, roadLengthMeters } from "@/components/map/road-map-geo";
 import { BASEMAPS, KARS_CENTER, type Basemap } from "@/components/map/basemaps";
 import SmartAssignPanel from "@/components/dispatch/SmartAssignPanel";
-import type { CleaningRouteDto } from "@/components/map/cleaning-types";
+import {
+  TEMIZLIK_OPERASYON_TIP_LABELS,
+  type CleaningRouteDto,
+} from "@/components/map/cleaning-types";
+import type { WinterDriverDto, WinterVehicleDto } from "@/components/map/winter-types";
 
 type Mode = "gezinme" | "rotaCiz";
 
@@ -35,22 +41,33 @@ function MapClickHandler({ onClick }: { onClick: (e: LeafletMouseEvent) => void 
   return null;
 }
 
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function CleaningMap({
   routes,
+  vehicles,
+  drivers,
   canEdit,
 }: {
   routes: CleaningRouteDto[];
+  vehicles: WinterVehicleDto[];
+  drivers: WinterDriverDto[];
   canEdit: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("gezinme");
   const [basemap, setBasemap] = useState<Basemap>("sokak");
   const [draftPoints, setDraftPoints] = useState<[number, number][]>([]);
   const [editRouteId, setEditRouteId] = useState<string | null>(null);
+  const [opRouteId, setOpRouteId] = useState<string>("");
   const [hoverRouteId, setHoverRouteId] = useState<string | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const mapRef = useRef<LeafletMap | null>(null);
   const routeFormRef = useRef<HTMLFormElement>(null);
+  const opFormRef = useRef<HTMLFormElement>(null);
 
   const editingRoute = editRouteId
     ? routes.find((r) => r.id === editRouteId) ?? null
@@ -103,8 +120,14 @@ export default function CleaningMap({
     if (id) setSelectedRouteId(id);
   }
 
+  async function submitOperation(formData: FormData) {
+    await temizlikOperasyonKaydet(formData);
+    opFormRef.current?.reset();
+    setOpRouteId("");
+  }
+
   function deleteRoute(id: string) {
-    if (!window.confirm("Bu temizlik rotası silinsin mi?")) return;
+    if (!window.confirm("Bu rota ve tüm operasyon kayıtları silinsin mi?")) return;
     const fd = new FormData();
     fd.set("id", id);
     startTransition(() => temizlikRotaSil(fd));
@@ -124,6 +147,20 @@ export default function CleaningMap({
     if (r.koordinatlar.length > 0) {
       mapRef.current?.fitBounds(latLngBounds(r.koordinatlar), { padding: [40, 40] });
     }
+  }
+
+  function selectOperationRoute(routeId: string) {
+    mapRef.current?.closePopup();
+    setOpRouteId(routeId);
+    setSelectedRouteId(routeId);
+    opFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function deleteOperation(id: string) {
+    if (!window.confirm("Operasyon kaydı silinsin mi?")) return;
+    const fd = new FormData();
+    fd.set("id", id);
+    startTransition(() => temizlikOperasyonSil(fd));
   }
 
   function akilliAtamaAc(routeId: string) {
@@ -189,8 +226,44 @@ export default function CleaningMap({
                           : " — henüz görev yok"}
                       </p>
                       {r.notlar && <p className="text-xs">{r.notlar}</p>}
+                      {r.sonOperasyonlar.length > 0 ? (
+                        <div>
+                          <p className="text-xs font-semibold">Son operasyonlar</p>
+                          <ul className="mt-0.5 space-y-0.5">
+                            {r.sonOperasyonlar.map((o) => (
+                              <li key={o.id} className="flex items-center gap-2 text-xs">
+                                <span>
+                                  {format(new Date(o.baslangic), "dd.MM HH:mm")}
+                                  {` · ${TEMIZLIK_OPERASYON_TIP_LABELS[o.tip]}`}
+                                  {o.arac ? ` · ${o.arac}` : ""}
+                                  {o.sofor ? ` · ${o.sofor}` : ""}
+                                </span>
+                                {canEdit && (
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteOperation(o.id)}
+                                    disabled={pending}
+                                    className="text-red-600 hover:underline"
+                                  >
+                                    sil
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">Henüz operasyon kaydı yok.</p>
+                      )}
                       {canEdit && (
                         <div className="flex flex-wrap gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => selectOperationRoute(r.id)}
+                            className="text-xs font-semibold text-kb-navy hover:underline"
+                          >
+                            Operasyon kaydet
+                          </button>
                           <button
                             type="button"
                             onClick={() => akilliAtamaAc(r.id)}
@@ -287,6 +360,90 @@ export default function CleaningMap({
             ))}
           </div>
         </div>
+
+        {canEdit && (
+          <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">
+            <p className="mb-2 text-[0.8rem] font-medium text-kb-muted">
+              Operasyon kaydı
+            </p>
+            <form ref={opFormRef} action={submitOperation} className="space-y-3">
+              <div>
+                <label className={labelCls}>Rota *</label>
+                <select
+                  name="routeId"
+                  required
+                  value={opRouteId}
+                  onChange={(e) => setOpRouteId(e.target.value)}
+                  className={inputCls}
+                >
+                  <option value="">— Seçiniz —</option>
+                  {siraliRotalar
+                    .filter((r) => r.aktif)
+                    .map((r) => (
+                      <option key={r.id} value={r.id}>
+                        [Ö{r.oncelik}] {r.ad}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Tip *</label>
+                <select name="tip" defaultValue="KARMA" className={inputCls}>
+                  {Object.entries(TEMIZLIK_OPERASYON_TIP_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Araç</label>
+                <select name="vehicleId" className={inputCls}>
+                  <option value="">— Seçiniz —</option>
+                  {vehicles.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.plaka} — {v.tip ?? v.ad ?? ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Şoför</label>
+                <select name="driverId" className={inputCls}>
+                  <option value="">— Seçiniz —</option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={labelCls}>Başlangıç *</label>
+                  <input
+                    name="baslangic"
+                    type="datetime-local"
+                    required
+                    defaultValue={toLocalInputValue(new Date())}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Bitiş</label>
+                  <input name="bitis" type="datetime-local" className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>Not</label>
+                <input name="notlar" className={inputCls} />
+              </div>
+              <button type="submit" className={btnPrimary}>
+                Operasyonu kaydet
+              </button>
+            </form>
+          </div>
+        )}
 
         {canEdit && (
           <div className="rounded-lg border border-kb-border bg-kb-surface-raised p-4 shadow-sm">

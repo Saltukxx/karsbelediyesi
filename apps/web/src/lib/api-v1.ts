@@ -28,6 +28,21 @@ export function json<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
 }
 
+export const DEFAULT_LIST_LIMIT = 200;
+export const MAX_LIST_LIMIT = 2000;
+
+/**
+ * Liste uçlarının satır sayısı. İstemci `?limit=` ile daha fazlasını isteyebilir,
+ * üst sınır sabit: sınırsız `findMany` tablo büyüdükçe yanıtı da büyütüyordu.
+ */
+export function listLimit(req: Request, fallback = DEFAULT_LIST_LIMIT): number {
+  const raw = new URL(req.url).searchParams.get("limit");
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, MAX_LIST_LIMIT);
+}
+
 export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }

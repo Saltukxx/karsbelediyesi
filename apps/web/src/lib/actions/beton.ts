@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@kars/db";
-import { betonUretimMalzeme } from "@kars/shared";
 import { ACTION_ROLES, requireRoles } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
+import { betonUretimForUser } from "@/lib/domain/crud-for-user";
 
 function bos(v: FormDataEntryValue | null): string | undefined {
   const s = v == null ? "" : String(v).trim();
@@ -17,41 +17,12 @@ function sayi(v: FormDataEntryValue | null): number | undefined {
 
 export async function betonUretimOlustur(formData: FormData) {
   const session = await requireRoles(ACTION_ROLES.concrete);
-
-  const recipeId = String(formData.get("recipeId"));
-  const hedefM3 = sayi(formData.get("hedefM3")) ?? 0;
-  const recipe = await prisma.concreteRecipe.findUniqueOrThrow({ where: { id: recipeId } });
-
-  const cimentoKg = betonUretimMalzeme(hedefM3, recipe.cimentoKg);
-  const kumKg = betonUretimMalzeme(hedefM3, recipe.kumKg);
-  const micir05Kg = betonUretimMalzeme(hedefM3, recipe.micir05Kg);
-  const micir512Kg = betonUretimMalzeme(hedefM3, recipe.micir512Kg);
-  const micir1219Kg = betonUretimMalzeme(hedefM3, recipe.micir1219Kg);
-  const suLt = betonUretimMalzeme(hedefM3, recipe.suLt);
-  const katkiKg = betonUretimMalzeme(hedefM3, recipe.katkiKg);
-
-  await prisma.concreteProduction.create({
-    data: {
-      tarih: new Date(String(formData.get("tarih"))),
-      recipeId,
-      hedefM3,
-      cimentoKg,
-      kumKg,
-      micir05Kg,
-      micir512Kg,
-      micir1219Kg,
-      suLt,
-      katkiKg,
-      notlar: bos(formData.get("notlar")),
-    },
+  await betonUretimForUser(session.user, {
+    recipeId: String(formData.get("recipeId")),
+    hedefM3: sayi(formData.get("hedefM3")) ?? 0,
+    tarih: bos(formData.get("tarih")),
+    notlar: bos(formData.get("notlar")),
   });
-
-  await auditKaydet(session, "BETON_URETIM_OLUSTUR", {
-    varlik: "ConcreteProduction",
-    detay: { recipeId, hedefM3 },
-  });
-
-  // Stok çıkışı production aggregate ile sayfada hesaplanır; burada sadece kayıt.
   revalidatePath("/beton");
 }
 

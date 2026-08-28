@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@kars/db";
 import { aracGuncelle } from "@/lib/actions/vehicles";
 import { AracForm } from "../AracForm";
+import { HurdayaAyirButton } from "../HurdayaAyirButton";
 import {
   BAKIM_TURU_LABELS,
   BAKIM_DURUM_LABELS,
@@ -72,6 +73,12 @@ export default async function AracDetayPage({
       </div>
 
       <AracForm action={aracGuncelle} arac={arac} cinsler={cinsler} mudurlukler={mudurlukler} soforler={soforler} />
+
+      {arac.envanterDurumu !== "HURDAYA_AYRILDI" ? (
+        <HurdayaAyirButton aracId={arac.id} plaka={arac.plaka} />
+      ) : (
+        <p className="text-right text-xs text-red-600">Hurdaya ayrıldı</p>
+      )}
 
       <section className="rounded-lg border border-kb-border bg-white shadow-sm p-5 overflow-x-auto">
         <h2 className="font-brand text-[0.95rem] font-semibold text-kb-ink mb-3">Bakım Geçmişi</h2>

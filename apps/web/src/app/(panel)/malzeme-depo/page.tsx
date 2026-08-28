@@ -1,11 +1,19 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { prisma } from "@kars/db";
 import { mevcutStok, stokDurumu, AY_ADLARI, aylikNetHareket, ayAdiFromDate } from "@kars/shared";
-import { malzemeOlustur, stokHareketOlustur } from "@/lib/actions/materials";
+import {
+  malzemeOlustur,
+  malzemeGuncelle,
+  malzemePasifeAl,
+  stokHareketOlustur,
+  stokHareketSil,
+} from "@/lib/actions/materials";
 import { cardCls, inputCls, btnPrimary } from "@/lib/ui";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabs, TabPanel } from "@/components/ui/Tabs";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ConfirmSubmit } from "@/components/ui/ConfirmSubmit";
 import { requirePageAccess } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default async function MalzemeDepoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ay?: string; kategori?: string; tab?: string }>;
+  searchParams: Promise<{ ay?: string; kategori?: string; tab?: string; duzenle?: string }>;
 }) {
   await requirePageAccess("/malzeme-depo");
   const sp = await searchParams;
@@ -79,6 +87,9 @@ export default async function MalzemeDepoPage({
     });
 
   const today = new Date().toISOString().slice(0, 10);
+  const duzenlenen = sp.duzenle
+    ? materials.find((m) => m.id === sp.duzenle) ?? null
+    : null;
 
   return (
     <div className="space-y-6">
@@ -100,36 +111,84 @@ export default async function MalzemeDepoPage({
         />
 
         <TabPanel id="stok" defaultTab="stok">
-          <form action={malzemeOlustur} className={`${cardCls} p-4 grid md:grid-cols-4 gap-3 items-end`}>
+          <form
+            action={duzenlenen ? malzemeGuncelle : malzemeOlustur}
+            className={`${cardCls} p-4 grid md:grid-cols-4 gap-3 items-end`}
+          >
+            {duzenlenen && <input type="hidden" name="id" value={duzenlenen.id} />}
+            {duzenlenen && (
+              <p className="md:col-span-4 text-sm font-semibold text-kb-navy">
+                Malzeme düzenleniyor ·{" "}
+                <Link href="/malzeme-depo?tab=stok" className="font-normal underline">
+                  Vazgeç
+                </Link>
+              </p>
+            )}
             <div>
               <label className="text-xs text-kb-muted block mb-1">Kod *</label>
-              <input name="kod" required placeholder="MLZ-0003" className={inputCls} />
+              <input
+                name="kod"
+                required
+                placeholder="MLZ-0003"
+                defaultValue={duzenlenen?.kod ?? ""}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="text-xs text-kb-muted block mb-1">Ad *</label>
-              <input name="ad" required className={inputCls} />
+              <input name="ad" required defaultValue={duzenlenen?.ad ?? ""} className={inputCls} />
             </div>
             <div>
               <label className="text-xs text-kb-muted block mb-1">Kategori *</label>
-              <input name="kategori" required defaultValue="İnşaat Malzemesi" className={inputCls} />
+              <input
+                name="kategori"
+                required
+                defaultValue={duzenlenen?.kategori ?? "İnşaat Malzemesi"}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="text-xs text-kb-muted block mb-1">Birim *</label>
-              <input name="birim" required defaultValue="Adet" className={inputCls} />
+              <input
+                name="birim"
+                required
+                defaultValue={duzenlenen?.birim ?? "Adet"}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="text-xs text-kb-muted block mb-1">Depo Lokasyonu</label>
-              <input name="depoLokasyon" className={inputCls} />
+              <input
+                name="depoLokasyon"
+                defaultValue={duzenlenen?.depoLokasyon ?? ""}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="text-xs text-kb-muted block mb-1">Kritik Stok</label>
-              <input name="kritikStok" type="number" step="0.01" className={inputCls} />
+              <input
+                name="kritikStok"
+                type="number"
+                step="0.01"
+                defaultValue={duzenlenen ? Number(duzenlenen.kritikStok) : ""}
+                className={inputCls}
+              />
             </div>
             <div>
               <label className="text-xs text-kb-muted block mb-1">Birim Fiyat</label>
-              <input name="birimFiyat" type="number" step="0.01" className={inputCls} />
+              <input
+                name="birimFiyat"
+                type="number"
+                step="0.01"
+                defaultValue={
+                  duzenlenen?.birimFiyat != null ? Number(duzenlenen.birimFiyat) : ""
+                }
+                className={inputCls}
+              />
             </div>
-            <button className={btnPrimary}>+ Malzeme</button>
+            <button className={btnPrimary}>
+              {duzenlenen ? "Güncelle" : "+ Malzeme"}
+            </button>
           </form>
 
           <section className="space-y-2">
@@ -145,6 +204,7 @@ export default async function MalzemeDepoPage({
                     <th className="p-3">Mevcut</th>
                     <th className="p-3">Kritik</th>
                     <th className="p-3">Durum</th>
+                    <th className="p-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -157,6 +217,23 @@ export default async function MalzemeDepoPage({
                       <td className="p-3 font-medium">{stok}</td>
                       <td className="p-3">{m.kritikStok}</td>
                       <td className="p-3"><StatusBadge label={durum} /></td>
+                      <td className="p-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/malzeme-depo?tab=stok&duzenle=${m.id}`}
+                            className="text-xs text-kb-navy hover:underline"
+                          >
+                            Düzenle
+                          </Link>
+                          <ConfirmSubmit
+                            action={malzemePasifeAl}
+                            id={m.id}
+                            message={`${m.kod} malzemesi pasife alınsın mı? Kayıt silinmez; stok listesinden çıkarılır.`}
+                          >
+                            Pasife al
+                          </ConfirmSubmit>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -233,6 +310,7 @@ export default async function MalzemeDepoPage({
                     <th className="p-3">Miktar</th>
                     <th className="p-3">Müdürlük</th>
                     <th className="p-3">Belge</th>
+                    <th className="p-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -244,6 +322,17 @@ export default async function MalzemeDepoPage({
                       <td className="p-3">{Number(h.miktar)}</td>
                       <td className="p-3">{h.department?.shortName ?? "—"}</td>
                       <td className="p-3">{h.belgeNo ?? "—"}</td>
+                      <td className="p-3">
+                        <div className="flex justify-end">
+                          <ConfirmSubmit
+                            action={stokHareketSil}
+                            id={h.id}
+                            message="Bu stok hareketi silinsin mi?"
+                          >
+                            Sil
+                          </ConfirmSubmit>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

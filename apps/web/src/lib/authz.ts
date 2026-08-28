@@ -90,6 +90,12 @@ export async function requireRoles(roles: Rol[]): Promise<AppSession> {
   return session;
 }
 
+export function assertRole(user: { role: Rol }, roles: readonly Rol[]) {
+  if (!roles.includes(user.role)) {
+    throw new Error("Yetkisiz");
+  }
+}
+
 export function rolesForPath(pathname: string): Rol[] | null {
   if (pathname === "/") {
     return NAV_ITEMS.find((i) => i.href === "/")?.roles ?? null;

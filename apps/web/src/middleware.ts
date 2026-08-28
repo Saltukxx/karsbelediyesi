@@ -17,6 +17,18 @@ function clearSessionCookies(res: NextResponse) {
   }
 }
 
+function isPublicPath(pathname: string) {
+  return (
+    pathname.startsWith("/giris") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/mobile") ||
+    pathname.startsWith("/api/v1") ||
+    pathname.startsWith("/api/ops") ||
+    pathname.startsWith("/api/search") ||
+    pathname.startsWith("/api/export")
+  );
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
@@ -25,13 +37,7 @@ export default auth((req) => {
 
   // Bozuk / eski secret ile imzalanmış JWT → JWTSessionError; çerezi temizle
   if (hasSessionCookie && !isLoggedIn) {
-    const isPublic =
-      pathname.startsWith("/giris") ||
-      pathname.startsWith("/api/auth") ||
-      pathname.startsWith("/api/mobile") ||
-      pathname.startsWith("/api/v1");
-
-    if (isPublic) {
+    if (isPublicPath(pathname)) {
       const res = NextResponse.next();
       clearSessionCookies(res);
       return res;
@@ -44,13 +50,7 @@ export default auth((req) => {
     return res;
   }
 
-  const isPublic =
-    pathname.startsWith("/giris") ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/mobile") ||
-    pathname.startsWith("/api/v1");
-
-  if (!isPublic && !isLoggedIn) {
+  if (!isPublicPath(pathname) && !isLoggedIn) {
     const url = new URL("/giris", req.nextUrl.origin);
     url.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(url);
