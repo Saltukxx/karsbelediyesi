@@ -24,6 +24,10 @@ final class ComplaintsViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var isSaving = false
     @Published var errorMessage: String?
+    /// Sunucudan istenen kayıt sayısı; uç nokta sessizce kesmesin diye görünür tutulur.
+    @Published private(set) var limit = ComplaintsViewModel.sayfaBoyu
+
+    static let sayfaBoyu = 200
 
     private let api: APIClient
 
@@ -31,18 +35,33 @@ final class ComplaintsViewModel: ObservableObject {
         self.api = api
     }
 
+    /// Gelen kayıt sayısı sınıra dayandıysa arkada daha fazlası var demektir.
+    var canLoadMore: Bool { complaints.count >= limit }
+
     func load() async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         do {
             let sekme = tab == .tumu ? nil : tab.rawValue
-            complaints = try await api.fetchComplaints(sekme: sekme)
+            complaints = try await api.fetchComplaints(sekme: sekme, limit: limit)
         } catch let error as APIError {
             errorMessage = error.errorDescription
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Sekme değişiminde sınır başa döner; yeni sekmede 200'den fazlası istenmemeli.
+    func loadTab() async {
+        limit = Self.sayfaBoyu
+        await load()
+    }
+
+    func loadMore() async {
+        guard canLoadMore, !isLoading else { return }
+        limit += Self.sayfaBoyu
+        await load()
     }
 
     func loadDetail(id: String) async {

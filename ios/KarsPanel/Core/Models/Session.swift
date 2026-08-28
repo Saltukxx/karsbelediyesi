@@ -18,6 +18,15 @@ struct LoginResponseDTO: Decodable {
     let user: UserDTO
 }
 
+struct MeDTO: Decodable {
+    let user: UserDTO
+    let moduleHrefs: [String]?
+}
+
+struct OkDTO: Decodable {
+    let ok: Bool?
+}
+
 struct SessionDTO: Codable {
     let token: String
     let user: UserDTO

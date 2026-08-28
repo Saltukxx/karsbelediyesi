@@ -2,65 +2,60 @@ import SwiftUI
 
 struct ComplaintsListView: View {
     @StateObject private var viewModel = ComplaintsViewModel()
+    @State private var arama = ""
     @State private var showCreate = false
 
     var body: some View {
-        List {
-            Section {
-                Picker("Sekme", selection: $viewModel.tab) {
-                    ForEach(ComplaintTab.allCases) { tab in
-                        Text(tab.shortLabel).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                .listRowBackground(Color.clear)
-            }
+        // Filtreleme her gövde değerlendirmesinde tekrarlamasın.
+        let liste = gorunen
 
-            if let error = viewModel.errorMessage {
-                Section { ErrorBanner(message: error) }
-            }
+        KBScreen(
+            title: "Şikayetler",
+            description: "Çağrı merkezi kayıtları ve çözüm takibi.",
+            action: KBHeaderAction(title: "Yeni Şikayet") { showCreate = true },
+            isLoading: viewModel.isLoading,
+            errorMessage: viewModel.errorMessage,
+            isEmpty: liste.isEmpty,
+            empty: KBEmptyConfig(
+                title: viewModel.complaints.isEmpty ? "Kayıt bulunamadı" : "Aramaya uyan kayıt yok",
+                systemImage: "phone.fill",
+                message: viewModel.complaints.isEmpty
+                    ? "Bu sekmede şikayet yok. Yeni kayıt ekleyebilirsiniz."
+                    : "Farklı bir şikayet no, arayan kişi veya tür araması deneyin.",
+                actionTitle: viewModel.complaints.isEmpty ? "Yeni Şikayet" : nil,
+                action: viewModel.complaints.isEmpty ? { showCreate = true } : nil
+            ),
+            refresh: { await viewModel.load() }
+        ) {
+            KBSegmentedTabs(selection: $viewModel.tab, items: sekmeler)
+            KBSearchField(text: $arama, placeholder: "Şikayet no, arayan kişi veya tür ara...")
 
-            Section {
-                if viewModel.complaints.isEmpty, !viewModel.isLoading {
-                    EmptyStateView(
-                        title: "Kayıt bulunamadı",
-                        systemImage: "phone",
-                        message: "Bu sekmede şikayet yok. Yeni kayıt ekleyebilirsiniz.",
-                        actionTitle: "Yeni Şikayet",
-                        action: { showCreate = true }
+            ForEach(liste) { sikayet in
+                NavigationLink(value: sikayet.id) {
+                    KBRecordCard(
+                        title: sikayet.sikayetNo ?? "—",
+                        badges: rozetler(sikayet),
+                        subtitle: sikayet.arayanKisi,
+                        meta: meta(sikayet),
+                        accent: vurgu(sikayet),
+                        showsChevron: true
                     )
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                } else {
-                    ForEach(viewModel.complaints) { complaint in
-                        NavigationLink(value: complaint.id) {
-                            ComplaintRow(complaint: complaint)
-                        }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
-                    }
+                }
+                .buttonStyle(.plain)
+            }
+
+            if viewModel.canLoadMore {
+                KBLoadMoreCard(
+                    sayi: viewModel.complaints.count,
+                    birim: "şikayet",
+                    isLoading: viewModel.isLoading
+                ) {
+                    Task { await viewModel.loadMore() }
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .hideScrollBackgroundIfAvailable()
-        .kbScreenBackground()
-        .navigationTitle("Şikayetler")
-        .navigationBarTitleDisplayMode(.large)
         .navigationDestination(for: String.self) { id in
             ComplaintDetailView(complaintId: id)
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showCreate = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title3)
-                        .frame(minWidth: KBTheme.touchMin, minHeight: KBTheme.touchMin)
-                }
-                .accessibilityLabel("Yeni şikayet")
-            }
         }
         .sheet(isPresented: $showCreate) {
             NavigationStack {
@@ -72,51 +67,61 @@ struct ComplaintsListView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
-        .refreshable { await viewModel.load() }
-        .task(id: viewModel.tab) { await viewModel.load() }
-        .overlay {
-            if viewModel.isLoading && viewModel.complaints.isEmpty { LoadingOverlay() }
+        .task(id: viewModel.tab) { await viewModel.loadTab() }
+    }
+
+    private var sekmeler: [KBTabItem<ComplaintTab>] {
+        ComplaintTab.allCases.map { KBTabItem(value: $0, label: $0.shortLabel) }
+    }
+
+    private var gorunen: [ComplaintDTO] {
+        let sorgu = arama.trimmingCharacters(in: .whitespaces)
+        guard !sorgu.isEmpty else { return viewModel.complaints }
+        return viewModel.complaints.filter { sikayet in
+            [sikayet.sikayetNo, sikayet.arayanKisi, sikayet.complaintType?.name, sikayet.aciklama]
+                .contains { KBSearch.eslesir($0, sorgu) }
+        }
+    }
+
+    private func rozetler(_ sikayet: ComplaintDTO) -> [KBBadge] {
+        var rozetler: [KBBadge] = []
+        if let durum = sikayet.durum {
+            rozetler.append(KBBadge(text: durum.label, tone: durum.badgeTone))
+        }
+        if let oncelik = sikayet.oncelik, oncelik != .NORMAL {
+            rozetler.append(KBBadge(text: oncelik.label, tone: oncelik.badgeTone))
+        }
+        return rozetler
+    }
+
+    private func meta(_ sikayet: ComplaintDTO) -> [KBMetaChip] {
+        var chips: [KBMetaChip] = []
+        if let tur = sikayet.complaintType?.name {
+            chips.append(KBMetaChip(icon: "tag", text: tur))
+        }
+        if let mahalle = sikayet.neighborhood?.name {
+            chips.append(KBMetaChip(icon: "mappin", text: mahalle))
+        }
+        if let tarih = KBFormat.tarih(sikayet.kayitTarihi) {
+            chips.append(KBMetaChip(icon: "calendar", text: tarih))
+        }
+        if let kanal = KBStatus.kanal(sikayet.kanal) {
+            chips.append(KBMetaChip(icon: "antenna.radiowaves.left.and.right", text: kanal))
+        }
+        return chips
+    }
+
+    private func vurgu(_ sikayet: ComplaintDTO) -> Color {
+        switch sikayet.durum {
+        case .ACIK: return KBTheme.info
+        case .DEVAM_EDIYOR: return KBTheme.warning
+        case .KAPATILDI: return KBTheme.success
+        case .IPTAL, .none: return KBTheme.muted
         }
     }
 }
 
-private struct ComplaintRow: View {
-    let complaint: ComplaintDTO
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(complaint.sikayetNo ?? "—")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(KBTheme.navy)
-                Spacer(minLength: 8)
-                if let durum = complaint.durum {
-                    StatusBadge(text: durum.label, tone: durum.badgeTone)
-                }
-            }
-
-            Text(complaint.arayanKisi ?? "—")
-                .font(.body.weight(.medium))
-                .foregroundStyle(KBTheme.navy)
-                .lineLimit(1)
-
-            HStack(spacing: 8) {
-                Label(complaint.complaintType?.name ?? "Tür yok", systemImage: "tag")
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if let oncelik = complaint.oncelik {
-                    StatusBadge(text: oncelik.label, tone: oncelik.badgeTone)
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(KBTheme.muted)
-        }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private extension ComplaintTab {
+extension ComplaintTab {
     var shortLabel: String {
         switch self {
         case .aktif: return "Aktif"

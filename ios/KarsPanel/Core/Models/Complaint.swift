@@ -62,6 +62,20 @@ struct ComplaintDTO: Codable, Identifiable, Hashable {
     let lng: Double?
 }
 
+extension ComplaintDTO {
+    var mapPin: MapPinDTO? {
+        guard lat != nil, lng != nil else { return nil }
+        return MapPinDTO(
+            id: id,
+            sikayetNo: sikayetNo,
+            durum: durum?.rawValue,
+            lat: lat,
+            lng: lng,
+            aciklama: aciklama
+        )
+    }
+}
+
 struct VehicleSummaryDTO: Codable, Hashable {
     let id: String
     let plaka: String?

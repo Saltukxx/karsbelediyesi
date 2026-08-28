@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct MainShellView: View {
     @EnvironmentObject private var session: AppSession
@@ -66,54 +67,126 @@ private struct PhoneTabShellView: View {
     @EnvironmentObject private var session: AppSession
     @State private var selectedTab: PhoneTab = .more
     @State private var morePath = NavigationPath()
+    @State private var menuAcik = false
+    /// "Daha Fazla" yığınında açık olan modül; menüde hangi satırın vurgulanacağını belirler.
+    @State private var sonMoreModulu: NavDestination?
 
     private var role: UserRole { session.user?.role ?? .ADMIN }
 
     private var primary: [NavDestination] {
-        NavItemCatalog.phoneTabs(for: role).primary
+        let tabs = NavItemCatalog.phoneTabs(for: role)
+        let allowed = Set(NavItemCatalog.items(for: role, moduleHrefs: session.moduleHrefs).map(\.destination))
+        return tabs.primary.filter { allowed.contains($0) }
     }
 
     private var moreItems: [NavDestination] {
-        NavItemCatalog.phoneTabs(for: role).more
+        NavItemCatalog.items(for: role, moduleHrefs: session.moduleHrefs)
+            .map(\.destination)
+            .filter { !primary.contains($0) }
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            ForEach(primary, id: \.self) { destination in
-                NavigationStack {
-                    DestinationView(destination: destination)
-                        .toolbar { accountMenu }
-                }
-                .tabItem {
-                    Label(
-                        NavItemCatalog.shortLabel(for: destination, role: role),
-                        systemImage: destination.icon
-                    )
-                }
-                .tag(PhoneTab.module(destination))
+        // Sekme çubuğu safeAreaInset yerine yığının gerçek bir parçası: safeAreaInset
+        // güvenli alanı daraltıyor ama çerçeveyi daraltmadığından harita gibi
+        // kaydırmayan ekranların alt paneli çubuğun altında kalıyordu.
+        VStack(spacing: 0) {
+            KBBrandHeader {
+                withAnimation(.snappy(duration: 0.25)) { menuAcik = true }
             }
-
-            if !moreItems.isEmpty {
-                NavigationStack(path: $morePath) {
-                    MoreModulesView(moreItems: moreItems) { destination in
-                        morePath.append(destination)
-                    }
-                    .toolbar { accountMenu }
-                    .navigationDestination(for: NavDestination.self) { destination in
-                        DestinationView(destination: destination)
-                    }
-                }
-                .tabItem {
-                    Label("Daha Fazla", systemImage: "ellipsis.circle")
-                }
-                .tag(PhoneTab.more)
+            selectedTabContent
+            PhoneFigmaTabBar(
+                items: tabBarItems,
+                selection: $selectedTab
+            )
+        }
+        .overlay {
+            if menuAcik {
+                KBModuleDrawer(
+                    isPresented: $menuAcik,
+                    items: tumModuller,
+                    favorites: NavItemCatalog.favorites(for: role).filter(tumModuller.contains),
+                    active: aktifModul,
+                    onSelect: git
+                )
             }
         }
         .onAppear { applyLanding() }
+        .onChange(of: morePath.count) { _, yeni in
+            if yeni == 0 { sonMoreModulu = nil }
+        }
         .onChange(of: session.user?.id) { _, _ in
             morePath = NavigationPath()
+            menuAcik = false
             applyLanding()
         }
+    }
+
+    private var tumModuller: [NavDestination] {
+        NavItemCatalog.items(for: role, moduleHrefs: session.moduleHrefs).map(\.destination)
+    }
+
+    /// Menüde işaretlenecek modül: sekme köküyse sekme, değilse yığındaki son ekran.
+    private var aktifModul: NavDestination? {
+        switch selectedTab {
+        case .module(let destination): return destination
+        case .more: return sonMoreModulu
+        }
+    }
+
+    /// Sekme kökünde olan bir modüle sekmeden, diğerlerine "Daha Fazla" yığınından gidilir.
+    private func git(_ destination: NavDestination) {
+        if primary.contains(destination) {
+            selectedTab = .module(destination)
+            return
+        }
+        selectedTab = .more
+        morePath = NavigationPath()
+        sonMoreModulu = destination
+        morePath.append(destination)
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .module(let destination):
+            NavigationStack {
+                DestinationView(destination: destination)
+                    .environment(\.kbIsRootScreen, true)
+            }
+        case .more:
+            NavigationStack(path: $morePath) {
+                MoreModulesView(moreItems: moreItems) { destination in
+                    sonMoreModulu = destination
+                    morePath.append(destination)
+                }
+                .environment(\.kbIsRootScreen, true)
+                .navigationDestination(for: NavDestination.self) { destination in
+                    DestinationView(destination: destination)
+                }
+            }
+        }
+    }
+
+    private var tabBarItems: [PhoneTabBarItem] {
+        var items = primary.map {
+            PhoneTabBarItem(
+                tab: .module($0),
+                title: tabLabel($0),
+                icon: tabIcon($0)
+            )
+        }
+        if !moreItems.isEmpty {
+            items.append(PhoneTabBarItem(tab: .more, title: "Daha Fazla", icon: "ellipsis.circle"))
+        }
+        return items
+    }
+
+    private func tabLabel(_ destination: NavDestination) -> String {
+        NavItemCatalog.shortLabel(for: destination, role: role)
+    }
+
+    private func tabIcon(_ destination: NavDestination) -> String {
+        destination.icon
     }
 
     private func applyLanding() {
@@ -125,29 +198,6 @@ private struct PhoneTabShellView: View {
         }
     }
 
-    @ToolbarContentBuilder
-    private var accountMenu: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                if let user = session.user {
-                    Text(user.name)
-                    Text(user.role.label)
-                    Divider()
-                }
-                LocationShareMenuItem()
-                Button("Çıkış Yap", role: .destructive) {
-                    session.signOut()
-                }
-            } label: {
-                Image(systemName: "person.crop.circle.fill")
-                    .symbolRenderingMode(.hierarchical)
-                    .font(.title3)
-                    .foregroundStyle(KBTheme.navy)
-                    .frame(minWidth: KBTheme.touchMin, minHeight: KBTheme.touchMin)
-            }
-            .accessibilityLabel("Hesap menüsü")
-        }
-    }
 }
 
 private struct MoreModulesView: View {
@@ -157,43 +207,73 @@ private struct MoreModulesView: View {
 
     private var role: UserRole { session.user?.role ?? .ADMIN }
 
+    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
     var body: some View {
-        List {
+        KBScreen(
+            title: "Modüller",
+            description: "Yetkinize açık tüm operasyon ekranları.",
+            isEmpty: moreItems.isEmpty,
+            empty: KBEmptyConfig(
+                title: "Ek modül yok",
+                systemImage: "square.grid.2x2",
+                message: "Tüm yetkili modülleriniz alt sekmelerde görünüyor."
+            ),
+            spacing: 16
+        ) {
             ForEach(NavGroupId.allCases, id: \.self) { group in
                 let items = moreItems.filter { $0.group == group }
                 if !items.isEmpty {
-                    Section(group.label) {
-                        ForEach(items, id: \.self) { destination in
-                            Button {
-                                onSelect(destination)
-                            } label: {
-                                HStack(spacing: 14) {
-                                    Image(systemName: destination.icon)
-                                        .font(.body.weight(.semibold))
-                                        .foregroundStyle(KBTheme.accent)
-                                        .frame(width: 28)
-                                    Text(NavItemCatalog.label(for: destination, role: role))
-                                        .foregroundStyle(KBTheme.navy)
-                                        .multilineTextAlignment(.leading)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(KBTheme.muted)
+                    VStack(alignment: .leading, spacing: 10) {
+                        KBSectionHeader(title: group.label, trailing: "\(items.count) ekran")
+                        LazyVGrid(columns: columns, spacing: 10) {
+                            ForEach(items, id: \.self) { destination in
+                                ModuleTile(
+                                    title: NavItemCatalog.label(for: destination, role: role),
+                                    icon: destination.icon
+                                ) {
+                                    onSelect(destination)
                                 }
-                                .padding(.vertical, 4)
-                                .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .hideScrollBackgroundIfAvailable()
-        .kbScreenBackground()
-        .navigationTitle("Modüller")
-        .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+private struct ModuleTile: View {
+    let title: String
+    let icon: String
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(KBTheme.accent)
+                    .frame(width: 34, height: 34)
+                    .background(KBTheme.accent.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(KBTheme.navy)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+            .background(KBTheme.card)
+            .clipShape(RoundedRectangle(cornerRadius: KBTheme.radiusMd))
+            .overlay(
+                RoundedRectangle(cornerRadius: KBTheme.radiusMd)
+                    .stroke(KBTheme.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -213,7 +293,7 @@ private struct PadSplitShellView: View {
                     .background(KBTheme.navyDeep)
 
                 List(selection: $selection) {
-                    ForEach(NavItemCatalog.groupedItems(for: session.user?.role ?? .ADMIN), id: \.group) { section in
+                    ForEach(NavItemCatalog.groupedItems(for: session.user?.role ?? .ADMIN, moduleHrefs: session.moduleHrefs), id: \.group) { section in
                         Section(section.group.label) {
                             ForEach(section.items) { item in
                                 Label {
@@ -276,5 +356,58 @@ private struct PadSplitShellView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(KBTheme.card)
+    }
+}
+
+private struct PhoneTabBarItem: Identifiable {
+    let tab: PhoneTab
+    let title: String
+    let icon: String
+
+    var id: PhoneTab { tab }
+}
+
+private struct PhoneFigmaTabBar: View {
+    let items: [PhoneTabBarItem]
+    @Binding var selection: PhoneTab
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(items) { item in
+                let selected = selection == item.tab
+                Button {
+                    selection = item.tab
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 20, weight: selected ? .semibold : .regular))
+                            .symbolRenderingMode(.monochrome)
+                        Text(item.title)
+                            .font(.system(size: 11, weight: selected ? .semibold : .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                    }
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(selected ? KBTheme.action : Color.white.opacity(0.08))
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 6)
+        .background(KBTheme.navy.ignoresSafeArea(edges: .bottom))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(height: 0.5)
+        }
     }
 }

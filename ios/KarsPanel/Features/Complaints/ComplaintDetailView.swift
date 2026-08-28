@@ -1,11 +1,15 @@
 import SwiftUI
 import UIKit
+import PhotosUI
 
 struct ComplaintDetailView: View {
     let complaintId: String
     @StateObject private var viewModel = ComplaintsViewModel()
     @State private var cozumNotu = ""
     @State private var selectedStatus: ComplaintStatus = .DEVAM_EDIYOR
+    @State private var photoItems: [PhotosPickerItem] = []
+    @State private var kaydetHatasi: String?
+    @State private var fotoHazirlaniyor = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -27,8 +31,7 @@ struct ComplaintDetailView: View {
             .padding(.bottom, 24)
         }
         .kbScreenBackground()
-        .navigationTitle(viewModel.selected?.sikayetNo ?? "Detay")
-        .navigationBarTitleDisplayMode(.inline)
+        .kbNavigationChrome(title: viewModel.selected?.sikayetNo ?? "Detay")
         .task {
             await viewModel.loadDetail(id: complaintId)
             if let status = viewModel.selected?.durum {
@@ -118,30 +121,81 @@ struct ComplaintDetailView: View {
                         .stroke(KBTheme.border, lineWidth: 1)
                 )
 
+            PhotosPicker(selection: $photoItems, maxSelectionCount: 4, matching: .images) {
+                Label(
+                    photoItems.isEmpty ? "Kapanış fotoğrafı" : "\(photoItems.count) fotoğraf seçildi",
+                    systemImage: "camera"
+                )
+            }
+
+            if let kaydetHatasi {
+                ErrorBanner(message: kaydetHatasi)
+            }
+
             Button {
-                Task {
-                    let ok = await viewModel.update(
-                        id: complaintId,
-                        request: UpdateComplaintRequestDTO(
-                            durum: selectedStatus,
-                            cozumNotu: cozumNotu.isEmpty ? nil : cozumNotu,
-                            lat: nil,
-                            lng: nil
-                        )
-                    )
-                    if ok { dismiss() }
-                }
+                Task { await kaydet() }
             } label: {
-                if viewModel.isSaving {
+                if fotoHazirlaniyor {
+                    Label("Fotoğraflar hazırlanıyor", systemImage: "photo")
+                } else if viewModel.isSaving {
                     ProgressView().tint(.white)
                 } else {
                     Text("Kaydet")
                 }
             }
             .buttonStyle(KBPrimaryButtonStyle())
-            .disabled(viewModel.isSaving)
+            .disabled(viewModel.isSaving || fotoHazirlaniyor)
         }
         .kbCard()
+    }
+
+    /// Önce fotoğraflı uç nokta denenir; canlı sunucuda yoksa sade güncellemeye düşülür.
+    private func kaydet() async {
+        kaydetHatasi = nil
+
+        let photos: [String]
+        do {
+            fotoHazirlaniyor = !photoItems.isEmpty
+            defer { fotoHazirlaniyor = false }
+            photos = try await KBPhotoUpload.dataURLs(from: photoItems)
+        } catch {
+            kaydetHatasi = KBErrorText.of(error)
+            return
+        }
+
+        do {
+            _ = try await APIClient.shared.updateComplaintFull(
+                id: complaintId,
+                body: UpdateComplaintFullDTO(
+                    durum: selectedStatus,
+                    cozumNotu: cozumNotu.isEmpty ? nil : cozumNotu,
+                    lat: viewModel.selected?.lat,
+                    lng: viewModel.selected?.lng,
+                    cozumFotolari: photos.isEmpty ? nil : photos
+                )
+            )
+            dismiss()
+            return
+        } catch {
+            guard APIClient.shared.isMissingEndpoint(error) else {
+                kaydetHatasi = KBErrorText.of(error)
+                return
+            }
+        }
+        let ok = await viewModel.update(
+            id: complaintId,
+            request: UpdateComplaintRequestDTO(
+                durum: selectedStatus,
+                cozumNotu: cozumNotu.isEmpty ? nil : cozumNotu,
+                lat: viewModel.selected?.lat,
+                lng: viewModel.selected?.lng
+            )
+        )
+        if ok {
+            dismiss()
+        } else {
+            kaydetHatasi = viewModel.errorMessage ?? "Kayıt güncellenemedi."
+        }
     }
 
     private func detailRow(_ title: String, _ value: String?) -> some View {

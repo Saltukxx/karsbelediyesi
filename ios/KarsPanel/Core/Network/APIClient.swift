@@ -12,12 +12,27 @@ enum HTTPMethod: String {
 final class APIClient: ObservableObject {
     static let shared = APIClient()
 
-    var baseURL = URL(string: "http://localhost:3000")!
+    static var onUnauthorized: (() -> Void)?
     private var token: String?
     private let session: URLSession
+    private let redirectGuard = RedirectBlocker()
+    private var baseURL: URL { AppConfig.baseURL }
 
-    init(session: URLSession = .shared) {
-        self.session = session
+    init(session: URLSession? = nil) {
+        if let session {
+            self.session = session
+        } else {
+            let config = URLSessionConfiguration.default
+            // Varsayılan 60 sn saha hattında kullanıcıyı bir dakika spinner karşısında
+            // bekletiyor; takılan isteği erken bırakıp hatayı göstermek daha iyi.
+            config.timeoutIntervalForRequest = 20
+            config.timeoutIntervalForResource = 120
+            self.session = URLSession(
+                configuration: config,
+                delegate: redirectGuard,
+                delegateQueue: nil
+            )
+        }
     }
 
     func setToken(_ token: String?) {
@@ -37,14 +52,21 @@ final class APIClient: ObservableObject {
 
     // MARK: - Dashboard
 
-    func fetchDashboard() async throws -> DashboardDTO {
-        try await request(path: "/api/v1/dashboard")
+    func fetchDashboard(
+        aralik: String = "30g",
+        bas: String? = nil,
+        bit: String? = nil
+    ) async throws -> DashboardDTO {
+        var query: [URLQueryItem] = [URLQueryItem(name: "aralik", value: aralik)]
+        if let bas { query.append(URLQueryItem(name: "bas", value: bas)) }
+        if let bit { query.append(URLQueryItem(name: "bit", value: bit)) }
+        return try await request(path: "/api/v1/dashboard", query: query)
     }
 
     // MARK: - Complaints
 
-    func fetchComplaints(sekme: String? = nil) async throws -> [ComplaintDTO] {
-        var query: [URLQueryItem] = []
+    func fetchComplaints(sekme: String? = nil, limit: Int? = nil) async throws -> [ComplaintDTO] {
+        var query = Self.limitQuery(limit)
         if let sekme { query.append(URLQueryItem(name: "sekme", value: sekme)) }
         return try await request(path: "/api/v1/complaints", query: query)
     }
@@ -63,8 +85,14 @@ final class APIClient: ObservableObject {
 
     // MARK: - Other modules
 
-    func fetchWhatsAppQueue() async throws -> [WhatsAppMessageDTO] {
-        try await request(path: "/api/v1/whatsapp")
+    /// Liste uçları `?limit=` ile daha fazla satır verebilir; verilmezse sunucu varsayılanı.
+    static func limitQuery(_ limit: Int?) -> [URLQueryItem] {
+        guard let limit, limit > 0 else { return [] }
+        return [URLQueryItem(name: "limit", value: String(limit))]
+    }
+
+    func fetchWhatsAppQueue(limit: Int? = nil) async throws -> [WhatsAppMessageDTO] {
+        try await request(path: "/api/v1/whatsapp", query: Self.limitQuery(limit))
     }
 
     func updateWhatsApp(id: String, action: String) async throws -> WhatsAppMessageDTO {
@@ -75,8 +103,8 @@ final class APIClient: ObservableObject {
         )
     }
 
-    func fetchTasks() async throws -> [VehicleTaskDTO] {
-        try await request(path: "/api/v1/tasks")
+    func fetchTasks(limit: Int? = nil) async throws -> [VehicleTaskDTO] {
+        try await request(path: "/api/v1/tasks", query: Self.limitQuery(limit))
     }
 
     func updateTask(id: String, action: String) async throws -> VehicleTaskDTO {
@@ -87,28 +115,28 @@ final class APIClient: ObservableObject {
         )
     }
 
-    func fetchChecklists() async throws -> [ChecklistSubmissionDTO] {
-        try await request(path: "/api/v1/checklists")
+    func fetchChecklists(limit: Int? = nil) async throws -> [ChecklistSubmissionDTO] {
+        try await request(path: "/api/v1/checklists", query: Self.limitQuery(limit))
     }
 
-    func fetchVehicles() async throws -> [VehicleDTO] {
-        try await request(path: "/api/v1/vehicles")
+    func fetchVehicles(limit: Int? = nil) async throws -> [VehicleDTO] {
+        try await request(path: "/api/v1/vehicles", query: Self.limitQuery(limit))
     }
 
-    func fetchMaintenance() async throws -> [MaintenanceRecordDTO] {
-        try await request(path: "/api/v1/maintenance")
+    func fetchMaintenance(limit: Int? = nil) async throws -> [MaintenanceRecordDTO] {
+        try await request(path: "/api/v1/maintenance", query: Self.limitQuery(limit))
     }
 
-    func fetchFuelRecords() async throws -> [FuelRecordDTO] {
-        try await request(path: "/api/v1/fuel")
+    func fetchFuelRecords(limit: Int? = nil) async throws -> [FuelRecordDTO] {
+        try await request(path: "/api/v1/fuel", query: Self.limitQuery(limit))
     }
 
     func fetchFuelAnalysis() async throws -> [FuelAnalysisDTO] {
         try await request(path: "/api/v1/fuel-analysis")
     }
 
-    func fetchMaterials() async throws -> [MaterialStockDTO] {
-        try await request(path: "/api/v1/materials")
+    func fetchMaterials(limit: Int? = nil) async throws -> [MaterialStockDTO] {
+        try await request(path: "/api/v1/materials", query: Self.limitQuery(limit))
     }
 
     func fetchConcrete() async throws -> [ConcreteRecipeDTO] {
@@ -119,16 +147,16 @@ final class APIClient: ObservableObject {
         try await request(path: "/api/v1/agrega")
     }
 
-    func fetchBitum() async throws -> [BitumRecordDTO] {
-        try await request(path: "/api/v1/bitum")
+    func fetchBitum(limit: Int? = nil) async throws -> [BitumRecordDTO] {
+        try await request(path: "/api/v1/bitum", query: Self.limitQuery(limit))
     }
 
-    func fetchPersonnel() async throws -> [PersonnelDTO] {
-        try await request(path: "/api/v1/personnel")
+    func fetchPersonnel(limit: Int? = nil) async throws -> [PersonnelDTO] {
+        try await request(path: "/api/v1/personnel", query: Self.limitQuery(limit))
     }
 
-    func fetchWorkLogs() async throws -> [WorkLogDTO] {
-        try await request(path: "/api/v1/worklogs")
+    func fetchWorkLogs(limit: Int? = nil) async throws -> [WorkLogDTO] {
+        try await request(path: "/api/v1/worklogs", query: Self.limitQuery(limit))
     }
 
     func fetchDefinitions() async throws -> DefinitionsDTO {
@@ -143,6 +171,38 @@ final class APIClient: ObservableObject {
         try await request(path: "/api/v1/lookups")
     }
 
+    func fetchMe() async throws -> MeDTO {
+        try await request(path: "/api/v1/me")
+    }
+
+    func isMissingEndpoint(_ error: Error) -> Bool {
+        guard let error = error as? APIError else { return false }
+        switch error {
+        case .notFound, .decoding, .endpointMissing, .loginRedirect:
+            return true
+        case let .server(code, _) where [301, 302, 303, 307, 308, 404, 405].contains(code):
+            return true
+        case .invalidURL, .unauthorized, .forbidden, .server, .network, .unknown:
+            return false
+        }
+    }
+
+    func firstAvailable<T: Decodable>(_ attempts: [() async throws -> T]) async throws -> T {
+        var last: Error = APIError.unknown
+        for attempt in attempts {
+            do {
+                return try await attempt()
+            } catch {
+                if isMissingEndpoint(error) {
+                    last = error
+                    continue
+                }
+                throw error
+            }
+        }
+        throw last
+    }
+
     // MARK: - Location
 
     func sendLocation(lat: Double, lng: Double, hiz: Double?) async throws {
@@ -155,7 +215,7 @@ final class APIClient: ObservableObject {
 
     // MARK: - Transport
 
-    private func makeURL(path: String, query: [URLQueryItem] = []) throws -> URL {
+    func makeURL(path: String, query: [URLQueryItem] = []) throws -> URL {
         guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw APIError.invalidURL
         }
@@ -165,7 +225,31 @@ final class APIClient: ObservableObject {
         return url
     }
 
-    private func request<T: Decodable>(
+    func requestData(
+        path: String,
+        method: HTTPMethod = .get,
+        query: [URLQueryItem] = []
+    ) async throws -> (Data, String?) {
+        let url = try makeURL(path: path, query: query)
+        var req = URLRequest(url: url)
+        req.httpMethod = method.rawValue
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token {
+            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw APIError.unknown }
+        if http.statusCode == 401 {
+            Self.onUnauthorized?()
+            throw APIError.unauthorized
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.server(http.statusCode, nil)
+        }
+        return (data, http.value(forHTTPHeaderField: "Content-Disposition"))
+    }
+
+    func request<T: Decodable>(
         path: String,
         method: HTTPMethod = .get,
         query: [URLQueryItem] = [],
@@ -179,7 +263,7 @@ final class APIClient: ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         if let body {
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.httpBody = try JSONEncoder.api.encode(body)
+            req.httpBody = try await encodeOffMain(body)
         }
         if authenticated, let token {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -189,6 +273,10 @@ final class APIClient: ObservableObject {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: req)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            throw CancellationError()
         } catch {
             throw APIError.network(error)
         }
@@ -197,21 +285,53 @@ final class APIClient: ObservableObject {
 
         switch http.statusCode {
         case 200...299:
-            do {
-                return try JSONDecoder.api.decode(T.self, from: data)
-            } catch {
-                throw APIError.decoding(error)
-            }
+            return try await decodeOffMain(data)
+        case 301, 302, 303, 307, 308:
+            throw APIError.loginRedirect
         case 401:
+            if authenticated { Self.onUnauthorized?() }
             throw APIError.unauthorized
         case 403:
             throw APIError.forbidden
         case 404:
-            throw APIError.notFound
+            throw looksLikeHTML(data) ? APIError.endpointMissing : APIError.notFound
         default:
             let message = (try? JSONDecoder.api.decode(APIErrorResponse.self, from: data))?.error
             throw APIError.server(http.statusCode, message)
         }
+    }
+
+    // Sınıf @MainActor olduğu için kodlama ve çözme de arayüz iş parçacığına düşüyordu;
+    // 200 kayıtlık bir liste ya da fotoğraflı gövde kaydırmayı takıyor. `nonisolated async`
+    // bu iki adımı ortak yürütücüye taşır.
+    nonisolated private func encodeOffMain(_ body: any Encodable) async throws -> Data {
+        try JSONEncoder.api.encode(body)
+    }
+
+    nonisolated private func decodeOffMain<T: Decodable>(_ data: Data) async throws -> T {
+        do {
+            return try JSONDecoder.api.decode(T.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+}
+
+private func looksLikeHTML(_ data: Data) -> Bool {
+    guard let text = String(data: data.prefix(80), encoding: .utf8) else { return false }
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return trimmed.hasPrefix("<!doctype") || trimmed.hasPrefix("<html")
+}
+
+private final class RedirectBlocker: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
     }
 }
 

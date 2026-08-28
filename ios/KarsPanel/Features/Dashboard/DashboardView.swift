@@ -4,186 +4,204 @@ struct DashboardView: View {
     @EnvironmentObject private var session: AppSession
     @StateObject private var viewModel = DashboardViewModel()
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
+    private var isFieldRole: Bool {
+        switch session.user?.role {
+        case .DRIVER, .FIELD_WORKER: return true
+        case .ADMIN, .CALL_CENTER, .DEPARTMENT_MANAGER, .APPROVER, .none: return false
+        }
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                greetingHeader
-
-                if let error = viewModel.errorMessage {
-                    ErrorBanner(message: error)
-                }
-
-                if let dashboard = viewModel.dashboard {
-                    LazyVGrid(columns: columns, spacing: 12) {
-                        StatTile(title: "Açık Şikayet", value: dashboard.acikSikayetler ?? 0, icon: "phone.fill", tint: KBTheme.info)
-                        StatTile(title: "Devam Eden", value: dashboard.devamEdenSikayetler ?? 0, icon: "arrow.triangle.2.circlepath", tint: KBTheme.warning)
-                        StatTile(title: "Aktif Görev", value: dashboard.aktifGorevler ?? 0, icon: "list.clipboard.fill", tint: KBTheme.navy)
-                        StatTile(title: "WhatsApp", value: dashboard.bekleyenWhatsApp ?? 0, icon: "message.fill", tint: KBTheme.success)
-                        StatTile(title: "Aktif Araç", value: dashboard.aktifAraclar ?? 0, icon: "truck.box.fill", tint: KBTheme.accent)
-                        StatTile(title: "Bakım", value: dashboard.bakimGereken ?? 0, icon: "wrench.and.screwdriver.fill", tint: KBTheme.danger)
-                    }
-
-                    if let recent = dashboard.sonSikayetler, !recent.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            SectionHeaderLabel(title: "Son Şikayetler", subtitle: "En güncel kayıtlar")
-                            ForEach(recent) { item in
-                                HStack(spacing: 12) {
-                                    Image(systemName: "phone.fill")
-                                        .foregroundStyle(KBTheme.accent)
-                                        .frame(width: 28)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.sikayetNo ?? item.id)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(KBTheme.navy)
-                                        Text(item.arayanKisi ?? "—")
-                                            .font(.caption)
-                                            .foregroundStyle(KBTheme.muted)
-                                    }
-                                    Spacer(minLength: 8)
-                                    if let durum = item.durum {
-                                        StatusBadge(
-                                            text: durumLabel(durum),
-                                            tone: durumTone(durum)
-                                        )
-                                    }
-                                }
-                                .padding(.vertical, 4)
-                                if item.id != recent.last?.id {
-                                    Divider()
-                                }
-                            }
-                        }
-                        .kbCard()
-                    }
-
-                    if let tasks = dashboard.sonGorevler, !tasks.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            SectionHeaderLabel(title: "Son Görevler")
-                            ForEach(tasks) { item in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.gorevNo ?? item.id)
-                                            .font(.subheadline.weight(.semibold))
-                                            .foregroundStyle(KBTheme.navy)
-                                        Text(item.plaka ?? "—")
-                                            .font(.caption)
-                                            .foregroundStyle(KBTheme.muted)
-                                    }
-                                    Spacer()
-                                    StatusBadge(text: item.durum ?? "—", tone: .neutral)
-                                }
-                                if item.id != tasks.last?.id {
-                                    Divider()
-                                }
-                            }
-                        }
-                        .kbCard()
-                    }
-                } else if !viewModel.isLoading {
-                    EmptyStateView(
-                        title: "Özet verisi yok",
-                        systemImage: "square.grid.2x2",
-                        message: "Aşağı çekerek yenileyebilirsiniz."
-                    )
-                }
+            VStack(alignment: .leading, spacing: 16) {
+                content
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
         }
-        .kbScreenBackground()
-        .navigationTitle(dashboardTitle)
-        .navigationBarTitleDisplayMode(.large)
         .refreshable { await viewModel.load() }
+        .kbScreenBackground()
+        .kbNavigationChrome(title: "Dashboard")
         .task { await viewModel.load() }
         .overlay {
             if viewModel.isLoading && viewModel.dashboard == nil { LoadingOverlay() }
         }
     }
 
-    private var greetingHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(greeting)
+    @ViewBuilder
+    private var content: some View {
+        if let error = viewModel.errorMessage {
+            ErrorBanner(message: error)
+        }
+
+        if isFieldRole {
+            fieldLanding
+        } else if let dashboard = viewModel.dashboard {
+            analyticsDashboard(
+                dashboard: dashboard,
+                kpi: dashboard.displayKpi,
+                anlik: dashboard.displayAnlik
+            )
+        } else if !viewModel.isLoading {
+            EmptyStateView(
+                title: "Özet verisi yok",
+                systemImage: "square.grid.2x2",
+                message: "Aşağı çekerek yenileyebilirsiniz."
+            )
+        }
+    }
+
+    private var fieldLanding: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("İşlerim üzerinden devam edin")
                 .font(.title3.weight(.bold))
                 .foregroundStyle(KBTheme.navy)
-            if let name = session.user?.name {
-                Text(name)
-                    .font(.subheadline)
-                    .foregroundStyle(KBTheme.muted)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 4)
-    }
-
-    private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<12: return "Günaydın"
-        case 12..<18: return "İyi günler"
-        default: return "İyi akşamlar"
-        }
-    }
-
-    private var dashboardTitle: String {
-        guard let role = session.user?.role else { return "Dashboard" }
-        return NavItemCatalog.label(for: .dashboard, role: role)
-    }
-
-    private func durumLabel(_ raw: String) -> String {
-        ComplaintStatus(rawValue: raw)?.label ?? raw
-    }
-
-    private func durumTone(_ raw: String) -> StatusBadge.Tone {
-        ComplaintStatus(rawValue: raw)?.badgeTone ?? .neutral
-    }
-}
-
-private struct StatTile: View {
-    let title: String
-    let value: Int
-    let icon: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 32, height: 32)
-                    .background(tint.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                Spacer()
-            }
-            Text("\(value)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundStyle(KBTheme.navy)
-                .minimumScaleFactor(0.7)
-                .lineLimit(1)
-            Text(title)
-                .font(.caption.weight(.medium))
+            Text("Saha rollerinde analitik özet yerine atanan görevler gösterilir.")
+                .font(.subheadline)
                 .foregroundStyle(KBTheme.muted)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+            NavigationLink {
+                DestinationView(destination: .islerim)
+            } label: {
+                Text("İşlerime git")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(KBPrimaryButtonStyle())
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
-        .background(KBTheme.card)
-        .clipShape(RoundedRectangle(cornerRadius: KBTheme.radiusMd))
-        .overlay(
-            RoundedRectangle(cornerRadius: KBTheme.radiusMd)
-                .stroke(KBTheme.border, lineWidth: 1)
-        )
-        .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(tint)
-                .frame(width: 3)
-                .padding(.vertical, 12)
+        .padding(.top, 8)
+    }
+
+    @ViewBuilder
+    private func analyticsDashboard(
+        dashboard: DashboardDTO,
+        kpi: DashboardKpiDTO,
+        anlik: DashboardAnlikDTO
+    ) -> some View {
+        DashboardSearchField()
+
+        if anlik.yaklasanMuayene > 0 {
+            DashboardWarningBanner(count: anlik.yaklasanMuayene, kirilim: anlik.yaklasanMuayeneKirilim)
+        }
+
+        DashboardRangeBar(viewModel: viewModel)
+
+        DashboardSectionTitle(title: "Seçili dönem", subtitle: "önceki dönemle karşılaştırma")
+        LazyVGrid(columns: twoColumns, spacing: 10) {
+            DashboardKpiCard(label: "Yeni şikayet", delta: kpi.yeniSikayet, destination: .sikayetler)
+            DashboardKpiCard(label: "Kapatılan şikayet", delta: kpi.kapatilanSikayet, destination: .sikayetler)
+            DashboardKpiCard(label: "Ort. kapanış süresi", delta: kpi.ortKapanisGun, format: .days, lowerIsBetter: true)
+            DashboardKpiCard(label: "Tamamlanan görev", delta: kpi.tamamlananGorev, destination: .gorevler)
+            DashboardKpiCard(
+                label: "Operasyon maliyeti",
+                delta: kpi.operasyonMaliyeti,
+                format: .money,
+                lowerIsBetter: true,
+                hint: "bakım + yakıt"
+            )
+        }
+
+        DashboardSectionTitle(title: "Bugün yapılacaklar", subtitle: "ilgili ekrana gider")
+        LazyVGrid(columns: twoColumns, spacing: 10) {
+            DashboardActionCard(
+                title: "Acil şikayet",
+                count: anlik.acilSikayet,
+                hint: "Açık / devam · acil & çok acil",
+                icon: "exclamationmark.triangle.fill",
+                tone: anlik.acilSikayet > 0 ? KBTheme.danger : KBTheme.navy,
+                destination: .sikayetler
+            )
+            DashboardActionCard(
+                title: "WhatsApp onay",
+                count: anlik.onayBekleyenWhatsApp,
+                hint: "Onay bekleyen mesaj",
+                icon: "message.fill",
+                tone: anlik.onayBekleyenWhatsApp > 0 ? KBTheme.warning : KBTheme.navy,
+                destination: .whatsapp
+            )
+            DashboardActionCard(
+                title: "Kritik stok",
+                count: anlik.kritikStokToplam,
+                hint: "Malzeme / beton / bitüm",
+                icon: "shippingbox.fill",
+                tone: anlik.kritikStokToplam > 0 ? KBTheme.danger : KBTheme.success,
+                destination: stokDestination(anlik)
+            )
+            DashboardActionCard(
+                title: "Muayene / sigorta",
+                count: anlik.yaklasanMuayene,
+                hint: muayeneHint(anlik.yaklasanMuayeneKirilim),
+                icon: "wrench.and.screwdriver.fill",
+                tone: anlik.yaklasanMuayene > 0 ? KBTheme.warning : KBTheme.navy,
+                destination: .araclar
+            )
+            DashboardActionCard(
+                title: "Devam eden görev",
+                count: anlik.devamGorev,
+                hint: "Sahada devam eden işler",
+                icon: "list.clipboard.fill",
+                tone: anlik.devamGorev > 0 ? KBTheme.warning : KBTheme.navy,
+                destination: .gorevler
+            )
+            DashboardActionCard(
+                title: "Konum eksik",
+                count: anlik.konumEksikAcik,
+                hint: "Açık şikayet — haritada görünmez",
+                icon: "mappin.and.ellipse",
+                tone: anlik.konumEksikAcik > 0 ? KBTheme.warning : KBTheme.navy,
+                destination: .harita
+            )
+        }
+
+        // Kart sırası web paneliyle aynı tutulur; iki platformda aynı okuma düzeni.
+        DashboardSectionTitle(title: "Eğilimler", subtitle: viewModel.rangeCaption)
+        DashboardTrendChart(points: dashboard.trend ?? [])
+        DashboardDepartmentChart(items: dashboard.mudurlukDagilim ?? [])
+        DashboardTypeChart(items: dashboard.turDagilim ?? [])
+        DashboardSlaChart(sla: dashboard.sla ?? DashboardSlaDTO(bucketLt24h: 0, bucket1to3d: 0, bucketGt3d: 0))
+        DashboardVehicleStatusChart(aracOperasyon: anlik.aracOperasyon ?? [:])
+        DashboardChannelChart(items: dashboard.kanalDagilim ?? [])
+        DashboardNeighborhoodChart(items: dashboard.mahalleDagilim ?? [])
+        DashboardHeatMapCard(coordinates: dashboard.sikayetKonumlari ?? [])
+        DashboardHourHeatmap(cells: dashboard.saatlikYogunluk ?? [])
+        DashboardCostChart(points: dashboard.maliyetTrend ?? [])
+
+        DashboardSectionTitle(title: "Anlık durum")
+        LazyVGrid(columns: twoColumns, spacing: 10) {
+            DashboardAnlikTile(title: "Açık şikayet", value: anlik.acikSikayet, tone: KBTheme.info)
+            DashboardAnlikTile(title: "Devam eden", value: anlik.devamEdenSikayet, tone: KBTheme.warning)
+            DashboardAnlikTile(
+                title: "Çok acil",
+                value: anlik.cokAcil,
+                tone: anlik.cokAcil > 0 ? KBTheme.danger : KBTheme.navy
+            )
+            DashboardAnlikTile(title: "Acil", value: anlik.acil, tone: KBTheme.warning)
+            DashboardAnlikTile(
+                title: "Kritik stok",
+                value: anlik.kritikStokToplam,
+                tone: anlik.kritikStokToplam > 0 ? KBTheme.danger : KBTheme.success
+            )
+            DashboardAnlikTile(
+                title: "Yaklaşan bakım",
+                value: anlik.yaklasanMuayene,
+                tone: KBTheme.warning,
+                hint: muayeneHint(anlik.yaklasanMuayeneKirilim)
+            )
         }
     }
+
+    private var twoColumns: [GridItem] {
+        [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+    }
+
+    private func stokDestination(_ anlik: DashboardAnlikDTO) -> NavDestination {
+        if (anlik.kritikBeton ?? 0) > 0 { return .beton }
+        if (anlik.kritikBitum ?? 0) > 0 { return .bitum }
+        return .malzemeDepo
+    }
+
+    private func muayeneHint(_ kirilim: DashboardMuayeneKirilimDTO?) -> String {
+        guard let k = kirilim else { return "≤30 gün veya geçmiş" }
+        return "M \(k.muayene) · S \(k.sigorta) · B \(k.bakim)"
+    }
+
 }

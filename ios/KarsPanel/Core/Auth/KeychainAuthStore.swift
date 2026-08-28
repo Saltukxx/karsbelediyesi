@@ -4,7 +4,7 @@ import Security
 final class KeychainAuthStore {
     static let shared = KeychainAuthStore()
 
-    private let service = "tr.gov.kars.panel"
+    private let service = AppConfig.keychainService
     private let tokenKey = "auth_token"
     private let userKey = "auth_user"
 
@@ -45,7 +45,7 @@ final class KeychainAuthStore {
         SecItemDelete(query as CFDictionary)
         var add = query
         add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(add as CFDictionary, nil)
     }
 

@@ -7,38 +7,54 @@ struct DestinationView: View {
         switch destination {
         case .dashboard:
             DashboardView()
+        case .komuta:
+            KomutaView()
+        case .raporlar:
+            ReportsView()
         case .sikayetler:
             ComplaintsListView()
+        case .islerim:
+            IslerimView()
         case .whatsapp:
-            WhatsAppView()
+            WhatsAppQueueView()
         case .gorevler:
-            GorevlerView()
+            TasksView()
         case .kontrol:
-            KontrolView()
+            ChecklistsView()
+        case .harita:
+            HaritaView()
+        case .parsel:
+            ParselView()
+        case .kis:
+            FieldRouteView(kind: "kis", title: "Kış Operasyonu")
+        case .cop:
+            FieldRouteView(kind: "cop", title: "Çöp Toplama")
+        case .temizlik:
+            FieldRouteView(kind: "temizlik", title: "Yol Temizliği")
         case .araclar:
-            AraclarView()
+            VehiclesView()
         case .bakim:
-            BakimView()
+            MaintenanceView()
         case .yakit:
-            YakitView()
+            FuelView()
         case .akaryakit:
-            AkaryakitView()
+            FuelAnalysisView()
         case .malzemeDepo:
-            MalzemeDepoView()
+            MaterialsView()
         case .beton:
-            BetonView()
+            ConcreteView()
         case .agrega:
             AgregaView()
         case .bitum:
             BitumView()
         case .personel:
-            PersonelView()
+            PersonnelView()
         case .gunlukCalisma:
-            GunlukCalismaView()
-        case .raporlar:
-            RaporlarView()
+            WorkLogsView()
         case .tanimlar:
-            TanimlarView()
+            DefinitionsView()
+        case .denetim:
+            AuditView()
         }
     }
 }

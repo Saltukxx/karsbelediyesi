@@ -27,9 +27,14 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES
+        ENABLE_TESTABILITY: YES
     info:
       path: KarsPanel/Info.plist
       properties:
+        NSLocationWhenInUseUsageDescription: Göreve en yakın aracın belirlenebilmesi ve saha konumunun panele iletilmesi için konumunuz kullanılır.
+        NSCameraUsageDescription: Şikayet kapanış ve yol engeli fotoğrafları çekmek için kamera kullanılır.
+        NSPhotoLibraryUsageDescription: Şikayet ve engel kayıtlarına eklemek üzere galeriden fotoğraf seçilir.
+        NSPhotoLibraryAddUsageDescription: Rapor ve Excel çıktıları Fotoğraflar’a kaydedilebilir.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
@@ -41,3 +46,30 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+  KarsPanelTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - KarsPanelTests
+    dependencies:
+      - target: KarsPanel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tr.gov.kars.panel.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/KarsPanel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/KarsPanel"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+  KarsPanelUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - KarsPanelUITests
+    dependencies:
+      - target: KarsPanel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tr.gov.kars.panel.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: KarsPanel

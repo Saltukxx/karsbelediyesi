@@ -5,6 +5,10 @@ enum APIError: LocalizedError {
     case unauthorized
     case forbidden
     case notFound
+    /// Canlı sunucuda bu route henüz yok (Next.js HTML 404).
+    case endpointMissing
+    /// Middleware JWT'yi görmeden /giris'e 307 attı.
+    case loginRedirect
     case server(Int, String?)
     case decoding(Error)
     case network(Error)
@@ -20,6 +24,10 @@ enum APIError: LocalizedError {
             return "Bu işlem için yetkiniz yok"
         case .notFound:
             return "Kayıt bulunamadı"
+        case .endpointMissing:
+            return "Bu ekranın API'si canlı sunucuda henüz yok. Web paneli güncellenince açılacak."
+        case .loginRedirect:
+            return "Sunucu telefon oturumunu tarayıcı girişi sandı. Web paneli güncellenince düzelecek."
         case let .server(code, message):
             return message ?? "Sunucu hatası (\(code))"
         case let .decoding(error):

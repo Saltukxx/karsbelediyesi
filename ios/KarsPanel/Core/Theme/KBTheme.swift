@@ -1,8 +1,10 @@
 import SwiftUI
+import UIKit
 
 enum KBTheme {
-    static let navy = Color(red: 0x1e / 255, green: 0x3a / 255, blue: 0x5f / 255)
-    static let navyDeep = Color(red: 0x15 / 255, green: 0x2a / 255, blue: 0x45 / 255)
+    static let navy = Color(red: 0x00 / 255, green: 0x21 / 255, blue: 0x47 / 255)
+    static let navyDeep = Color(red: 0x00 / 255, green: 0x0a / 255, blue: 0x1e / 255)
+    static let action = Color(red: 0x0d / 255, green: 0x6e / 255, blue: 0xfd / 255)
     static let accent = Color(red: 0xc4 / 255, green: 0x5c / 255, blue: 0x26 / 255)
     static let background = Color(red: 0xf4 / 255, green: 0xf6 / 255, blue: 0xf9 / 255)
     static let card = Color.white
@@ -16,6 +18,10 @@ enum KBTheme {
     static let radiusSm: CGFloat = 10
     static let radiusMd: CGFloat = 14
     static let touchMin: CGFloat = 44
+
+    static let navyUI = UIColor(red: 0, green: 0x21 / 255, blue: 0x47 / 255, alpha: 1)
+    static let navyDeepUI = UIColor(red: 0, green: 0x0a / 255, blue: 0x1e / 255, alpha: 1)
+    static let actionUI = UIColor(red: 0x0d / 255, green: 0x6e / 255, blue: 0xfd / 255, alpha: 1)
 }
 
 struct KBPrimaryButtonStyle: ButtonStyle {
