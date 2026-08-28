@@ -31,3 +31,16 @@ export function json<T>(data: T, status = 200) {
 export function badRequest(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
+
+export function catchDomain(e: unknown) {
+  const msg = e instanceof Error ? e.message : "Hata";
+  if (msg === "Yetkisiz") return json({ error: msg }, 403);
+  if (msg === "Oturum gerekli") return json({ error: msg }, 401);
+  return badRequest(msg);
+}
+
+export function assertApiRoles(user: ApiUser, roles: readonly Rol[]) {
+  if (!roles.includes(user.role as Rol)) {
+    throw new Error("Yetkisiz");
+  }
+}
