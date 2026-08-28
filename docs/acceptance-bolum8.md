@@ -62,8 +62,8 @@ Her Excel sayfası / sütun grubu için sistemde karşılık işareti.
 
 | Madde | Durum |
 |-------|-------|
-| Expo mobil (işlerim, görev, kontrol offline, mesai) | [x] |
-| `/api/mobile` JWT | [x] |
+| Native iOS KarsPanel (`ios/`) | [x] |
+| `/api/mobile` JWT (saha konum / native) | [x] |
 | WhatsApp Baileys + Gemini + BullMQ | [x] |
 | Excel export (`/api/export/*`) | [x] |
 | Excel import script | [x] |

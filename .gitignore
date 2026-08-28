@@ -1,6 +1,5 @@
 node_modules/
 .next/
-.expo/
 dist/
 build/
 *.log
@@ -30,3 +29,10 @@ apps/whatsapp-bot/data/training/smoke-*
 apps/web/e2e/.auth/
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Xcode turev verisi (xcodebuild -derivedDataPath ciktilari)
+ios/.build/
+ios/.testbuild/
+ios/.typecheck/
+ios/**/xcuserdata/
+ios/**/*.xcuserstate

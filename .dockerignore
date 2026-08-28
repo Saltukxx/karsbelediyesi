@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+ios
+backups
+uploads
+apps/whatsapp-bot/data
+*.md
+.env
+.env.*
+docker-compose.prod.yml
+GBSOFT-Kars-Belediyesi-Teklif.pdf
