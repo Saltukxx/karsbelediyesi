@@ -77,6 +77,7 @@
 		AFEED934CEA931E899C0EA07 /* KBScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21A66A16153BA802F5C3E862 /* KBScreen.swift */; };
 		B05B8824853BB1D453A70708 /* PersonnelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A86412C0267768FDFDE948D /* PersonnelView.swift */; };
 		B0C69D44BB2B5DC79D7B8BC4 /* DefinitionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F847E94D81E673EF2252901 /* DefinitionsView.swift */; };
+		B5C36E333EC4122EADF5E86A /* KBPollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A42ECD2F503E56057C9C6B /* KBPollTests.swift */; };
 		B627A6C1E6C87FFE8D055A7A /* SearchPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101D516091F10A911EB9B1CE /* SearchPaletteView.swift */; };
 		B7D07DEA5CEFC3468C898511 /* IslerimView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333D9EEA2CA7EFFDF5551D4C /* IslerimView.swift */; };
 		B8AB948FB2F3391CBFC701CD /* KBSegmentedTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCDB018E1E2A7F6042E981F9 /* KBSegmentedTabs.swift */; };
@@ -103,6 +104,7 @@
 		E4DCEA424DF013AE7605F44B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FF23E36BEC5D0691E6D037 /* LoginView.swift */; };
 		E669D28A7A4C7BF433A66625 /* MaterialsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1CCAB91EF7E4F7DCA559858 /* MaterialsView.swift */; };
 		EE580AE819DB9625142F0845 /* KBModuleDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17175A27AF6B6B9BC5E46527 /* KBModuleDrawer.swift */; };
+		F2204BC5AEA07CCAD033C206 /* KBPoll.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7527B91C7A1243BF6D75AFE /* KBPoll.swift */; };
 		F229D3125FCF83C2BE886C8F /* CommonViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7FC874B52D08E0117FF7CE7 /* CommonViews.swift */; };
 		FA0622AE16C9F7D42FE18326 /* KBLoadMoreRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FC5ECA71662F37431F43BC3 /* KBLoadMoreRow.swift */; };
 		FF750A1ACB48FCA3BBB858CA /* KBBrandHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA319828FFFB92FBC029B86 /* KBBrandHeader.swift */; };
@@ -171,6 +173,7 @@
 		53B3F6A4411A8E82921D5560 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		59022ACBEABA44414C1319D0 /* ParselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParselView.swift; sourceTree = "<group>"; };
 		5DB5CA1BE209EF98FBB8B047 /* FieldRouteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldRouteView.swift; sourceTree = "<group>"; };
+		61A42ECD2F503E56057C9C6B /* KBPollTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBPollTests.swift; sourceTree = "<group>"; };
 		63B0BAAAB421AF8D81A962B7 /* KomutaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KomutaView.swift; sourceTree = "<group>"; };
 		6CE507C220BB9E17CD34C8B9 /* ModuleDrawerUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleDrawerUITests.swift; sourceTree = "<group>"; };
 		6CFDCE40B757D6B655BE6C5C /* APIClient+Panel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "APIClient+Panel.swift"; sourceTree = "<group>"; };
@@ -223,6 +226,7 @@
 		E37EE0018A818291774A0C79 /* DashboardNeighborhoodChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardNeighborhoodChart.swift; sourceTree = "<group>"; };
 		E5C78552DF35CC4F53648617 /* ChecklistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistsView.swift; sourceTree = "<group>"; };
 		E61E8FA6442D1DE08AF0D402 /* VehiclesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehiclesView.swift; sourceTree = "<group>"; };
+		E7527B91C7A1243BF6D75AFE /* KBPoll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBPoll.swift; sourceTree = "<group>"; };
 		EC4B07AD83062EEBF8771B56 /* AuditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditView.swift; sourceTree = "<group>"; };
 		EF57DD6A8FF4A6CD1C5F442C /* Complaint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Complaint.swift; sourceTree = "<group>"; };
 		F36C7DFF057FF51682082E2F /* Role.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Role.swift; sourceTree = "<group>"; };
@@ -328,6 +332,7 @@
 			isa = PBXGroup;
 			children = (
 				F96667F9B0C8B0D6166EEA87 /* KBListStore.swift */,
+				E7527B91C7A1243BF6D75AFE /* KBPoll.swift */,
 				89416027353DE29E8E44B467 /* KBReferenceCache.swift */,
 			);
 			path = State;
@@ -442,6 +447,7 @@
 				A8DB040C3C55CFACFD493D8F /* DashboardDTOTests.swift */,
 				181A172A20922AA08B953B8A /* KBListStoreTests.swift */,
 				E054E4B10DFDD2F33A1C8C1B /* KBPhotoUploadTests.swift */,
+				61A42ECD2F503E56057C9C6B /* KBPollTests.swift */,
 				A81C387505BFCBC2FD19B1E5 /* KBSearchTests.swift */,
 				CE97AB18B6E06F0F8F6AE30E /* KBStatusMapsTests.swift */,
 				BBAB84591E198D92498B0365 /* NavItemTests.swift */,
@@ -742,6 +748,7 @@
 				14E42690843C12ABC114DB80 /* KBNavigationChrome.swift in Sources */,
 				C16A171887C07B77209E5293 /* KBPageHeader.swift in Sources */,
 				A75726B6158CF406526DB687 /* KBPhotoUpload.swift in Sources */,
+				F2204BC5AEA07CCAD033C206 /* KBPoll.swift in Sources */,
 				AFAB80059FC24EBD54DBDDCE /* KBRankedBarList.swift in Sources */,
 				3A256572D69904C4F739DE2E /* KBRecordCard.swift in Sources */,
 				AEE00AAA6705FFBA548C9235 /* KBReferenceCache.swift in Sources */,
@@ -802,6 +809,7 @@
 				C789BEA4756939052EA9FFA9 /* DashboardDTOTests.swift in Sources */,
 				A146DCA0CC9DF22E3048D70A /* KBListStoreTests.swift in Sources */,
 				A0296406F7B39D718990812F /* KBPhotoUploadTests.swift in Sources */,
+				B5C36E333EC4122EADF5E86A /* KBPollTests.swift in Sources */,
 				380B7D0CD11911596E5996B6 /* KBSearchTests.swift in Sources */,
 				1F81FF369EE11464E450B9F3 /* KBStatusMapsTests.swift in Sources */,
 				AB27EADE62E87AB7E1E171E3 /* NavItemTests.swift in Sources */,

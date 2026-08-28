@@ -7,9 +7,6 @@ struct KomutaView: View {
     @State private var hata: String?
     // Liste kapalı başlar: açıkken panel haritanın üçte ikisini kaplıyor.
     @State private var panelAcik = false
-    @Environment(\.scenePhase) private var scenePhase
-
-    private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     private var araclar: [KomutaVehicleDTO] { payload?.araclar ?? [] }
     private var sikayetler: [MapPinDTO] { payload?.sikayetPinleri ?? [] }
@@ -29,11 +26,7 @@ struct KomutaView: View {
         }
         .kbNavigationChrome(title: "Komuta")
         .task { await yukle() }
-        // Arkaplandayken konum yoklaması sürdürmenin anlamı yok.
-        .onReceive(timer) { _ in
-            guard scenePhase == .active else { return }
-            Task { await yukle() }
-        }
+        .kbPoll(every: 30) { await yukle() }
     }
 
     private var yanPanel: some View {

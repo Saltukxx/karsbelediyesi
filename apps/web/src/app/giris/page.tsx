@@ -5,7 +5,7 @@ import { auth, signIn } from "@/auth";
 import { AuthError } from "next-auth";
 import { BrandMark } from "@/components/BrandMark";
 import { LoginHero } from "@/components/LoginHero";
-import { checkLoginRateLimit } from "@/lib/rate-limit";
+import { girisKilitliMi } from "@/lib/rate-limit";
 import { btnPrimary, inputCls, labelCls } from "@/lib/ui";
 
 export const metadata = { title: "Giriş — Kars Belediyesi" };
@@ -27,7 +27,7 @@ export default async function GirisPage({
       h.get("x-real-ip") ||
       "unknown";
     const phone = String(formData.get("phone") ?? "").replace(/\s/g, "");
-    if (!checkLoginRateLimit(ip, phone)) {
+    if (await girisKilitliMi(ip, phone)) {
       redirect(`/giris?hata=limit`);
     }
     try {

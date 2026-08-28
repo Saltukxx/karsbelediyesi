@@ -5,6 +5,11 @@ import { prisma } from "@kars/db";
 import type { Rol } from "@kars/db";
 import type { User } from "@kars/db";
 import { authConfig } from "./auth.config";
+import {
+  basarisizGirisKaydet,
+  clientIp,
+  girisDenemeleriniSifirla,
+} from "@/lib/rate-limit";
 
 /** Başarılı/başarısız giriş izi — audit bozulursa giriş akışı etkilenmez */
 async function girisIziYaz(
@@ -59,24 +64,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         phone: { label: "Telefon", type: "text" },
         password: { label: "Şifre", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const phone = String(credentials?.phone ?? "").replace(/\s/g, "");
         const password = String(credentials?.password ?? "");
         if (!phone || !password) return null;
 
+        // Kilit kontrolü giriş sayfasında yapılır; burada yalnızca sonuca göre
+        // sayaç güncellenir çünkü şifrenin doğruluğu ilk kez burada bilinir.
+        const ip = clientIp(request);
+
         const user = await prisma.user.findUnique({ where: { phone } });
         if (!user || !user.aktif) {
           await girisIziYaz(null, phone, false);
+          await basarisizGirisKaydet(ip, phone);
           return null;
         }
 
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) {
           await girisIziYaz(user, phone, false);
+          await basarisizGirisKaydet(ip, phone);
           return null;
         }
 
         await girisIziYaz(user, phone, true);
+        await girisDenemeleriniSifirla(ip, phone);
 
         return {
           id: user.id,

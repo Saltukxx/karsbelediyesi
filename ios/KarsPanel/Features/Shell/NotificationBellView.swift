@@ -5,9 +5,6 @@ struct NotificationBellView: View {
     @State private var bildirimler: [NotificationItemDTO] = []
     @State private var hata: String?
     @State private var showList = false
-    @Environment(\.scenePhase) private var scenePhase
-
-    private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     var body: some View {
         Button {
@@ -37,11 +34,7 @@ struct NotificationBellView: View {
             NotificationListView(bildirimler: bildirimler, hata: hata)
         }
         .task { await yukle() }
-        // Uygulama arkaplandayken yoklamaya devam etmek boşuna istek ve pil tüketimi.
-        .onReceive(timer) { _ in
-            guard scenePhase == .active else { return }
-            Task { await yukle() }
-        }
+        .kbPoll(every: 30) { await yukle() }
     }
 
     /// Önce okundu işaretlenir, sonra liste tazelenir. İşaretleme hatası tazeleme
