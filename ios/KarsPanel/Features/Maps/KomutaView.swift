@@ -7,22 +7,31 @@ struct KomutaView: View {
     @State private var hata: String?
     // Liste kapalı başlar: açıkken panel haritanın üçte ikisini kaplıyor.
     @State private var panelAcik = false
+    @State private var yukleniyor = false
 
     private var araclar: [KomutaVehicleDTO] { payload?.araclar ?? [] }
     private var sikayetler: [MapPinDTO] { payload?.sikayetPinleri ?? [] }
 
     var body: some View {
-        // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
-        // değil üstüne bindirilir; böylece kendi boyunda kalır.
-        ZStack(alignment: .top) {
-            KarsMapView(pins: pins)
-            if let hata {
-                ErrorBanner(message: hata)
-                    .padding(12)
+        VStack(spacing: 0) {
+            KBMapHeader(title: "Komuta", subtitle: "Canlı saha durumu ve akıllı görevlendirme")
+
+            // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
+            // değil üstüne bindirilir; böylece kendi boyunda kalır.
+            ZStack(alignment: .top) {
+                KarsMapView(pins: pins)
+                if let hata {
+                    ErrorBanner(message: hata)
+                        .padding(12)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                yanPanel.safeAreaPadding(.bottom)
             }
         }
-        .overlay(alignment: .bottom) {
-            yanPanel.safeAreaPadding(.bottom)
+        // Yalnızca ilk yüklemede: 30 saniyelik yoklama haritayı örtmemeli.
+        .overlay {
+            if yukleniyor && payload == nil { LoadingOverlay() }
         }
         .kbNavigationChrome(title: "Komuta")
         .task { await yukle() }
@@ -155,6 +164,8 @@ struct KomutaView: View {
     }
 
     private func yukle() async {
+        yukleniyor = true
+        defer { yukleniyor = false }
         do {
             payload = try await APIClient.shared.fetchKomuta()
             hata = nil

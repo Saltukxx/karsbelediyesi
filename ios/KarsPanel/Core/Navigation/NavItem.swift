@@ -279,25 +279,29 @@ enum NavItemCatalog {
         let allowed = Set(items(for: role).map(\.destination))
         let preferred: [NavDestination]
         switch role {
+        // Harita her rolde son sırada: "Saha & Harita" bölümünün alt çubuktaki
+        // tek temsilcisi, diğer bölümler zaten baştaki sekmelerle karşılanıyor.
         case .ADMIN:
-            preferred = [.dashboard, .sikayetler, .gorevler, .araclar]
+            preferred = [.dashboard, .sikayetler, .gorevler, .araclar, .harita]
         case .CALL_CENTER:
-            preferred = [.sikayetler, .whatsapp, .dashboard]
+            preferred = [.sikayetler, .whatsapp, .dashboard, .harita]
         case .DEPARTMENT_MANAGER:
-            preferred = [.dashboard, .sikayetler, .gorevler, .araclar]
+            preferred = [.dashboard, .sikayetler, .gorevler, .araclar, .harita]
         case .APPROVER:
-            preferred = [.sikayetler, .gorevler, .raporlar]
+            preferred = [.sikayetler, .gorevler, .raporlar, .harita]
         case .DRIVER:
-            preferred = [.islerim, .gorevler, .gunlukCalisma]
+            preferred = [.islerim, .gorevler, .gunlukCalisma, .harita]
         case .FIELD_WORKER:
-            preferred = [.islerim, .gorevler, .kontrol, .gunlukCalisma]
+            preferred = [.islerim, .gorevler, .kontrol, .gunlukCalisma, .harita]
         }
         return preferred.filter { allowed.contains($0) }
     }
 
+    /// Alt çubuktaki sekmeler. Beşi geçmez: altıncı düğme etiketleri okunmaz hale
+    /// getiriyor, kalan modüllere zaten başlıktaki menüden ulaşılıyor.
     static func phoneTabs(for role: UserRole) -> (primary: [NavDestination], more: [NavDestination]) {
         let all = items(for: role).map(\.destination)
-        let primary = Array(favorites(for: role).prefix(4))
+        let primary = Array(favorites(for: role).prefix(5))
         let more = all.filter { !primary.contains($0) }
         return (primary, more)
     }

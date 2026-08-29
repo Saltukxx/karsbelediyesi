@@ -26,11 +26,11 @@ struct DestinationView: View {
         case .parsel:
             ParselView()
         case .kis:
-            FieldRouteView(kind: "kis", title: "Kış Operasyonu")
+            FieldRouteView(kind: "kis", title: destination.label, subtitle: destination.summary)
         case .cop:
-            FieldRouteView(kind: "cop", title: "Çöp Toplama")
+            FieldRouteView(kind: "cop", title: destination.label, subtitle: destination.summary)
         case .temizlik:
-            FieldRouteView(kind: "temizlik", title: "Yol Temizliği")
+            FieldRouteView(kind: "temizlik", title: destination.label, subtitle: destination.summary)
         case .araclar:
             VehiclesView()
         case .bakim:

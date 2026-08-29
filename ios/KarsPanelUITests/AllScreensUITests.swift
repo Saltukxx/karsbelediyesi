@@ -1,7 +1,8 @@
 import XCTest
 
-/// Her panel ekranını "Modüller" sekmesinden açar, sayfa başlığının çizildiğini
-/// doğrular ve ekran görüntüsünü test sonucuna ekler.
+/// Her panel ekranını açar, sayfa başlığının çizildiğini doğrular ve ekran
+/// görüntüsünü test sonucuna ekler. Alt çubuktaki beş sekme doğrudan, kalan
+/// modüller başlıktaki menüden açılır.
 ///
 /// Yerel backend (`npm run dev`) ve demo veri gerektirir; backend ayakta değilse atlanır.
 final class AllScreensUITests: XCTestCase {
@@ -9,42 +10,44 @@ final class AllScreensUITests: XCTestCase {
     private let phone = "05000000000"
     private let password = "admin123"
 
-    /// Modül kutucuğundaki etiket (`NavDestination.label`) ile ekranın kendi
+    /// Menüdeki satır etiketi (`NavDestination.label`) ile ekranın kendi
     /// `KBPageHeader` başlığı farklı olabildiği için ikisi ayrı tutulur.
+    /// `grup` menüde hangi bölümün açılacağını söyler; sekmelerde boştur.
     private struct Ekran {
         let modulEtiketi: String
         let sayfaBasligi: String
+        var grup: String = ""
     }
 
-    /// ADMIN rolünde bu dördü alt sekme çubuğunda; modül ızgarasında görünmezler.
+    /// ADMIN rolünde alt sekme çubuğundakiler; etiketleri `shortLabel`.
     private let sekmeEkranlari: [Ekran] = [
         Ekran(modulEtiketi: "Şikayet", sayfaBasligi: "Şikayetler"),
         Ekran(modulEtiketi: "Görev", sayfaBasligi: "Görevlendirme"),
         Ekran(modulEtiketi: "Araçlar", sayfaBasligi: "Araç Envanteri"),
+        Ekran(modulEtiketi: "Harita", sayfaBasligi: "Yol Haritası"),
     ]
 
     private let modulEkranlari: [Ekran] = [
-        Ekran(modulEtiketi: "Komuta Ekranı", sayfaBasligi: "Komuta"),
-        Ekran(modulEtiketi: "Yol Haritası", sayfaBasligi: "Yol Haritası"),
-        Ekran(modulEtiketi: "Parsel Sorgu", sayfaBasligi: "Parsel Sorgu"),
-        Ekran(modulEtiketi: "Kış Operasyonu", sayfaBasligi: "Kış Operasyonu"),
-        Ekran(modulEtiketi: "Çöp Toplama", sayfaBasligi: "Çöp Toplama"),
-        Ekran(modulEtiketi: "Yol Temizliği", sayfaBasligi: "Yol Temizliği"),
-        Ekran(modulEtiketi: "Raporlar", sayfaBasligi: "Raporlar"),
-        Ekran(modulEtiketi: "İşlerim", sayfaBasligi: "İşlerim"),
-        Ekran(modulEtiketi: "WhatsApp Kuyruğu", sayfaBasligi: "WhatsApp Kuyruğu"),
-        Ekran(modulEtiketi: "Kontrol Listeleri", sayfaBasligi: "Kontrol Listeleri"),
-        Ekran(modulEtiketi: "Bakım Takip", sayfaBasligi: "Bakım Takip"),
-        Ekran(modulEtiketi: "Yakıt Takip", sayfaBasligi: "Yakıt Takip"),
-        Ekran(modulEtiketi: "Akaryakıt Analizi", sayfaBasligi: "Akaryakıt Analizi"),
-        Ekran(modulEtiketi: "Malzeme / Depo", sayfaBasligi: "Malzeme / Depo"),
-        Ekran(modulEtiketi: "Beton Reçeteleri", sayfaBasligi: "Beton Reçeteleri"),
-        Ekran(modulEtiketi: "Agrega Maliyet", sayfaBasligi: "Agrega Maliyet"),
-        Ekran(modulEtiketi: "Bitüm Takip", sayfaBasligi: "Bitüm Takip"),
-        Ekran(modulEtiketi: "Personel", sayfaBasligi: "Personel"),
-        Ekran(modulEtiketi: "Günlük Çalışma", sayfaBasligi: "Günlük Çalışma"),
-        Ekran(modulEtiketi: "Tanımlar & Yönetim", sayfaBasligi: "Tanımlar"),
-        Ekran(modulEtiketi: "Denetim İzi", sayfaBasligi: "Denetim İzi"),
+        Ekran(modulEtiketi: "Komuta Ekranı", sayfaBasligi: "Komuta", grup: "Operasyon"),
+        Ekran(modulEtiketi: "Raporlar", sayfaBasligi: "Raporlar", grup: "Operasyon"),
+        Ekran(modulEtiketi: "İşlerim", sayfaBasligi: "İşlerim", grup: "Vatandaş & Görev"),
+        Ekran(modulEtiketi: "WhatsApp Kuyruğu", sayfaBasligi: "WhatsApp Kuyruğu", grup: "Vatandaş & Görev"),
+        Ekran(modulEtiketi: "Kontrol Listeleri", sayfaBasligi: "Kontrol Listeleri", grup: "Vatandaş & Görev"),
+        Ekran(modulEtiketi: "Parsel Sorgu", sayfaBasligi: "Parsel Sorgu", grup: "Saha & Harita"),
+        Ekran(modulEtiketi: "Kış Operasyonu", sayfaBasligi: "Kış Operasyonu", grup: "Saha & Harita"),
+        Ekran(modulEtiketi: "Çöp Toplama", sayfaBasligi: "Çöp Toplama", grup: "Saha & Harita"),
+        Ekran(modulEtiketi: "Yol Temizliği", sayfaBasligi: "Yol Temizliği", grup: "Saha & Harita"),
+        Ekran(modulEtiketi: "Bakım Takip", sayfaBasligi: "Bakım Takip", grup: "Filo & Üretim"),
+        Ekran(modulEtiketi: "Yakıt Takip", sayfaBasligi: "Yakıt Takip", grup: "Filo & Üretim"),
+        Ekran(modulEtiketi: "Akaryakıt Analizi", sayfaBasligi: "Akaryakıt Analizi", grup: "Filo & Üretim"),
+        Ekran(modulEtiketi: "Malzeme / Depo", sayfaBasligi: "Malzeme / Depo", grup: "Filo & Üretim"),
+        Ekran(modulEtiketi: "Beton Reçeteleri", sayfaBasligi: "Beton Reçeteleri", grup: "Filo & Üretim"),
+        Ekran(modulEtiketi: "Agrega Maliyet", sayfaBasligi: "Agrega Maliyet", grup: "Filo & Üretim"),
+        Ekran(modulEtiketi: "Bitüm Takip", sayfaBasligi: "Bitüm Takip", grup: "Filo & Üretim"),
+        Ekran(modulEtiketi: "Personel", sayfaBasligi: "Personel", grup: "Kurum Yönetimi"),
+        Ekran(modulEtiketi: "Günlük Çalışma", sayfaBasligi: "Günlük Çalışma", grup: "Kurum Yönetimi"),
+        Ekran(modulEtiketi: "Tanımlar & Yönetim", sayfaBasligi: "Tanımlar", grup: "Kurum Yönetimi"),
+        Ekran(modulEtiketi: "Denetim İzi", sayfaBasligi: "Denetim İzi", grup: "Kurum Yönetimi"),
     ]
 
     override func setUpWithError() throws {
@@ -57,8 +60,8 @@ final class AllScreensUITests: XCTestCase {
         app.launch()
         try girisYap(app)
 
-        let modullerSekmesi = app.buttons["Daha Fazla"]
-        XCTAssertTrue(modullerSekmesi.waitForExistence(timeout: 25), "Alt sekme çubuğu görünmedi")
+        let hamburger = app.buttons["Modüller menüsü"]
+        XCTAssertTrue(hamburger.waitForExistence(timeout: 25), "Marka bandı görünmedi")
 
         var acilmayan: [String] = []
 
@@ -73,13 +76,12 @@ final class AllScreensUITests: XCTestCase {
         }
 
         for ekran in modulEkranlari {
-            modullerSekmesi.tap()
-            guard modulKartiniAc(app, etiket: ekran.modulEtiketi) else {
-                acilmayan.append("kutucuk: \(ekran.modulEtiketi)")
+            guard modulüMenudenAc(app, ekran: ekran) else {
+                acilmayan.append("menü: \(ekran.modulEtiketi)")
+                menuyuKapat(app)
                 continue
             }
             acilmayan.append(contentsOf: basligiDogrula(app, ekran: ekran))
-            geriDon(app)
         }
 
         XCTAssertTrue(
@@ -103,33 +105,46 @@ final class AllScreensUITests: XCTestCase {
 
     // MARK: - Yardımcılar
 
-    /// Modül kutucuğu ızgarada aşağıda kalmış olabilir; ızgarayı başa sarıp
-    /// kutucuk dokunulabilir olana kadar kaydırır.
-    private func modulKartiniAc(_ app: XCUIApplication, etiket: String) -> Bool {
-        let kart = app.buttons[etiket]
-        let scroll = app.scrollViews.firstMatch
-        guard scroll.waitForExistence(timeout: 10) else { return false }
+    /// Menüyü açar, modülün bölümünü genişletir ve satırına dokunur. Modül seçimi
+    /// yığının kökünü değiştirdiği için geri dönmeye gerek kalmaz.
+    private func modulüMenudenAc(_ app: XCUIApplication, ekran: Ekran) -> Bool {
+        let hamburger = app.buttons["Modüller menüsü"]
+        guard hamburger.waitForExistence(timeout: 10) else { return false }
+        hamburger.tap()
 
-        // Izgara önceki ziyaretten kaydırılmış kalmış olabilir.
-        for _ in 0..<8 where !(kart.exists && kart.isHittable) {
-            scroll.swipeDown(velocity: .fast)
+        let liste = app.scrollViews["modulMenusuListesi"]
+        guard liste.waitForExistence(timeout: 5) else { return false }
+
+        let satir = app.buttons[ekran.modulEtiketi]
+
+        // Menüde aynı anda tek bölüm açık kalır; satır görünmüyorsa bölümü aç.
+        if !satir.exists {
+            let grup = app.buttons[ekran.grup]
+            guard grupaUlas(liste, hedef: grup) else { return false }
+            grup.tap()
         }
 
+        guard grupaUlas(liste, hedef: satir) else { return false }
+        satir.tap()
+        return true
+    }
+
+    /// Hedef menüde aşağıda kalmış olabilir; listeyi başa sarıp dokunulabilir
+    /// olana kadar aşağı kaydırır.
+    private func grupaUlas(_ liste: XCUIElement, hedef: XCUIElement) -> Bool {
+        for _ in 0..<6 where !(hedef.exists && hedef.isHittable) {
+            liste.swipeDown(velocity: .fast)
+        }
         for _ in 0..<10 {
-            if kart.exists && kart.isHittable {
-                kart.tap()
-                return true
-            }
-            scroll.swipeUp(velocity: .slow)
+            if hedef.exists && hedef.isHittable { return true }
+            liste.swipeUp(velocity: .slow)
         }
         return false
     }
 
-    private func geriDon(_ app: XCUIApplication) {
-        let geri = app.navigationBars.buttons.element(boundBy: 0)
-        if geri.exists && geri.isHittable {
-            geri.tap()
-        }
+    private func menuyuKapat(_ app: XCUIApplication) {
+        let kapat = app.buttons["Menüyü kapat"]
+        if kapat.exists && kapat.isHittable { kapat.tap() }
     }
 
     private func girisYap(_ app: XCUIApplication) throws {

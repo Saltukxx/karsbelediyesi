@@ -15,10 +15,32 @@ final class NavItemTests: XCTestCase {
     func testAdminPhoneTabsMatchFigma() {
         XCTAssertEqual(
             NavItemCatalog.phoneTabs(for: .ADMIN).primary,
-            [.dashboard, .sikayetler, .gorevler, .araclar]
+            [.dashboard, .sikayetler, .gorevler, .araclar, .harita]
         )
         XCTAssertEqual(NavDestination.dashboard.shortLabel, "Dashboard")
         XCTAssertEqual(NavDestination.araclar.shortLabel, "Araçlar")
+    }
+
+    /// Alt çubuk beş düğmeyi geçmemeli; fazlası etiketleri okunmaz yapıyor.
+    func testSekmeSayisiBesiGecmez() {
+        for role in UserRole.allCases {
+            XCTAssertLessThanOrEqual(
+                NavItemCatalog.phoneTabs(for: role).primary.count,
+                5,
+                "\(role) rolünde alt çubuk beş sekmeyi aştı"
+            )
+        }
+    }
+
+    /// Menüdeki her bölümün ya bir sekmesi olmalı ya da menüden erişilebilmeli;
+    /// "Saha & Harita" sekme kazandığı için artık çubukta temsil ediliyor.
+    func testHaritaSekmesiHerRoldeVar() {
+        for role in UserRole.allCases {
+            XCTAssertTrue(
+                NavItemCatalog.phoneTabs(for: role).primary.contains(.harita),
+                "\(role) rolünde Harita sekmesi yok"
+            )
+        }
     }
 
     func testCallCenterSeesComplaintsNotVehicles() {

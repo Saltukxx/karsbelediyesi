@@ -7,26 +7,30 @@ struct ParselView: View {
     @State private var sorgulaniyor = false
 
     var body: some View {
-        // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
-        // değil üstüne bindirilir; böylece kendi boyunda kalır.
-        ZStack(alignment: .top) {
-            KarsMapView(
-                polygons: polygons,
-                onTap: { koordinat in Task { await sorgula(koordinat) } }
-            )
-            if let hata {
-                ErrorBanner(message: hata).padding(12)
+        VStack(spacing: 0) {
+            KBMapHeader(title: "Parsel Sorgu", subtitle: "Ada, parsel ve konum bilgisi sorgulama")
+
+            // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
+            // değil üstüne bindirilir; böylece kendi boyunda kalır.
+            ZStack(alignment: .top) {
+                KarsMapView(
+                    polygons: polygons,
+                    onTap: { koordinat in Task { await sorgula(koordinat) } }
+                )
+                if let hata {
+                    ErrorBanner(message: hata).padding(12)
+                }
+                if sorgulaniyor {
+                    ProgressView("Parsel sorgulanıyor…")
+                        .padding(12)
+                        .background(.regularMaterial)
+                        .clipShape(Capsule())
+                        .padding(.top, 12)
+                }
             }
-            if sorgulaniyor {
-                ProgressView("Parsel sorgulanıyor…")
-                    .padding(12)
-                    .background(.regularMaterial)
-                    .clipShape(Capsule())
-                    .padding(.top, 12)
+            .overlay(alignment: .bottom) {
+                altPanel.safeAreaPadding(.bottom)
             }
-        }
-        .overlay(alignment: .bottom) {
-            altPanel.safeAreaPadding(.bottom)
         }
         .kbNavigationChrome(title: "Parsel Sorgu")
         .task { }

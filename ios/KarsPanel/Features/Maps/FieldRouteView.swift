@@ -5,6 +5,7 @@ import SwiftUI
 struct FieldRouteView: View {
     let kind: String
     let title: String
+    var subtitle: String? = nil
 
     @State private var rotalar: [FieldRouteDTO] = []
     @State private var cizim: [CLLocationCoordinate2D] = []
@@ -14,21 +15,32 @@ struct FieldRouteView: View {
     @State private var toast: String?
     @State private var showKaydet = false
     @State private var kaydediliyor = false
+    @State private var yukleniyor = false
+    /// Rota listesi opsiyonel olmadığı için "henüz yüklenmedi" ile "boş geldi"
+    /// ayrımı buradan yapılır; yükleniyor göstergesi yalnızca ilkinde çıkar.
+    @State private var ilkYuklemeBitti = false
 
     var body: some View {
-        // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
-        // değil üstüne bindirilir; böylece kendi boyunda kalır.
-        ZStack(alignment: .top) {
-            KarsMapView(
-                polylines: polylines,
-                onTap: { cizim.append($0) }
-            )
-            if let hata {
-                ErrorBanner(message: hata).padding(12)
+        VStack(spacing: 0) {
+            KBMapHeader(title: title, subtitle: subtitle)
+
+            // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
+            // değil üstüne bindirilir; böylece kendi boyunda kalır.
+            ZStack(alignment: .top) {
+                KarsMapView(
+                    polylines: polylines,
+                    onTap: { cizim.append($0) }
+                )
+                if let hata {
+                    ErrorBanner(message: hata).padding(12)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                altPanel.safeAreaPadding(.bottom)
             }
         }
-        .overlay(alignment: .bottom) {
-            altPanel.safeAreaPadding(.bottom)
+        .overlay {
+            if yukleniyor && !ilkYuklemeBitti { LoadingOverlay() }
         }
         .kbNavigationChrome(title: title)
         .kbToast($toast)
@@ -181,9 +193,12 @@ struct FieldRouteView: View {
     }
 
     private func yukle() async {
+        yukleniyor = true
+        defer { yukleniyor = false }
         do {
             rotalar = try await APIClient.shared.fetchFieldRoutes(kind: kind)
             hata = nil
+            ilkYuklemeBitti = true
         } catch is CancellationError {
             return
         } catch {

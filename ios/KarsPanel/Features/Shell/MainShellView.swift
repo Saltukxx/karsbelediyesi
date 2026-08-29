@@ -56,20 +56,25 @@ struct LocationShareMenuItem: View {
     }
 }
 
-// MARK: - iPhone: Tab + Daha Fazla
+// MARK: - iPhone: Sekmeler + modül menüsü
 
+/// Açık modül. Alt çubukta düğmesi olanlar `sekme`, yalnızca başlıktaki menüden
+/// ulaşılanlar `menuden` olur; ikincisinde hiçbir sekme vurgulanmaz.
 private enum PhoneTab: Hashable {
-    case module(NavDestination)
-    case more
+    case sekme(NavDestination)
+    case menuden(NavDestination)
+
+    var destination: NavDestination {
+        switch self {
+        case .sekme(let destination), .menuden(let destination): return destination
+        }
+    }
 }
 
 private struct PhoneTabShellView: View {
     @EnvironmentObject private var session: AppSession
-    @State private var selectedTab: PhoneTab = .more
-    @State private var morePath = NavigationPath()
+    @State private var selectedTab: PhoneTab = .sekme(.dashboard)
     @State private var menuAcik = false
-    /// "Daha Fazla" yığınında açık olan modül; menüde hangi satırın vurgulanacağını belirler.
-    @State private var sonMoreModulu: NavDestination?
 
     private var role: UserRole { session.user?.role ?? .ADMIN }
 
@@ -77,12 +82,6 @@ private struct PhoneTabShellView: View {
         let tabs = NavItemCatalog.phoneTabs(for: role)
         let allowed = Set(NavItemCatalog.items(for: role, moduleHrefs: session.moduleHrefs).map(\.destination))
         return tabs.primary.filter { allowed.contains($0) }
-    }
-
-    private var moreItems: [NavDestination] {
-        NavItemCatalog.items(for: role, moduleHrefs: session.moduleHrefs)
-            .map(\.destination)
-            .filter { !primary.contains($0) }
     }
 
     var body: some View {
@@ -111,11 +110,7 @@ private struct PhoneTabShellView: View {
             }
         }
         .onAppear { applyLanding() }
-        .onChange(of: morePath.count) { _, yeni in
-            if yeni == 0 { sonMoreModulu = nil }
-        }
         .onChange(of: session.user?.id) { _, _ in
-            morePath = NavigationPath()
             menuAcik = false
             applyLanding()
         }
@@ -125,60 +120,33 @@ private struct PhoneTabShellView: View {
         NavItemCatalog.items(for: role, moduleHrefs: session.moduleHrefs).map(\.destination)
     }
 
-    /// Menüde işaretlenecek modül: sekme köküyse sekme, değilse yığındaki son ekran.
-    private var aktifModul: NavDestination? {
-        switch selectedTab {
-        case .module(let destination): return destination
-        case .more: return sonMoreModulu
-        }
-    }
+    /// Menüde işaretlenecek modül — sekmeden de menüden de gelinmiş olabilir.
+    private var aktifModul: NavDestination? { selectedTab.destination }
 
-    /// Sekme kökünde olan bir modüle sekmeden, diğerlerine "Daha Fazla" yığınından gidilir.
+    /// Alt çubukta karşılığı olan modüle sekme değiştirerek, diğerlerine menü
+    /// yığınının kökünü değiştirerek gidilir.
     private func git(_ destination: NavDestination) {
-        if primary.contains(destination) {
-            selectedTab = .module(destination)
-            return
-        }
-        selectedTab = .more
-        morePath = NavigationPath()
-        sonMoreModulu = destination
-        morePath.append(destination)
+        selectedTab = primary.contains(destination) ? .sekme(destination) : .menuden(destination)
     }
 
-    @ViewBuilder
     private var selectedTabContent: some View {
-        switch selectedTab {
-        case .module(let destination):
-            NavigationStack {
-                DestinationView(destination: destination)
-                    .environment(\.kbIsRootScreen, true)
-            }
-        case .more:
-            NavigationStack(path: $morePath) {
-                MoreModulesView(moreItems: moreItems) { destination in
-                    sonMoreModulu = destination
-                    morePath.append(destination)
-                }
+        // Modül her iki durumda da yığının kökü; `id` kök değişince yığının
+        // sıfırlanmasını sağlar, aksi halde önceki modülün detayı açık kalıyor.
+        NavigationStack {
+            DestinationView(destination: selectedTab.destination)
                 .environment(\.kbIsRootScreen, true)
-                .navigationDestination(for: NavDestination.self) { destination in
-                    DestinationView(destination: destination)
-                }
-            }
         }
+        .id(selectedTab.destination)
     }
 
     private var tabBarItems: [PhoneTabBarItem] {
-        var items = primary.map {
+        primary.map {
             PhoneTabBarItem(
-                tab: .module($0),
+                tab: .sekme($0),
                 title: tabLabel($0),
                 icon: tabIcon($0)
             )
         }
-        if !moreItems.isEmpty {
-            items.append(PhoneTabBarItem(tab: .more, title: "Daha Fazla", icon: "ellipsis.circle"))
-        }
-        return items
     }
 
     private func tabLabel(_ destination: NavDestination) -> String {
@@ -192,89 +160,14 @@ private struct PhoneTabShellView: View {
     private func applyLanding() {
         let landing = NavItemCatalog.landingDestination(for: role)
         if primary.contains(landing) {
-            selectedTab = .module(landing)
+            selectedTab = .sekme(landing)
+        } else if let ilk = primary.first {
+            selectedTab = .sekme(ilk)
         } else {
-            selectedTab = moreItems.isEmpty ? .module(primary.first ?? .dashboard) : .more
+            selectedTab = .menuden(landing)
         }
     }
 
-}
-
-private struct MoreModulesView: View {
-    @EnvironmentObject private var session: AppSession
-    let moreItems: [NavDestination]
-    var onSelect: (NavDestination) -> Void
-
-    private var role: UserRole { session.user?.role ?? .ADMIN }
-
-    private let columns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
-
-    var body: some View {
-        KBScreen(
-            title: "Modüller",
-            description: "Yetkinize açık tüm operasyon ekranları.",
-            isEmpty: moreItems.isEmpty,
-            empty: KBEmptyConfig(
-                title: "Ek modül yok",
-                systemImage: "square.grid.2x2",
-                message: "Tüm yetkili modülleriniz alt sekmelerde görünüyor."
-            ),
-            spacing: 16
-        ) {
-            ForEach(NavGroupId.allCases, id: \.self) { group in
-                let items = moreItems.filter { $0.group == group }
-                if !items.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        KBSectionHeader(title: group.label, trailing: "\(items.count) ekran")
-                        LazyVGrid(columns: columns, spacing: 10) {
-                            ForEach(items, id: \.self) { destination in
-                                ModuleTile(
-                                    title: NavItemCatalog.label(for: destination, role: role),
-                                    icon: destination.icon
-                                ) {
-                                    onSelect(destination)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct ModuleTile: View {
-    let title: String
-    let icon: String
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(KBTheme.accent)
-                    .frame(width: 34, height: 34)
-                    .background(KBTheme.accent.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(KBTheme.navy)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
-            .background(KBTheme.card)
-            .clipShape(RoundedRectangle(cornerRadius: KBTheme.radiusMd))
-            .overlay(
-                RoundedRectangle(cornerRadius: KBTheme.radiusMd)
-                    .stroke(KBTheme.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 // MARK: - iPad: Sidebar

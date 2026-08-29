@@ -36,7 +36,7 @@ final class ModuleDrawerUITests: XCTestCase {
         // Açılan bölüm katlamanın altında kalıyor; dokunulabilir olana kadar kaydırılır.
         let modul = app.buttons["Bakım Takip"]
         XCTAssertTrue(modul.waitForExistence(timeout: 5), "Modül satırı açılmadı")
-        let menuScroll = app.scrollViews.firstMatch
+        let menuScroll = app.scrollViews["modulMenusuListesi"]
         for _ in 0..<6 where !modul.isHittable {
             menuScroll.swipeUp(velocity: .slow)
         }

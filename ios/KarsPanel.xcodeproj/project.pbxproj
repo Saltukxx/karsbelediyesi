@@ -29,6 +29,7 @@
 		33210412CED3C33398D8042C /* VehiclesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E61E8FA6442D1DE08AF0D402 /* VehiclesView.swift */; };
 		361D3C80FF170ABB16838678 /* KBChartPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2075B804EA5DC968142DC6C5 /* KBChartPalette.swift */; };
 		367CCD2B030628E33504B95E /* KBStatCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFE57521C4923E74ECA551E8 /* KBStatCard.swift */; };
+		37B6595BB95666C5AC576684 /* TaskRouteMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0672AB0C92DDD6ED561A628 /* TaskRouteMapView.swift */; };
 		380B7D0CD11911596E5996B6 /* KBSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A81C387505BFCBC2FD19B1E5 /* KBSearchTests.swift */; };
 		38388BBC51BF334E835D308D /* DashboardHourHeatmap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 163B1734BD319F4FD8AF13FA /* DashboardHourHeatmap.swift */; };
 		39800D55F6D43DF52A1A95C5 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53B3F6A4411A8E82921D5560 /* AppConfig.swift */; };
@@ -40,7 +41,6 @@
 		3F924ECB65DCB95E8F02617C /* KarsMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 485531E8C2785CE3844EA267 /* KarsMapView.swift */; };
 		3FFE92E1757EB354560D7D4B /* KBFormSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2CDED291F022D70176C77CC /* KBFormSheet.swift */; };
 		4066306EEC03A9B2E6E78B8A /* DestinationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86C1B97DAFAA3F21415B3B1A /* DestinationView.swift */; };
-		40E4136D8CF28C525A10C2C6 /* TaskRouteMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 734794150E1F2B7B6E44010E /* TaskRouteMapView.swift */; };
 		42DEB9EAD7EA0B7EA5031F5D /* KBSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A73CBF8E05E59AC22EEE04F /* KBSearch.swift */; };
 		44240361F70EE7F8DA832B29 /* DashboardDepartmentChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C096DAB2BB8C878042D896 /* DashboardDepartmentChart.swift */; };
 		44BD105E9CDB0A72E42972EC /* DashboardHeatMapCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECD008CDEE350373F12044D /* DashboardHeatMapCard.swift */; };
@@ -90,6 +90,7 @@
 		C6049780CE4DE94E3FBF3A82 /* MainShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392895116E314B616BF7F3D2 /* MainShellView.swift */; };
 		C789BEA4756939052EA9FFA9 /* DashboardDTOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8DB040C3C55CFACFD493D8F /* DashboardDTOTests.swift */; };
 		C8B5ABBAFE7A467C4D556DEC /* Role.swift in Sources */ = {isa = PBXBuildFile; fileRef = F36C7DFF057FF51682082E2F /* Role.swift */; };
+		CF43B28F9A4A52EB03EB096E /* KBMapHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859AF6B031208A49B7881217 /* KBMapHeader.swift */; };
 		CF9BDB6A1478C483A60E5389 /* DashboardChartsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 407011FF087D09C5F9905FB2 /* DashboardChartsUITests.swift */; };
 		D4093EC0DC37A714B06306F7 /* AppSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E33D24562E66C138394F6B08 /* AppSession.swift */; };
 		D6B5F0C2A3B64DB1C8F11FAA /* MaintenanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C630B850797ADA8FBC4B736A /* MaintenanceView.swift */; };
@@ -181,12 +182,12 @@
 		6F847E94D81E673EF2252901 /* DefinitionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefinitionsView.swift; sourceTree = "<group>"; };
 		6FC5ECA71662F37431F43BC3 /* KBLoadMoreRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBLoadMoreRow.swift; sourceTree = "<group>"; };
 		72ED26D807360AA84164AB06 /* FuelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FuelView.swift; sourceTree = "<group>"; };
-		734794150E1F2B7B6E44010E /* TaskRouteMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRouteMapView.swift; sourceTree = "<group>"; };
 		736E9C8B752247B744C82ACB /* DashboardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardComponents.swift; sourceTree = "<group>"; };
 		737ADFD513A1D9D41D279AAB /* DashboardCostChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardCostChart.swift; sourceTree = "<group>"; };
 		75122AD0F858E707DE3E6211 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		76EF92C4832C91857E95EB89 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		7EB25EE03DB470B6600D1515 /* ConcreteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConcreteView.swift; sourceTree = "<group>"; };
+		859AF6B031208A49B7881217 /* KBMapHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBMapHeader.swift; sourceTree = "<group>"; };
 		8623C7AE63574F7AAD32F63A /* LoadMoreUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadMoreUITests.swift; sourceTree = "<group>"; };
 		86C1B97DAFAA3F21415B3B1A /* DestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DestinationView.swift; sourceTree = "<group>"; };
 		89416027353DE29E8E44B467 /* KBReferenceCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBReferenceCache.swift; sourceTree = "<group>"; };
@@ -202,6 +203,7 @@
 		A9E587C68577A38491779211 /* KarsPanelUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KarsPanelUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA13C82BB7927F8957EF4B84 /* KeychainAuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainAuthStore.swift; sourceTree = "<group>"; };
 		AA20CEEA19C65401678EAC9D /* Dashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dashboard.swift; sourceTree = "<group>"; };
+		B0672AB0C92DDD6ED561A628 /* TaskRouteMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRouteMapView.swift; sourceTree = "<group>"; };
 		B099E258110A3F455AF828F7 /* Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
 		B18663147CF221DF0195F2CC /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		B29ABA8F869C2900DC55F40E /* KarsPanelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KarsPanelApp.swift; sourceTree = "<group>"; };
@@ -275,6 +277,7 @@
 				5041117DDFD2DC031626E1C6 /* KBFilterBar.swift */,
 				D2CDED291F022D70176C77CC /* KBFormSheet.swift */,
 				6FC5ECA71662F37431F43BC3 /* KBLoadMoreRow.swift */,
+				859AF6B031208A49B7881217 /* KBMapHeader.swift */,
 				BDFB7243F1CD776BD99368D8 /* KBNavigationChrome.swift */,
 				D24FF3706812013C793F281E /* KBPageHeader.swift */,
 				1D5DD8F3A3300B1FE7753025 /* KBRecordCard.swift */,
@@ -376,6 +379,7 @@
 				D0587601F00F1CD1F92C412A /* ChecklistDetailView.swift */,
 				E5C78552DF35CC4F53648617 /* ChecklistsView.swift */,
 				333D9EEA2CA7EFFDF5551D4C /* IslerimView.swift */,
+				B0672AB0C92DDD6ED561A628 /* TaskRouteMapView.swift */,
 				2B588F8D1BDD395DF9806F0D /* TasksView.swift */,
 				143BCE8519B8FC4D65CC6964 /* WhatsAppQueueView.swift */,
 			);
@@ -430,14 +434,6 @@
 				AA13C82BB7927F8957EF4B84 /* KeychainAuthStore.swift */,
 			);
 			path = Auth;
-			sourceTree = "<group>";
-		};
-		8DE4536F5CDCA699040A6C63 /* Modules */ = {
-			isa = PBXGroup;
-			children = (
-				734794150E1F2B7B6E44010E /* TaskRouteMapView.swift */,
-			);
-			path = Modules;
 			sourceTree = "<group>";
 		};
 		9AF8E64107B7DE8CC1C91226 /* KarsPanelTests */ = {
@@ -520,7 +516,6 @@
 				38738597464984EF7052B66E /* Fleet */,
 				7B8F70C054597DAB43D065C0 /* Inventory */,
 				123DB9ED481308F0D58A3B3B /* Maps */,
-				8DE4536F5CDCA699040A6C63 /* Modules */,
 				0687804CFCE6FF640D05F650 /* People */,
 				4B7FAE0582386C45635F6A23 /* Shell */,
 			);
@@ -744,6 +739,7 @@
 				3FFE92E1757EB354560D7D4B /* KBFormSheet.swift in Sources */,
 				C25D53BE5261286C68DB6853 /* KBListStore.swift in Sources */,
 				FA0622AE16C9F7D42FE18326 /* KBLoadMoreRow.swift in Sources */,
+				CF43B28F9A4A52EB03EB096E /* KBMapHeader.swift in Sources */,
 				EE580AE819DB9625142F0845 /* KBModuleDrawer.swift in Sources */,
 				14E42690843C12ABC114DB80 /* KBNavigationChrome.swift in Sources */,
 				C16A171887C07B77209E5293 /* KBPageHeader.swift in Sources */,
@@ -781,7 +777,7 @@
 				B627A6C1E6C87FFE8D055A7A /* SearchPaletteView.swift in Sources */,
 				A339760B55277B041BE8B79F /* Session.swift in Sources */,
 				9383FE5DB1FD2F6BB8B5FAA2 /* Task.swift in Sources */,
-				40E4136D8CF28C525A10C2C6 /* TaskRouteMapView.swift in Sources */,
+				37B6595BB95666C5AC576684 /* TaskRouteMapView.swift in Sources */,
 				78849B88A32F3C70E7E90182 /* TasksView.swift in Sources */,
 				1DD1ACA8F103E76D355AFDF3 /* Vehicle.swift in Sources */,
 				33210412CED3C33398D8042C /* VehiclesView.swift in Sources */,

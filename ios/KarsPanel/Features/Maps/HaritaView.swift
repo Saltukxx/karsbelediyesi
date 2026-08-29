@@ -9,22 +9,32 @@ struct HaritaView: View {
     @State private var cizim: [CLLocationCoordinate2D] = []
     @State private var showKaydet = false
     @State private var kaydediliyor = false
+    @State private var yukleniyor = false
 
     var body: some View {
-        // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
-        // değil üstüne bindirilir; böylece kendi boyunda kalır.
-        ZStack(alignment: .top) {
-            KarsMapView(
-                polylines: polylines,
-                pins: pins,
-                onTap: { cizim.append($0) }
-            )
-            if let hata {
-                ErrorBanner(message: hata).padding(12)
+        VStack(spacing: 0) {
+            KBMapHeader(title: "Yol Haritası", subtitle: "Yollar, engeller ve şikayet katmanları")
+
+            // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
+            // değil üstüne bindirilir; böylece kendi boyunda kalır.
+            ZStack(alignment: .top) {
+                KarsMapView(
+                    polylines: polylines,
+                    pins: pins,
+                    onTap: { cizim.append($0) }
+                )
+                if let hata {
+                    ErrorBanner(message: hata).padding(12)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                altPanel.safeAreaPadding(.bottom)
             }
         }
-        .overlay(alignment: .bottom) {
-            altPanel.safeAreaPadding(.bottom)
+        // Yalnızca ilk yüklemede: veri geldikten sonraki tazelemeler haritayı
+        // örtmemeli. KBScreen'in isLoading && isEmpty kuralıyla aynı.
+        .overlay {
+            if yukleniyor && payload == nil { LoadingOverlay() }
         }
         .kbNavigationChrome(title: "Yol Haritası")
         .kbToast($toast)
@@ -153,6 +163,8 @@ struct HaritaView: View {
     }
 
     private func yukle() async {
+        yukleniyor = true
+        defer { yukleniyor = false }
         do {
             payload = try await APIClient.shared.fetchMap()
             hata = nil

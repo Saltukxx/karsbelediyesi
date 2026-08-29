@@ -20,41 +20,67 @@ struct TaskRouteMapView: View {
         servis.first ?? gidis.last
     }
 
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                RoutePolylineMap(gidis: gidis, servis: servis)
-                    .ignoresSafeArea(edges: .bottom)
+    /// Başlık altındaki özet: süre, mesafe ve tahmin uyarısı.
+    private var ozet: String? {
+        guard let rota = task.rota, let sure = rota.sureDk, let mesafe = rota.mesafeKm else {
+            return nil
+        }
+        let tahmin = rota.tahmini == true ? " (kuş uçuşu tahmini)" : ""
+        return "Tahmini varış: \(Int(sure.rounded())) dk · \(String(format: "%.1f", mesafe)) km\(tahmin)"
+    }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    if let rota = task.rota, let sure = rota.sureDk, let mesafe = rota.mesafeKm {
-                        Text("Tahmini varış: \(Int(sure.rounded())) dk · \(String(format: "%.1f", mesafe)) km\(rota.tahmini == true ? " (kuş uçuşu tahmini)" : "")")
-                            .font(.caption)
-                            .foregroundStyle(KBTheme.muted)
-                    }
-                    if let hedef {
-                        Button {
-                            navigasyonBaslat(hedef)
-                        } label: {
-                            Label("Navigasyonu başlat", systemImage: "arrow.triangle.turn.up.right.circle.fill")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(KBTheme.navy)
-                    }
-                }
-                .padding(16)
-                .background(KBTheme.card)
+    var body: some View {
+        VStack(spacing: 0) {
+            baslik
+
+            RoutePolylineMap(gidis: gidis, servis: servis)
+
+            if let hedef {
+                navigasyonBari(hedef)
             }
-            .navigationTitle(task.gorevNo ?? "Görev rotası")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Kapat") { dismiss() }
+        }
+        .background(KBTheme.background)
+    }
+
+    private var baslik: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(task.gorevNo ?? "Görev rotası")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                if let ozet {
+                    Text(ozet)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.72))
                 }
             }
+            Spacer(minLength: 8)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: KBTheme.touchMin, minHeight: KBTheme.touchMin)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Kapat")
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 4)
+        .padding(.vertical, 12)
+        .background(KBTheme.navy)
+    }
+
+    private func navigasyonBari(_ hedef: CLLocationCoordinate2D) -> some View {
+        Button {
+            navigasyonBaslat(hedef)
+        } label: {
+            Label("Navigasyonu başlat", systemImage: "arrow.triangle.turn.up.right.circle.fill")
+        }
+        .buttonStyle(KBPrimaryButtonStyle())
+        .padding(16)
+        .background(KBTheme.card)
+        .overlay(alignment: .top) {
+            Rectangle().fill(KBTheme.border).frame(height: 1)
         }
     }
 
