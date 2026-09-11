@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00ABD6D525A9D41CC00A659F /* james.b@example.com in Resources */ = {isa = PBXBuildFile; fileRef = B835680DB8766B6328973788 /* james.b@example.com */; };
 		00B9C4D5B2353B7C2BB3AA77 /* DashboardChartDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F7489FBC91976B7DB7277C /* DashboardChartDataTests.swift */; };
 		01824725EF894A00B3492BBA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6DA347425896CCB35293B2D0 /* Assets.xcassets */; };
 		039137732CE5AC7D2BC9D37D /* Dashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA20CEEA19C65401678EAC9D /* Dashboard.swift */; };
@@ -16,6 +17,7 @@
 		1237020900F8C274ED4D1FF5 /* AuditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4B07AD83062EEBF8771B56 /* AuditView.swift */; };
 		14E42690843C12ABC114DB80 /* KBNavigationChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDFB7243F1CD776BD99368D8 /* KBNavigationChrome.swift */; };
 		1DD1ACA8F103E76D355AFDF3 /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD59F6E9591C96E8D7EE8CD1 /* Vehicle.swift */; };
+		1E5FCD6E3442AC63F4D7009D /* laura.c@example.net in Resources */ = {isa = PBXBuildFile; fileRef = 00D1AC0D5D46ED479637F3DF /* laura.c@example.net */; };
 		1E7980476531C3FE000A5112 /* DashboardCostChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 737ADFD513A1D9D41D279AAB /* DashboardCostChart.swift */; };
 		1F5DE9F963540673925D2BB8 /* ChecklistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0587601F00F1CD1F92C412A /* ChecklistDetailView.swift */; };
 		1F81FF369EE11464E450B9F3 /* KBStatusMapsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE97AB18B6E06F0F8F6AE30E /* KBStatusMapsTests.swift */; };
@@ -46,6 +48,8 @@
 		44240361F70EE7F8DA832B29 /* DashboardDepartmentChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C096DAB2BB8C878042D896 /* DashboardDepartmentChart.swift */; };
 		44BD105E9CDB0A72E42972EC /* DashboardHeatMapCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECD008CDEE350373F12044D /* DashboardHeatMapCard.swift */; };
 		484306F5D60A1846257B466F /* DashboardSlaChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290D9AC9D14A047FA5C69500 /* DashboardSlaChart.swift */; };
+		4E22EDFAF859510FB61915C1 /* wendy.h@example.net in Resources */ = {isa = PBXBuildFile; fileRef = D6EEA120031210BC0B621491 /* wendy.h@example.net */; };
+		515FE103139996C01553418F /* carol.w@example.org in Resources */ = {isa = PBXBuildFile; fileRef = ED0B04832498B47C847ED1FF /* carol.w@example.org */; };
 		5457E648F0F880E936A9F9ED /* APIClient+Panel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CFDCE40B757D6B655BE6C5C /* APIClient+Panel.swift */; };
 		5E614DD1E17A118CE6096B51 /* BitumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342201A38A4F14E05F492DA5 /* BitumView.swift */; };
 		628F3C6C221122FDD15BE894 /* KBStatusMaps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 294692DCA8C38AD379DE44FE /* KBStatusMaps.swift */; };
@@ -135,6 +139,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		00D1AC0D5D46ED479637F3DF /* laura.c@example.net */ = {isa = PBXFileReference; path = "laura.c@example.net"; sourceTree = "<group>"; };
 		00F7489FBC91976B7DB7277C /* DashboardChartDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardChartDataTests.swift; sourceTree = "<group>"; };
 		025C02FD5548ACF400373EC4 /* ComplaintCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComplaintCreateView.swift; sourceTree = "<group>"; };
 		027895D6C40D58885AE729BF /* KBChartCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBChartCard.swift; sourceTree = "<group>"; };
@@ -217,6 +222,7 @@
 		B18663147CF221DF0195F2CC /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		B29ABA8F869C2900DC55F40E /* KarsPanelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KarsPanelApp.swift; sourceTree = "<group>"; };
 		B5F08E4DC0AEB82311F20616 /* ComplaintsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComplaintsViewModel.swift; sourceTree = "<group>"; };
+		B835680DB8766B6328973788 /* james.b@example.com */ = {isa = PBXFileReference; path = "james.b@example.com"; sourceTree = "<group>"; };
 		BBAB84591E198D92498B0365 /* NavItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavItemTests.swift; sourceTree = "<group>"; };
 		BDFB7243F1CD776BD99368D8 /* KBNavigationChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBNavigationChrome.swift; sourceTree = "<group>"; };
 		BF1AE299BE6024227A0D1CC9 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -231,6 +237,7 @@
 		D24FF3706812013C793F281E /* KBPageHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBPageHeader.swift; sourceTree = "<group>"; };
 		D2CDED291F022D70176C77CC /* KBFormSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBFormSheet.swift; sourceTree = "<group>"; };
 		D4061EAAF3A8F5F030FEBF6D /* KarsPanel.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KarsPanel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D6EEA120031210BC0B621491 /* wendy.h@example.net */ = {isa = PBXFileReference; path = "wendy.h@example.net"; sourceTree = "<group>"; };
 		DD839D4CEE0FC823A700E78C /* LoginViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModel.swift; sourceTree = "<group>"; };
 		E054E4B10DFDD2F33A1C8C1B /* KBPhotoUploadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBPhotoUploadTests.swift; sourceTree = "<group>"; };
 		E2B8FFA9D1311FE8884549A5 /* KBAudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBAudioPlayerView.swift; sourceTree = "<group>"; };
@@ -240,6 +247,7 @@
 		E61E8FA6442D1DE08AF0D402 /* VehiclesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VehiclesView.swift; sourceTree = "<group>"; };
 		E7527B91C7A1243BF6D75AFE /* KBPoll.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBPoll.swift; sourceTree = "<group>"; };
 		EC4B07AD83062EEBF8771B56 /* AuditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuditView.swift; sourceTree = "<group>"; };
+		ED0B04832498B47C847ED1FF /* carol.w@example.org */ = {isa = PBXFileReference; path = "carol.w@example.org"; sourceTree = "<group>"; };
 		EF57DD6A8FF4A6CD1C5F442C /* Complaint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Complaint.swift; sourceTree = "<group>"; };
 		F36C7DFF057FF51682082E2F /* Role.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Role.swift; sourceTree = "<group>"; };
 		F5FE18591F9985E72C7CA552 /* AgregaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgregaView.swift; sourceTree = "<group>"; };
@@ -326,6 +334,7 @@
 			isa = PBXGroup;
 			children = (
 				6DA347425896CCB35293B2D0 /* Assets.xcassets */,
+				B87AAC8E8BBDC62F0B4839A4 /* AppIcons */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -479,6 +488,17 @@
 				40B32DF1CA44A9572F78E9F4 /* KBRankedBarList.swift */,
 			);
 			path = Charts;
+			sourceTree = "<group>";
+		};
+		B87AAC8E8BBDC62F0B4839A4 /* AppIcons */ = {
+			isa = PBXGroup;
+			children = (
+				ED0B04832498B47C847ED1FF /* carol.w@example.org */,
+				B835680DB8766B6328973788 /* james.b@example.com */,
+				00D1AC0D5D46ED479637F3DF /* laura.c@example.net */,
+				D6EEA120031210BC0B621491 /* wendy.h@example.net */,
+			);
+			path = AppIcons;
 			sourceTree = "<group>";
 		};
 		BA83B817B58D52CC1A7B4D39 /* Core */ = {
@@ -702,6 +722,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				01824725EF894A00B3492BBA /* Assets.xcassets in Resources */,
+				515FE103139996C01553418F /* carol.w@example.org in Resources */,
+				00ABD6D525A9D41CC00A659F /* james.b@example.com in Resources */,
+				1E5FCD6E3442AC63F4D7009D /* laura.c@example.net in Resources */,
+				4E22EDFAF859510FB61915C1 /* wendy.h@example.net in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -904,7 +928,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -933,6 +957,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = KRQ4U9G63K;
@@ -940,7 +965,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KarsPanel/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = KarsPanel;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -950,7 +977,7 @@
 				PRODUCT_NAME = KarsPanel;
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -977,6 +1004,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = KRQ4U9G63K;
@@ -984,7 +1012,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KarsPanel/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = KarsPanel;
+				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -994,7 +1024,7 @@
 				PRODUCT_NAME = KarsPanel;
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -1050,7 +1080,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 7;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
