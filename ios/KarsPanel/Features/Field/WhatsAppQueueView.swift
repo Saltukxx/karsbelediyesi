@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -105,8 +106,14 @@ struct WhatsAppQueueView: View {
     private func aksiyonlar(_ mesaj: WhatsAppMessageDTO) -> [KBRecordAction] {
         var aksiyonlar: [KBRecordAction] = []
         if mesaj.medyaVar {
+            let tip = (mesaj.medyaTipi ?? "").lowercased()
             aksiyonlar.append(
-                KBRecordAction(id: "\(mesaj.id)-medya", title: "Medya", icon: "photo", kind: .normal) {
+                KBRecordAction(
+                    id: "\(mesaj.id)-medya",
+                    title: tip == "audio" ? "Ses" : "Medya",
+                    icon: tip == "audio" ? "waveform" : "photo",
+                    kind: .normal
+                ) {
                     medyaMesaj = mesaj
                 }
             )
@@ -152,14 +159,21 @@ private struct WhatsAppMediaSheet: View {
     let onClose: () -> Void
 
     @State private var image: UIImage?
+    @State private var audioURL: URL?
     @State private var hata: String?
     @State private var yukleniyor = true
+
+    private var isAudio: Bool {
+        (mesaj.medyaTipi ?? "").lowercased() == "audio"
+    }
 
     var body: some View {
         NavigationStack {
             Group {
                 if yukleniyor {
                     ProgressView("Medya yükleniyor…")
+                } else if let audioURL {
+                    KBAudioPlayerView(fileURL: audioURL)
                 } else if let image {
                     Image(uiImage: image)
                         .resizable()
@@ -168,35 +182,61 @@ private struct WhatsAppMediaSheet: View {
                 } else if let hata {
                     Text(hata)
                         .foregroundStyle(KBTheme.danger)
+                        .multilineTextAlignment(.center)
                         .padding()
                 } else {
-                    Text("Medya önizlemesi yok (ses veya bilinmeyen tür).")
+                    Text("Medya önizlemesi yok.")
                         .foregroundStyle(KBTheme.muted)
                         .padding()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("WhatsApp Medya")
+            .navigationTitle(isAudio ? "WhatsApp Ses" : "WhatsApp Medya")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Kapat", action: onClose)
+                    Button("Kapat", action: kapat)
                 }
             }
         }
         .task { await yukle() }
+        .onDisappear { temizleGeciciSes() }
+    }
+
+    private func kapat() {
+        temizleGeciciSes()
+        onClose()
+    }
+
+    private func temizleGeciciSes() {
+        if let audioURL {
+            try? FileManager.default.removeItem(at: audioURL)
+            self.audioURL = nil
+        }
     }
 
     private func yukle() async {
         yukleniyor = true
         hata = nil
+        image = nil
+        temizleGeciciSes()
         defer { yukleniyor = false }
         do {
             let data = try await APIClient.shared.fetchWhatsAppMedia(id: mesaj.id)
-            if let img = UIImage(data: data) {
+            guard !data.isEmpty else {
+                hata = "Medya dosyası bulunamadı veya boş."
+                return
+            }
+            if isAudio || !dataLooksLikeImage(data) && isLikelyAudio(data) {
+                let ext = audioExtension(for: data)
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("wa-\(mesaj.id).\(ext)")
+                try data.write(to: url, options: .atomic)
+                audioURL = url
+            } else if let img = UIImage(data: data) {
                 image = img
-            } else if (mesaj.medyaTipi ?? "").lowercased() == "audio" {
-                hata = "Ses dosyası indirildi (\(data.count) bayt). Önizleme desteklenmiyor."
+            } else if isAudio {
+                hata = "Ses dosyası indirildi ama oynatılamadı (\(data.count) bayt)."
             } else {
                 hata = "Dosya açılamadı (\(data.count) bayt)."
             }
@@ -204,5 +244,37 @@ private struct WhatsAppMediaSheet: View {
         } catch {
             hata = KBErrorText.of(error)
         }
+    }
+
+    private func dataLooksLikeImage(_ data: Data) -> Bool {
+        UIImage(data: data) != nil
+    }
+
+    private func isLikelyAudio(_ data: Data) -> Bool {
+        // OGG/Opus (WhatsApp ses) veya MP4/M4A/MP3 imzaları
+        if data.count >= 4 {
+            let b = [UInt8](data.prefix(4))
+            if b[0] == 0x4F && b[1] == 0x67 && b[2] == 0x67 && b[3] == 0x53 { return true } // OggS
+            if b[0] == 0x49 && b[1] == 0x44 && b[2] == 0x33 { return true } // ID3
+            if b[0] == 0xFF && (b[1] & 0xE0) == 0xE0 { return true } // MPEG frame
+        }
+        if data.count >= 8 {
+            let box = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
+            if box == "ftyp" { return true }
+        }
+        return isAudio
+    }
+
+    private func audioExtension(for data: Data) -> String {
+        if data.count >= 4 {
+            let b = [UInt8](data.prefix(4))
+            if b[0] == 0x4F && b[1] == 0x67 && b[2] == 0x67 && b[3] == 0x53 { return "ogg" }
+            if b[0] == 0x49 && b[1] == 0x44 && b[2] == 0x33 { return "mp3" }
+        }
+        if data.count >= 8 {
+            let box = String(data: data.subdata(in: 4..<8), encoding: .ascii) ?? ""
+            if box == "ftyp" { return "m4a" }
+        }
+        return "m4a"
     }
 }

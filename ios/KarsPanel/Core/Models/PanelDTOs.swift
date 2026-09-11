@@ -268,7 +268,7 @@ extension UpdateComplaintRequestDTO {
     var cozumFotolari: [String]? { nil }
 }
 
-struct UpdateComplaintFullDTO: Encodable {
+struct UpdateComplaintFullDTO: Codable {
     var durum: ComplaintStatus?
     var cozumNotu: String?
     var lat: Double?

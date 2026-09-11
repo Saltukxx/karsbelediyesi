@@ -162,23 +162,25 @@ struct ChecklistDetailView: View {
         let key = anahtar(kalem.id)
         let onceki = sonuclar[key]
         sonuclar[key] = sonuc
+        let extra = [
+            "templateItemId": kalem.id,
+            "periyot": periyot.rawValue,
+            "sonuc": sonuc.rawValue,
+        ]
         let ok = await store.mutate {
-            try await APIClient.shared.patchChecklist(
-                id: id,
-                action: "item",
-                extra: [
-                    "templateItemId": kalem.id,
-                    "periyot": periyot.rawValue,
-                    "sonuc": sonuc.rawValue,
-                ]
+            _ = try await OfflineMutationQueue.shared.run(
+                .checklistPatch(id: id, action: "item", extra: extra)
             )
         }
         if !ok { sonuclar[key] = onceki }
     }
 
     private func formIslem(_ action: String, mesaj: String) async {
-        await store.mutate(success: mesaj) {
-            try await APIClient.shared.patchChecklist(id: id, action: action)
+        await store.mutate {
+            let r = try await OfflineMutationQueue.shared.run(
+                .checklistPatch(id: id, action: action, extra: [:])
+            )
+            store.toastMessage = OfflineMutationQueue.toast(for: r, success: mesaj)
         }
     }
 }

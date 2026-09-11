@@ -2,7 +2,7 @@ import CoreLocation
 import Foundation
 
 /// Şoför telefonundan periyodik konum gönderimi (dispatch için canlı araç konumu).
-/// Uygulama ön plandayken PING_ARALIGI'nda bir `/api/mobile/location`a gönderir.
+/// Aktif saha oturumundayken arka planda da ping devam edebilir; 7/24 varsayılan takip yok.
 @MainActor
 final class LocationService: NSObject, ObservableObject {
     static let shared = LocationService()
@@ -23,6 +23,8 @@ final class LocationService: NSObject, ObservableObject {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
         manager.distanceFilter = 25
+        manager.pausesLocationUpdatesAutomatically = true
+        manager.activityType = .automotiveNavigation
     }
 
     /// Kullanıcı tercihi (kalıcı) — şoför girişinde otomatik başlatma için
@@ -42,7 +44,13 @@ final class LocationService: NSObject, ObservableObject {
         case .denied, .restricted:
             authorizationDenied = true
             return
-        default:
+        case .authorizedWhenInUse:
+            // Arka plan ping için Always iste; reddedilirse When-In-Use ile ön planda kalır.
+            manager.requestAlwaysAuthorization()
+            applyForegroundOnlyMode()
+        case .authorizedAlways:
+            applyBackgroundMode()
+        @unknown default:
             break
         }
 
@@ -59,8 +67,19 @@ final class LocationService: NSObject, ObservableObject {
         preferenceEnabled = false
         timer?.invalidate()
         timer = nil
+        manager.allowsBackgroundLocationUpdates = false
         manager.stopUpdatingLocation()
         isSharing = false
+    }
+
+    private func applyBackgroundMode() {
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
+    }
+
+    private func applyForegroundOnlyMode() {
+        manager.allowsBackgroundLocationUpdates = false
+        manager.showsBackgroundLocationIndicator = false
     }
 
     private func sendPing() {
@@ -90,9 +109,24 @@ extension LocationService: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         Task { @MainActor in
-            if status == .denied || status == .restricted {
+            switch status {
+            case .denied, .restricted:
                 self.authorizationDenied = true
                 self.stop()
+            case .authorizedAlways:
+                self.authorizationDenied = false
+                if self.isSharing || self.preferenceEnabled {
+                    self.applyBackgroundMode()
+                    if !self.isSharing { self.start() }
+                }
+            case .authorizedWhenInUse:
+                self.authorizationDenied = false
+                self.applyForegroundOnlyMode()
+                if self.preferenceEnabled && !self.isSharing {
+                    self.start()
+                }
+            default:
+                break
             }
         }
     }

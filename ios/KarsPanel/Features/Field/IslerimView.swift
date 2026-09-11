@@ -112,15 +112,21 @@ struct IslerimView: View {
         return [
             KBRecordAction(id: "\(is_.id)-devam", title: "Devam", icon: "play.fill") {
                 Task {
-                    await store.mutate(success: "Rota devam ediyor") {
-                        try await APIClient.shared.updateIslerimAsfalt(id: is_.id, durum: "DEVAM_EDIYOR")
+                    await store.mutate {
+                        let r = try await OfflineMutationQueue.shared.run(
+                            .islerimAsfalt(id: is_.id, durum: "DEVAM_EDIYOR")
+                        )
+                        store.toastMessage = OfflineMutationQueue.toast(for: r, success: "Rota devam ediyor")
                     }
                 }
             },
             KBRecordAction(id: "\(is_.id)-bitir", title: "Bitir", icon: "checkmark", kind: .primary) {
                 Task {
-                    await store.mutate(success: "Rota tamamlandı") {
-                        try await APIClient.shared.updateIslerimAsfalt(id: is_.id, durum: "TAMAMLANDI")
+                    await store.mutate {
+                        let r = try await OfflineMutationQueue.shared.run(
+                            .islerimAsfalt(id: is_.id, durum: "TAMAMLANDI")
+                        )
+                        store.toastMessage = OfflineMutationQueue.toast(for: r, success: "Rota tamamlandı")
                     }
                 }
             },
@@ -128,13 +134,11 @@ struct IslerimView: View {
     }
 
     private func durumGuncelle(_ sikayet: ComplaintDTO, _ durum: String, photos: [String]?, mesaj: String) async {
-        await store.mutate(success: mesaj) {
-            try await APIClient.shared.updateIslerimComplaint(
-                id: sikayet.id,
-                durum: durum,
-                cozumNotu: nil,
-                photos: photos
+        await store.mutate {
+            let r = try await OfflineMutationQueue.shared.run(
+                .islerimComplaint(id: sikayet.id, durum: durum, cozumNotu: nil, photos: photos)
             )
+            store.toastMessage = OfflineMutationQueue.toast(for: r, success: mesaj)
         }
     }
 }
@@ -191,13 +195,17 @@ private struct IslerimKapatSheet: View {
                 return
             }
 
-            let ok = await store.mutate(success: "Şikayet kapatıldı") {
-                try await APIClient.shared.updateIslerimComplaint(
-                    id: sikayet.id,
-                    durum: "KAPATILDI",
-                    cozumNotu: cozumNotu.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
-                    photos: photos.isEmpty ? nil : photos
+            let not = cozumNotu.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+            let ok = await store.mutate {
+                let r = try await OfflineMutationQueue.shared.run(
+                    .islerimComplaint(
+                        id: sikayet.id,
+                        durum: "KAPATILDI",
+                        cozumNotu: not,
+                        photos: photos.isEmpty ? nil : photos
+                    )
                 )
+                store.toastMessage = OfflineMutationQueue.toast(for: r, success: "Şikayet kapatıldı")
             }
             if ok { onClose() }
         }

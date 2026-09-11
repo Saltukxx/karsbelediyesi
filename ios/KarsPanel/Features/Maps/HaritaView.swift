@@ -256,18 +256,20 @@ struct HaritaView: View {
         defer { kaydediliyor = false }
         do {
             let fotolar = images.isEmpty ? nil : try await KBPhotoUpload.hazardBodies(from: images)
-            try await APIClient.shared.saveHazard(
-                lat: koordinat.latitude,
-                lng: koordinat.longitude,
-                aciklama: aciklama,
-                tip: tip,
-                fotolar: fotolar
+            let r = try await OfflineMutationQueue.shared.run(
+                .hazardCreate(
+                    lat: koordinat.latitude,
+                    lng: koordinat.longitude,
+                    aciklama: aciklama,
+                    tip: tip,
+                    fotolar: fotolar
+                )
             )
             showEngel = false
             engelKoordinat = nil
-            toast = "Engel kaydedildi"
+            toast = OfflineMutationQueue.toast(for: r, success: "Engel kaydedildi")
             hata = nil
-            await yukle()
+            if r == .sent { await yukle() }
         } catch is CancellationError {
         } catch {
             hata = KBErrorText.of(error)
@@ -279,14 +281,12 @@ struct HaritaView: View {
         hata = nil
         defer { kaydediliyor = false }
         do {
-            try await APIClient.shared.updateHazard(
-                id: id,
-                durum: durum,
-                tip: tip,
-                aciklama: aciklama
+            let r = try await OfflineMutationQueue.shared.run(
+                .hazardUpdate(id: id, durum: durum, tip: tip, aciklama: aciklama)
             )
             seciliEngel = nil
-            await yukle()
+            toast = OfflineMutationQueue.toast(for: r, success: "Engel güncellendi")
+            if r == .sent { await yukle() }
         } catch is CancellationError {
         } catch {
             hata = KBErrorText.of(error)
@@ -297,11 +297,14 @@ struct HaritaView: View {
         kaydediliyor = true
         defer { kaydediliyor = false }
         do {
-            try await APIClient.shared.updateHazardStatus(id: id, durum: durum)
+            let r = try await OfflineMutationQueue.shared.run(
+                .hazardUpdate(id: id, durum: durum, tip: nil, aciklama: nil)
+            )
             seciliEngel = nil
-            toast = durum == "GIDERILDI" ? "Engel giderildi işaretlendi" : "Engel durumu güncellendi"
+            let okMsg = durum == "GIDERILDI" ? "Engel giderildi işaretlendi" : "Engel durumu güncellendi"
+            toast = OfflineMutationQueue.toast(for: r, success: okMsg)
             hata = nil
-            await yukle()
+            if r == .sent { await yukle() }
         } catch {
             hata = KBErrorText.of(error)
         }

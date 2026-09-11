@@ -220,12 +220,11 @@ private struct TaskKmSheet: View {
 
         Task {
             let mesaj = istek.action == "start" ? "Görev başlatıldı" : "Görev kapatıldı"
-            let ok = await store.mutate(success: mesaj) {
-                _ = try await APIClient.shared.updateTaskKm(
-                    id: istek.gorev.id,
-                    action: istek.action,
-                    km: km
+            let ok = await store.mutate {
+                let r = try await OfflineMutationQueue.shared.run(
+                    .taskKm(id: istek.gorev.id, action: istek.action, km: km)
                 )
+                store.toastMessage = OfflineMutationQueue.toast(for: r, success: mesaj)
             }
             if ok { onClose() }
         }

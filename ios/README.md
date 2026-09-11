@@ -31,6 +31,15 @@ cp "../apps/web/public/brand/logo.png" "KarsPanel/Resources/Assets.xcassets/Logo
 - `@MainActor ObservableObject` store/view model'ler
 - `KeychainAuthStore` — JWT saklama
 - `APIClient` — `http://localhost:3000/api/v1/*` Bearer JWT
+- `OfflineMutationQueue` — saha yazma işlemleri için hafif disk kuyruğu (max 50, FIFO + backoff)
+
+## Görünüm (açık tema — karar)
+
+Belediye Figma kiti **yalnızca açık tema**dır. Uygulama `preferredColorScheme(.light)` ile kilitlidir; bu bir borç değil, ürün kararıdır. Koyu mod açılmayacak.
+
+## Tanımlar / kullanıcı / modül yönetimi — yalnızca web
+
+Kullanıcı CRUD ve müdürlük–modül matrisi **web panelinden** yönetilir. iOS'ta admin UI yoktur; mobil yalnızca oturumdaki `moduleHrefs` listesini menü filtresi için tüketir (`NavItemCatalog` + `AppSession.moduleHrefs`). Mahalle / müdürlük / şikayet türü gibi referans listeleri mobilde okunur veya sınırlı eklenir; kullanıcı hesabı ve modül yetkisi web'dedir.
 
 ## Modüller
 

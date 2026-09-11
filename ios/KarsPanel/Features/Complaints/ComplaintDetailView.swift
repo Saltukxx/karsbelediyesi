@@ -266,9 +266,10 @@ struct ComplaintDetailView: View {
         defer { raporHazirlaniyor = false }
         do {
             let data = try await APIClient.shared.exportComplaintRapor(id: complaint.id)
-            let ad = (complaint.sikayetNo ?? complaint.id).replacingOccurrences(of: "/", with: "-")
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(ad)-rapor.html")
-            try data.write(to: url)
+            let kod = (complaint.sikayetNo ?? complaint.id)
+                .replacingOccurrences(of: "/", with: "-")
+            let fileName = "Sikayet-\(kod).pdf"
+            let url = try await KBHTMLPDF.writePDF(html: data, fileName: fileName)
             paylasilacakRapor = KBExportFile(url: url)
         } catch is CancellationError {
         } catch {
@@ -347,7 +348,12 @@ struct ComplaintDetailView: View {
         }
 
         do {
-            _ = try await APIClient.shared.updateComplaintFull(id: complaintId, body: body)
+            let r = try await OfflineMutationQueue.shared.run(
+                .complaintUpdate(id: complaintId, body: body)
+            )
+            if r == .queued {
+                // Kuyruğa alındı; ekranı kapat, üst bant senkron sayısını gösterir.
+            }
             dismiss()
             return
         } catch {

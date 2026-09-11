@@ -174,6 +174,7 @@ private struct PhoneTabShellView: View {
 
 private struct PadSplitShellView: View {
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var offlineQueue: OfflineMutationQueue
     @State private var selection: NavDestination?
 
     var body: some View {
@@ -241,6 +242,15 @@ private struct PadSplitShellView: View {
             }
             LocationShareMenuItem()
                 .font(.subheadline)
+            if offlineQueue.pendingCount > 0 {
+                Button {
+                    Task { await OfflineMutationQueue.shared.flush() }
+                } label: {
+                    Label("Senkron bekliyor (\(offlineQueue.pendingCount))", systemImage: "arrow.triangle.2.circlepath")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(KBTheme.warning)
+            }
             Button("Çıkış Yap", role: .destructive) {
                 session.signOut()
             }

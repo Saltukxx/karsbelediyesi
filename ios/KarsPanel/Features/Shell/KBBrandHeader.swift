@@ -11,6 +11,7 @@ struct KBBrandHeader: View {
     var onMenu: (() -> Void)? = nil
 
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var offlineQueue: OfflineMutationQueue
     @State private var showSearch = false
 
     var body: some View {
@@ -41,6 +42,19 @@ struct KBBrandHeader: View {
             .minimumScaleFactor(0.8)
             .padding(.leading, 4)
             Spacer(minLength: 4)
+
+            if offlineQueue.pendingCount > 0 {
+                Text("Senkron bekliyor (\(offlineQueue.pendingCount))")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(KBTheme.warning.opacity(0.95), in: Capsule())
+                    .accessibilityLabel("Senkron bekliyor, \(offlineQueue.pendingCount) işlem")
+                    .onTapGesture {
+                        Task { await OfflineMutationQueue.shared.flush() }
+                    }
+            }
 
             Button {
                 showSearch = true

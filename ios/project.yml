@@ -34,9 +34,13 @@ targets:
       path: KarsPanel/Info.plist
       properties:
         NSLocationWhenInUseUsageDescription: Göreve en yakın aracın belirlenebilmesi ve saha konumunun panele iletilmesi için konumunuz kullanılır.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Aktif saha/görev oturumundayken konumunuz arka planda da panela iletilir; oturum kapanınca takip durur. 7/24 izleme yapılmaz.
+        NSLocationAlwaysUsageDescription: Aktif saha/görev oturumundayken konumunuz arka planda da panela iletilir; oturum kapanınca takip durur.
         NSCameraUsageDescription: Şikayet kapanış ve yol engeli fotoğrafları çekmek için kamera kullanılır.
         NSPhotoLibraryUsageDescription: Şikayet ve engel kayıtlarına eklemek üzere galeriden fotoğraf seçilir.
         NSPhotoLibraryAddUsageDescription: Rapor ve Excel çıktıları Fotoğraflar’a kaydedilebilir.
+        UIBackgroundModes:
+          - location
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:
