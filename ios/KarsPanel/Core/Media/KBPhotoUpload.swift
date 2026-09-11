@@ -13,16 +13,17 @@ import UIKit
 enum KBPhotoUpload {
     static let maxEdge: CGFloat = 1600
     static let quality: CGFloat = 0.7
+    /// Saha kapanış / engel kayıtları için makul üst sınır.
+    static let maxCount = 4
 
     /// Sunucunun beklediği `data:image/jpeg;base64,...` dizisini üretir.
     /// Okunamayan bir kare sessizce düşürülmez, hata olarak yüzeye çıkar.
     static func dataURLs(from items: [PhotosPickerItem]) async throws -> [String] {
         var sonuc: [String] = []
-        for item in items {
+        for item in items.prefix(maxCount) {
             guard let ham = try await item.loadTransferable(type: Data.self) else {
                 throw KBPhotoError.okunamadi
             }
-            // Tam çözünürlüklü kare çözmek pahalı; arayüzü bloklamasın.
             guard let jpeg = await Task.detached(priority: .userInitiated, operation: {
                 jpegData(from: ham)
             }).value else {
@@ -31,6 +32,25 @@ enum KBPhotoUpload {
             sonuc.append("data:image/jpeg;base64,\(jpeg.base64EncodedString())")
         }
         return sonuc
+    }
+
+    static func dataURLs(from images: [UIImage]) async throws -> [String] {
+        var sonuc: [String] = []
+        for image in images.prefix(maxCount) {
+            guard let jpeg = await Task.detached(priority: .userInitiated, operation: {
+                downscaled(image).jpegData(compressionQuality: quality)
+            }).value else {
+                throw KBPhotoError.cozumlenemedi
+            }
+            sonuc.append("data:image/jpeg;base64,\(jpeg.base64EncodedString())")
+        }
+        return sonuc
+    }
+
+    /// Engel API'sinin beklediği `{ data, mime }` gövdesi.
+    static func hazardBodies(from images: [UIImage]) async throws -> [[String: String]] {
+        let urls = try await dataURLs(from: images)
+        return urls.map { ["data": $0, "mime": "image/jpeg"] }
     }
 
     /// UIImage'ın açabildiği her biçimi (HEIC dahil) küçültülmüş JPEG'e çevirir.
@@ -59,6 +79,7 @@ enum KBPhotoUpload {
 enum KBPhotoError: LocalizedError {
     case okunamadi
     case cozumlenemedi
+    case limitAsildi
 
     var errorDescription: String? {
         switch self {
@@ -66,6 +87,8 @@ enum KBPhotoError: LocalizedError {
             return "Seçilen fotoğraf okunamadı. Fotoğrafı tekrar seçip deneyin."
         case .cozumlenemedi:
             return "Fotoğraf biçimi desteklenmiyor."
+        case .limitAsildi:
+            return "En fazla \(KBPhotoUpload.maxCount) fotoğraf eklenebilir."
         }
     }
 }

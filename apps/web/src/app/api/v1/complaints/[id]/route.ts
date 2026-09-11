@@ -18,6 +18,7 @@ const complaintInclude = {
   complaintType: { select: { id: true, name: true } },
   department: { select: { id: true, name: true } },
   vehicle: { select: { id: true, plaka: true } },
+  personel: { include: { personnel: { select: { id: true, adSoyad: true } } } },
 } as const;
 
 type Ctx = { params: Promise<{ id: string }> };

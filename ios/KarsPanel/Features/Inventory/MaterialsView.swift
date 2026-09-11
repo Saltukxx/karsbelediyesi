@@ -7,6 +7,7 @@ struct MaterialsView: View {
     @State private var arama = ""
     @State private var seviye = StokSeviyeFiltre.tumu
     @State private var showCreate = false
+    @State private var hareketMalzeme: MaterialStockDTO?
 
     var body: some View {
         // Filtreleme her gövde değerlendirmesinde tekrarlamasın.
@@ -42,6 +43,11 @@ struct MaterialsView: View {
                     badges: [KBStatus.stok(miktar: malzeme.stokMiktari, kritik: malzeme.minStok)].compactMap { $0 },
                     subtitle: malzeme.depo.map { "Depo: \($0)" },
                     meta: meta(malzeme),
+                    actions: [
+                        KBRecordAction(id: "\(malzeme.id)-hareket", title: "Giriş / Çıkış", icon: "arrow.left.arrow.right", kind: .primary) {
+                            hareketMalzeme = malzeme
+                        }
+                    ],
                     accent: vurgu(malzeme)
                 )
             }
@@ -52,6 +58,9 @@ struct MaterialsView: View {
         .kbToast($store.toastMessage)
         .sheet(isPresented: $showCreate) {
             MaterialCreateSheet(store: store) { showCreate = false }
+        }
+        .sheet(item: $hareketMalzeme) { malzeme in
+            MaterialMovementSheet(store: store, malzeme: malzeme) { hareketMalzeme = nil }
         }
     }
 
@@ -178,6 +187,71 @@ private struct MaterialCreateSheet: View {
                     kod: kod.trimmingCharacters(in: .whitespaces),
                     ad: ad.trimmingCharacters(in: .whitespaces),
                     birim: birim
+                )
+            }
+            if ok { onClose() }
+        }
+    }
+}
+
+private struct MaterialMovementSheet: View {
+    @ObservedObject var store: KBListStore<MaterialStockDTO>
+    let malzeme: MaterialStockDTO
+    let onClose: () -> Void
+
+    @State private var tip = "GIRIS"
+    @State private var miktar = ""
+    @State private var aciklama = ""
+
+    private let tipler = [
+        KBPickerOption(value: "GIRIS", label: "Giriş"),
+        KBPickerOption(value: "CIKIS", label: "Çıkış"),
+    ]
+
+    var body: some View {
+        KBFormSheet(
+            title: "Stok Hareketi",
+            subtitle: malzeme.malzemeAdi ?? malzeme.id,
+            submitTitle: tip == "CIKIS" ? "Çıkış Kaydet" : "Giriş Kaydet",
+            canSubmit: (Double(miktar.replacingOccurrences(of: ",", with: ".")) ?? 0) > 0,
+            isSubmitting: store.isSubmitting,
+            errorMessage: store.errorMessage,
+            onSubmit: gonder,
+            onCancel: onClose
+        ) {
+            if let stok = KBFormat.sayi(malzeme.stokMiktari, birim: malzeme.birim) {
+                Text("Mevcut stok: \(stok)")
+                    .font(.caption)
+                    .foregroundStyle(KBTheme.muted)
+            }
+            KBFormPicker(title: "Hareket tipi", required: true, selection: $tip, options: tipler)
+            KBFormTextField(
+                title: "Miktar",
+                required: true,
+                placeholder: "0",
+                text: $miktar
+            )
+            KBFormTextField(
+                title: "Açıklama",
+                placeholder: "Belge no / not (opsiyonel)",
+                text: $aciklama,
+                multiline: true
+            )
+        }
+    }
+
+    private func gonder() {
+        let deger = Double(miktar.replacingOccurrences(of: ",", with: ".")) ?? 0
+        Task {
+            let ok = await store.mutate(success: tip == "CIKIS" ? "Çıkış kaydedildi" : "Giriş kaydedildi") {
+                try await APIClient.shared.createMaterialMovement(
+                    materialId: malzeme.id,
+                    tip: tip,
+                    miktar: deger,
+                    aciklama: {
+                        let t = aciklama.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return t.isEmpty ? nil : t
+                    }()
                 )
             }
             if ok { onClose() }

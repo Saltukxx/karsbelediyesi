@@ -1,0 +1,89 @@
+# Üretim örneği (Hetzner / tek VM). Gerçek sırlar .env.prod dosyasından gelir —
+# bu dosyada varsayılan şifre YOKTUR. Kullanım:
+#   cp .env.example .env.prod   # değerleri doldurun
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Not: Geliştirme `docker-compose.yml` dosyasını kullanmaya devam eder.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Üretimde 5432'yi host'a açmayın; yalnızca dahili ağ.
+    expose:
+      - "5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}"]
+    volumes:
+      - redis-data:/data
+    expose:
+      - "6379"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Prisma connection_limit — örnek sayısı × limit ≤ Postgres max_connections
+      DB_CONNECTION_LIMIT: ${DB_CONNECTION_LIMIT:-10}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL:?set AUTH_URL}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET}
+      UPLOAD_DIR: /app/uploads
+      WHATSAPP_BOT_MEDIA_PATH: /app/whatsapp-data/media
+      MOBILIZ_TOKEN: ${MOBILIZ_TOKEN:-}
+      MOBILIZ_BASE_URL: ${MOBILIZ_BASE_URL:-https://api.mobiliz.com.tr/api}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - uploads-data:/app/uploads
+      - whatsapp-data:/app/whatsapp-data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  whatsapp-bot:
+    build:
+      context: .
+      dockerfile: apps/whatsapp-bot/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      WHATSAPP_AUTO_CONFIDENCE_THRESHOLD: ${WHATSAPP_AUTO_CONFIDENCE_THRESHOLD:-0.75}
+    volumes:
+      - whatsapp-data:/app/apps/whatsapp-bot/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads-data:
+  whatsapp-data:

@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 /// Saha rollerinin ana ekranı: kendisine atanan şikayetler ve asfalt rotaları.
 struct IslerimView: View {
     @StateObject private var store = KBListStore { [try await APIClient.shared.fetchIslerim()] }
     @State private var cevapIcin: ComplaintDTO?
+    @State private var kapatIcin: ComplaintDTO?
     @State private var confirm: KBConfirmRequest?
 
     private var veri: IslerimDTO? { store.items.first }
@@ -57,6 +59,9 @@ struct IslerimView: View {
         .sheet(item: $cevapIcin) { sikayet in
             WhatsAppReplySheet(store: store, sikayet: sikayet) { cevapIcin = nil }
         }
+        .sheet(item: $kapatIcin) { sikayet in
+            IslerimKapatSheet(store: store, sikayet: sikayet) { kapatIcin = nil }
+        }
     }
 
     private func sikayetRozetleri(_ sikayet: ComplaintDTO) -> [KBBadge] {
@@ -87,17 +92,10 @@ struct IslerimView: View {
         }
         return [
             KBRecordAction(id: "\(sikayet.id)-devam", title: "Devam", icon: "play.fill") {
-                Task { await durumGuncelle(sikayet, "DEVAM_EDIYOR", mesaj: "Şikayet devam ediyor olarak işaretlendi") }
+                Task { await durumGuncelle(sikayet, "DEVAM_EDIYOR", photos: nil, mesaj: "Şikayet devam ediyor olarak işaretlendi") }
             },
             KBRecordAction(id: "\(sikayet.id)-kapat", title: "Kapat", icon: "checkmark", kind: .primary) {
-                confirm = KBConfirmRequest(
-                    title: "Şikayet kapatılsın mı?",
-                    message: "\(sikayet.sikayetNo ?? "Kayıt") çözüldü olarak işaretlenecek.",
-                    confirmTitle: "Kapat",
-                    destructive: false
-                ) {
-                    Task { await durumGuncelle(sikayet, "KAPATILDI", mesaj: "Şikayet kapatıldı") }
-                }
+                kapatIcin = sikayet
             },
             cevapAksiyonu(sikayet),
         ]
@@ -129,14 +127,79 @@ struct IslerimView: View {
         ]
     }
 
-    private func durumGuncelle(_ sikayet: ComplaintDTO, _ durum: String, mesaj: String) async {
+    private func durumGuncelle(_ sikayet: ComplaintDTO, _ durum: String, photos: [String]?, mesaj: String) async {
         await store.mutate(success: mesaj) {
             try await APIClient.shared.updateIslerimComplaint(
                 id: sikayet.id,
                 durum: durum,
                 cozumNotu: nil,
-                photos: nil
+                photos: photos
             )
+        }
+    }
+}
+
+private struct IslerimKapatSheet: View {
+    @ObservedObject var store: KBListStore<IslerimDTO>
+    let sikayet: ComplaintDTO
+    let onClose: () -> Void
+
+    @State private var cozumNotu = ""
+    @State private var images: [UIImage] = []
+    @State private var lokalHata: String?
+    @State private var fotoHazirlaniyor = false
+
+    var body: some View {
+        KBFormSheet(
+            title: "Şikayeti Kapat",
+            subtitle: sikayet.sikayetNo,
+            submitTitle: "Kapat ve Kaydet",
+            canSubmit: !store.isSubmitting && !fotoHazirlaniyor,
+            isSubmitting: store.isSubmitting || fotoHazirlaniyor,
+            errorMessage: lokalHata ?? store.errorMessage,
+            onSubmit: kaydet,
+            onCancel: onClose
+        ) {
+            Text("Çözüm kanıtı için fotoğraf eklemeniz önerilir (en fazla \(KBPhotoUpload.maxCount)).")
+                .font(.caption)
+                .foregroundStyle(KBTheme.muted)
+
+            KBFormTextField(
+                title: "Çözüm notu",
+                placeholder: "Yapılan işlem özeti...",
+                text: $cozumNotu,
+                multiline: true
+            )
+
+            KBImageSourcePicker(images: $images, title: "Kapanış fotoğrafı")
+        }
+        .interactiveDismissDisabled(store.isSubmitting || fotoHazirlaniyor)
+    }
+
+    private func kaydet() {
+        Task {
+            lokalHata = nil
+            let photos: [String]
+            do {
+                fotoHazirlaniyor = !images.isEmpty
+                defer { fotoHazirlaniyor = false }
+                photos = try await KBPhotoUpload.dataURLs(from: images)
+            } catch is CancellationError {
+                return
+            } catch {
+                lokalHata = KBErrorText.of(error)
+                return
+            }
+
+            let ok = await store.mutate(success: "Şikayet kapatıldı") {
+                try await APIClient.shared.updateIslerimComplaint(
+                    id: sikayet.id,
+                    durum: "KAPATILDI",
+                    cozumNotu: cozumNotu.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                    photos: photos.isEmpty ? nil : photos
+                )
+            }
+            if ok { onClose() }
         }
     }
 }
@@ -176,5 +239,12 @@ private struct WhatsAppReplySheet: View {
             }
             if ok { onClose() }
         }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        let t = trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? nil : t
     }
 }

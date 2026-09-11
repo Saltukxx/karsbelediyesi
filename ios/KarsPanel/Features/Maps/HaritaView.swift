@@ -1,5 +1,7 @@
 import MapKit
 import SwiftUI
+import UIKit
+import CoreLocation
 
 struct HaritaView: View {
     @State private var payload: MapPayloadDTO?
@@ -8,20 +10,35 @@ struct HaritaView: View {
     @State private var katmanlar: Set<HaritaKatmani> = Set(HaritaKatmani.allCases)
     @State private var cizim: [CLLocationCoordinate2D] = []
     @State private var showKaydet = false
+    @State private var showEngel = false
+    @State private var engelKoordinat: CLLocationCoordinate2D?
+    @State private var seciliEngel: MapHazardDTO?
     @State private var kaydediliyor = false
     @State private var yukleniyor = false
+    @State private var engelModu = false
 
     var body: some View {
         VStack(spacing: 0) {
             KBMapHeader(title: "Yol Haritası", subtitle: "Yollar, engeller ve şikayet katmanları")
 
-            // Harita temsilcisi yığında esnek alanı tümüyle yuttuğu için panel yan yana
-            // değil üstüne bindirilir; böylece kendi boyunda kalır.
             ZStack(alignment: .top) {
                 KarsMapView(
                     polylines: polylines,
                     pins: pins,
-                    onTap: { cizim.append($0) }
+                    onTap: { koordinat in
+                        if engelModu {
+                            engelKoordinat = koordinat
+                            showEngel = true
+                            engelModu = false
+                        } else {
+                            cizim.append(koordinat)
+                        }
+                    },
+                    onSelectPin: { pinId in
+                        if let hazard = payload?.hazards?.first(where: { $0.id == pinId }) {
+                            seciliEngel = hazard
+                        }
+                    }
                 )
                 if let hata {
                     ErrorBanner(message: hata).padding(12)
@@ -31,8 +48,6 @@ struct HaritaView: View {
                 altPanel.safeAreaPadding(.bottom)
             }
         }
-        // Yalnızca ilk yüklemede: veri geldikten sonraki tazelemeler haritayı
-        // örtmemeli. KBScreen'in isLoading && isEmpty kuralıyla aynı.
         .overlay {
             if yukleniyor && payload == nil { LoadingOverlay() }
         }
@@ -46,6 +61,30 @@ struct HaritaView: View {
                 errorMessage: hata,
                 onSubmit: { ad in Task { await rotaKaydet(ad) } },
                 onCancel: { showKaydet = false }
+            )
+        }
+        .sheet(isPresented: $showEngel) {
+            HazardCreateSheet(
+                koordinat: engelKoordinat,
+                isSubmitting: kaydediliyor,
+                errorMessage: hata,
+                onSubmit: { tip, aciklama, images in
+                    Task { await engelKaydet(tip: tip, aciklama: aciklama, images: images) }
+                },
+                onCancel: { showEngel = false; engelKoordinat = nil }
+            )
+        }
+        .sheet(item: $seciliEngel) { hazard in
+            HazardEditSheet(
+                hazard: hazard,
+                isSubmitting: kaydediliyor,
+                errorMessage: hata,
+                onSave: { tip, aciklama, durum in
+                    Task { await engelGuncelle(hazard.id, tip: tip, aciklama: aciklama, durum: durum) }
+                },
+                onStatus: { durum in Task { await engelDurum(hazard.id, durum) } },
+                onDelete: { Task { await engelSil(hazard.id) } },
+                onCancel: { seciliEngel = nil }
             )
         }
     }
@@ -73,12 +112,27 @@ struct HaritaView: View {
             }
 
             HStack(spacing: 10) {
-                Text(cizim.isEmpty
-                    ? "Yeni rota için haritaya dokunun."
-                    : "\(cizim.count) nokta çizildi.")
+                Text(engelModu
+                    ? "Engel konumu için haritaya dokunun."
+                    : (cizim.isEmpty
+                        ? "Yeni rota için haritaya dokunun."
+                        : "\(cizim.count) nokta çizildi."))
                     .font(.caption)
                     .foregroundStyle(KBTheme.muted)
                 Spacer(minLength: 8)
+                Button(engelModu ? "İptal" : "Engel Ekle") {
+                    if engelModu {
+                        engelModu = false
+                    } else {
+                        engelModu = true
+                        // GPS varsa varsayılan konum önerisi sheet açılınca kullanılır
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(engelModu ? KBTheme.danger : KBTheme.warning)
+                .accessibilityIdentifier("haritaEngelEkle")
+                .accessibilityLabel(engelModu ? "Engel eklemeyi iptal et" : "Engel Ekle")
+
                 if !cizim.isEmpty {
                     Button("Temizle") { cizim = [] }
                         .font(.caption.weight(.semibold))
@@ -192,6 +246,80 @@ struct HaritaView: View {
             hata = KBErrorText.of(error)
         }
     }
+
+    private func engelKaydet(tip: String, aciklama: String, images: [UIImage]) async {
+        guard let koordinat = engelKoordinat else {
+            hata = "Engel konumu seçilmedi. Haritaya dokunun."
+            return
+        }
+        kaydediliyor = true
+        defer { kaydediliyor = false }
+        do {
+            let fotolar = images.isEmpty ? nil : try await KBPhotoUpload.hazardBodies(from: images)
+            try await APIClient.shared.saveHazard(
+                lat: koordinat.latitude,
+                lng: koordinat.longitude,
+                aciklama: aciklama,
+                tip: tip,
+                fotolar: fotolar
+            )
+            showEngel = false
+            engelKoordinat = nil
+            toast = "Engel kaydedildi"
+            hata = nil
+            await yukle()
+        } catch is CancellationError {
+        } catch {
+            hata = KBErrorText.of(error)
+        }
+    }
+
+    private func engelGuncelle(_ id: String, tip: String, aciklama: String, durum: String?) async {
+        kaydediliyor = true
+        hata = nil
+        defer { kaydediliyor = false }
+        do {
+            try await APIClient.shared.updateHazard(
+                id: id,
+                durum: durum,
+                tip: tip,
+                aciklama: aciklama
+            )
+            seciliEngel = nil
+            await yukle()
+        } catch is CancellationError {
+        } catch {
+            hata = KBErrorText.of(error)
+        }
+    }
+
+    private func engelDurum(_ id: String, _ durum: String) async {
+        kaydediliyor = true
+        defer { kaydediliyor = false }
+        do {
+            try await APIClient.shared.updateHazardStatus(id: id, durum: durum)
+            seciliEngel = nil
+            toast = durum == "GIDERILDI" ? "Engel giderildi işaretlendi" : "Engel durumu güncellendi"
+            hata = nil
+            await yukle()
+        } catch {
+            hata = KBErrorText.of(error)
+        }
+    }
+
+    private func engelSil(_ id: String) async {
+        kaydediliyor = true
+        defer { kaydediliyor = false }
+        do {
+            try await APIClient.shared.deleteHazard(id: id)
+            seciliEngel = nil
+            toast = "Engel silindi"
+            hata = nil
+            await yukle()
+        } catch {
+            hata = KBErrorText.of(error)
+        }
+    }
 }
 
 enum HaritaKatmani: String, CaseIterable, Identifiable {
@@ -283,3 +411,123 @@ private struct RoadSaveSheet: View {
         }
     }
 }
+
+private struct HazardCreateSheet: View {
+    let koordinat: CLLocationCoordinate2D?
+    let isSubmitting: Bool
+    let errorMessage: String?
+    let onSubmit: (String, String, [UIImage]) -> Void
+    let onCancel: () -> Void
+
+    @State private var tip = "ENGEL"
+    @State private var aciklama = ""
+    @State private var images: [UIImage] = []
+    @State private var lokalHata: String?
+
+    private let tipler = [
+        KBPickerOption(value: "ENGEL", label: "Engel"),
+        KBPickerOption(value: "CUKUR", label: "Çukur"),
+        KBPickerOption(value: "DIGER", label: "Diğer"),
+    ]
+
+    var body: some View {
+        KBFormSheet(
+            title: "Yeni Engel",
+            subtitle: koordinat.map { String(format: "%.5f, %.5f", $0.latitude, $0.longitude) } ?? "Konum yok",
+            submitTitle: "Engeli Kaydet",
+            canSubmit: koordinat != nil && !aciklama.trimmingCharacters(in: .whitespaces).isEmpty && !isSubmitting,
+            isSubmitting: isSubmitting,
+            errorMessage: lokalHata ?? errorMessage,
+            onSubmit: {
+                guard koordinat != nil else {
+                    lokalHata = "Konum seçilmedi. Haritaya dokunarak konum belirleyin."
+                    return
+                }
+                onSubmit(tip, aciklama.trimmingCharacters(in: .whitespacesAndNewlines), images)
+            },
+            onCancel: onCancel
+        ) {
+            if koordinat == nil {
+                Text("Haritada bir noktaya dokunarak konum seçin.")
+                    .font(.caption)
+                    .foregroundStyle(KBTheme.danger)
+            }
+            KBFormPicker(title: "Tip", required: true, selection: $tip, options: tipler)
+            KBFormTextField(
+                title: "Açıklama",
+                required: true,
+                placeholder: "Örn. yol ortasında çukur",
+                text: $aciklama,
+                multiline: true
+            )
+            KBImageSourcePicker(images: $images, title: "Engel fotoğrafı")
+        }
+        .interactiveDismissDisabled(isSubmitting)
+    }
+}
+
+private struct HazardEditSheet: View {
+    let hazard: MapHazardDTO
+    let isSubmitting: Bool
+    let errorMessage: String?
+    let onSave: (String, String, String?) -> Void
+    let onStatus: (String) -> Void
+    let onDelete: () -> Void
+    let onCancel: () -> Void
+
+    @State private var tip: String = "ENGEL"
+    @State private var aciklama: String = ""
+
+    private let tipler = [
+        KBPickerOption(value: "ENGEL", label: "Engel"),
+        KBPickerOption(value: "CUKUR", label: "Çukur"),
+        KBPickerOption(value: "DIGER", label: "Diğer"),
+    ]
+
+    var body: some View {
+        KBFormSheet(
+            title: "Engel Düzenle",
+            subtitle: hazard.durum ?? hazard.id,
+            submitTitle: "Kaydet",
+            canSubmit: !aciklama.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSubmitting,
+            isSubmitting: isSubmitting,
+            errorMessage: errorMessage,
+            onSubmit: {
+                onSave(tip, aciklama.trimmingCharacters(in: .whitespacesAndNewlines), nil)
+            },
+            onCancel: onCancel
+        ) {
+            KBFormPicker(title: "Tip", required: true, selection: $tip, options: tipler)
+            KBFormTextField(
+                title: "Açıklama",
+                required: true,
+                placeholder: "Engel açıklaması",
+                text: $aciklama,
+                multiline: true
+            )
+            if let photoCount = hazard.photoIds?.count, photoCount > 0 {
+                Text("Fotoğraf: \(photoCount) adet")
+                    .font(.caption)
+                    .foregroundStyle(KBTheme.muted)
+            }
+            Button {
+                let yeni = hazard.durum?.uppercased() == "GIDERILDI" ? "ACIK" : "GIDERILDI"
+                onStatus(yeni)
+            } label: {
+                Text(hazard.durum?.uppercased() == "GIDERILDI" ? "Yeniden Aç" : "Giderildi İşaretle")
+                    .frame(maxWidth: .infinity, minHeight: KBTheme.touchMin)
+            }
+            .buttonStyle(.bordered)
+            .disabled(isSubmitting)
+
+            Button("Engeli Sil", role: .destructive, action: onDelete)
+                .disabled(isSubmitting)
+                .padding(.top, 4)
+        }
+        .onAppear {
+            tip = hazard.tip ?? "ENGEL"
+            aciklama = hazard.aciklama ?? ""
+        }
+    }
+}
+

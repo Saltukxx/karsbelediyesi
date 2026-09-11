@@ -5,8 +5,9 @@ struct ChecklistDetailView: View {
     var baslik: String?
 
     @StateObject private var store: KBListStore<ChecklistDetailDTO>
-    /// API kalem sonuçlarını geri döndürmediği için seçim bu oturumda yerel tutulur.
+    /// Anahtar: "\(itemId):\(periyot)" — API sonuçlarıyla hydrate edilir.
     @State private var sonuclar: [String: ChecklistSonuc] = [:]
+    @State private var periyot: ChecklistPeriyot = .HAFTA_1
     @State private var confirm: KBConfirmRequest?
 
     init(id: String, baslik: String? = nil) {
@@ -32,15 +33,22 @@ struct ChecklistDetailView: View {
                 systemImage: "checklist",
                 message: "Bu şablonda tanımlı kontrol kalemi bulunmuyor."
             ),
-            refresh: { await store.load() }
+            refresh: {
+                await store.load()
+                hydrate()
+            }
         ) {
             ilerlemeKarti
+            periyotSecici
 
-            KBSectionHeader(title: "Kontrol kalemleri", trailing: "\(isaretliSayisi)/\(kalemler.count)")
+            KBSectionHeader(
+                title: "Kontrol kalemleri",
+                trailing: "\(isaretliSayisi)/\(kalemler.count) · \(periyot.label)"
+            )
             ForEach(kalemler) { kalem in
                 ChecklistItemRow(
                     baslik: kalem.kontrolKalemi ?? kalem.id,
-                    secim: sonuclar[kalem.id]
+                    secim: sonuclar[anahtar(kalem.id)]
                 ) { sonuc in
                     Task { await kaydet(kalem, sonuc) }
                 }
@@ -48,7 +56,13 @@ struct ChecklistDetailView: View {
 
             onayAksiyonlari
         }
-        .task { await store.loadIfNeeded() }
+        .task {
+            await store.loadIfNeeded()
+            hydrate()
+        }
+        .onChange(of: store.isLoading) { _, loading in
+            if !loading { hydrate() }
+        }
         .kbToast($store.toastMessage)
         .kbConfirm($confirm)
     }
@@ -58,7 +72,11 @@ struct ChecklistDetailView: View {
         return "Form durumu: \(durum.text)"
     }
 
-    private var isaretliSayisi: Int { sonuclar.count }
+    private func anahtar(_ itemId: String) -> String { "\(itemId):\(periyot.rawValue)" }
+
+    private var isaretliSayisi: Int {
+        kalemler.filter { sonuclar[anahtar($0.id)] != nil }.count
+    }
 
     private var ilerlemeKarti: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -85,6 +103,24 @@ struct ChecklistDetailView: View {
         return Double(isaretliSayisi) / Double(kalemler.count)
     }
 
+    private var periyotSecici: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Kontrol periyodu")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(KBTheme.muted)
+            KBChipRow(
+                selection: $periyot,
+                items: ChecklistPeriyot.allCases.map {
+                    KBChipItem(value: $0, label: $0.kisa, count: periyotSayisi($0))
+                }
+            )
+        }
+    }
+
+    private func periyotSayisi(_ p: ChecklistPeriyot) -> Int {
+        kalemler.filter { sonuclar["\($0.id):\(p.rawValue)"] != nil }.count
+    }
+
     @ViewBuilder
     private var onayAksiyonlari: some View {
         VStack(spacing: 10) {
@@ -108,22 +144,65 @@ struct ChecklistDetailView: View {
         .padding(.top, 4)
     }
 
+    private func hydrate() {
+        guard let items = detay?.items else { return }
+        var map = sonuclar
+        for item in items {
+            for result in item.results ?? [] {
+                guard let periyot = result.periyot,
+                      let raw = result.sonuc,
+                      let sonuc = ChecklistSonuc(rawValue: raw) else { continue }
+                map["\(item.id):\(periyot)"] = sonuc
+            }
+        }
+        sonuclar = map
+    }
+
     private func kaydet(_ kalem: ChecklistItemDTO, _ sonuc: ChecklistSonuc) async {
-        let onceki = sonuclar[kalem.id]
-        sonuclar[kalem.id] = sonuc
+        let key = anahtar(kalem.id)
+        let onceki = sonuclar[key]
+        sonuclar[key] = sonuc
         let ok = await store.mutate {
             try await APIClient.shared.patchChecklist(
                 id: id,
                 action: "item",
-                extra: ["templateItemId": kalem.id, "periyot": "HAFTA_1", "sonuc": sonuc.rawValue]
+                extra: [
+                    "templateItemId": kalem.id,
+                    "periyot": periyot.rawValue,
+                    "sonuc": sonuc.rawValue,
+                ]
             )
         }
-        if !ok { sonuclar[kalem.id] = onceki }
+        if !ok { sonuclar[key] = onceki }
     }
 
     private func formIslem(_ action: String, mesaj: String) async {
         await store.mutate(success: mesaj) {
             try await APIClient.shared.patchChecklist(id: id, action: action)
+        }
+    }
+}
+
+enum ChecklistPeriyot: String, CaseIterable, Hashable {
+    case HAFTA_1, HAFTA_2, HAFTA_3, HAFTA_4, AYLIK_BAKIM
+
+    var label: String {
+        switch self {
+        case .HAFTA_1: return "1. Hafta"
+        case .HAFTA_2: return "2. Hafta"
+        case .HAFTA_3: return "3. Hafta"
+        case .HAFTA_4: return "4. Hafta"
+        case .AYLIK_BAKIM: return "Aylık bakım"
+        }
+    }
+
+    var kisa: String {
+        switch self {
+        case .HAFTA_1: return "H1"
+        case .HAFTA_2: return "H2"
+        case .HAFTA_3: return "H3"
+        case .HAFTA_4: return "H4"
+        case .AYLIK_BAKIM: return "Aylık"
         }
     }
 }

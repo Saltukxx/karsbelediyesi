@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { DataTable } from "@/components/ui/DataTable";
 import { departmentScope, requirePageAccess } from "@/lib/authz";
+import { deptSql, type DeptScope } from "@/lib/dept-sql";
 import { computeSlaSummary } from "@/lib/sla";
 import { gorevMaliyetleri, paraFormat, type GorevMaliyet } from "@/lib/task-cost";
 
@@ -34,64 +35,78 @@ interface MahalleRow {
   enSikTip: string;
 }
 
-/** Son 90 gündeki şikayetlerin mahalle bazlı kırılımı */
-async function mahalleAnalizi(dept: {
-  departmentId?: string | { in: string[] };
-}): Promise<MahalleRow[]> {
+/** Son 90 gündeki şikayetlerin mahalle bazlı kırılımı — DB tarafında aggregate. */
+async function mahalleAnalizi(dept: DeptScope): Promise<MahalleRow[]> {
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-  const complaints = await prisma.complaint.findMany({
-    where: { ...dept, kayitTarihi: { gte: since } },
-    select: {
-      durum: true,
-      createdAt: true,
-      kapanisTarihi: true,
-      neighborhood: { select: { name: true } },
-      complaintType: { select: { name: true } },
-    },
-  });
 
-  const byMahalle = new Map<
-    string,
-    { toplam: number; acik: number; kapanan: number; cozumGunler: number[]; tipler: Map<string, number> }
-  >();
-  for (const c of complaints) {
-    const ad = c.neighborhood?.name ?? "Mahalle belirtilmemiş";
-    let row = byMahalle.get(ad);
-    if (!row) {
-      row = { toplam: 0, acik: 0, kapanan: 0, cozumGunler: [], tipler: new Map() };
-      byMahalle.set(ad, row);
-    }
-    row.toplam += 1;
-    if (c.durum === "KAPATILDI") {
-      row.kapanan += 1;
-      if (c.kapanisTarihi) {
-        row.cozumGunler.push(
-          (c.kapanisTarihi.getTime() - c.createdAt.getTime()) / 86_400_000,
-        );
-      }
-    } else if (c.durum !== "IPTAL") {
-      row.acik += 1;
-    }
-    const tip = c.complaintType?.name ?? "Belirsiz";
-    row.tipler.set(tip, (row.tipler.get(tip) ?? 0) + 1);
-  }
+  type RawRow = {
+    ad: string;
+    toplam: number;
+    acik: number;
+    kapanan: number;
+    ort_cozum: number | null;
+    en_sik_tip: string | null;
+  };
 
-  return Array.from(byMahalle.entries())
-    .map(([ad, r]) => ({
-      ad,
-      toplam: r.toplam,
-      acik: r.acik,
-      kapanan: r.kapanan,
-      ortCozumGun:
-        r.cozumGunler.length > 0
-          ? Math.round(
-              (r.cozumGunler.reduce((a, b) => a + b, 0) / r.cozumGunler.length) * 10,
-            ) / 10
-          : null,
-      enSikTip:
-        Array.from(r.tipler.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—",
-    }))
-    .sort((a, b) => (b.ortCozumGun ?? -1) - (a.ortCozumGun ?? -1));
+  // Satırları belleğe çekmek yerine GROUP BY + en sık tip için window.
+  // ortCozum: kapanış − createdAt (eski JS Map davranışıyla aynı).
+  const rows = await prisma.$queryRaw<RawRow[]>`
+    WITH base AS (
+      SELECT
+        COALESCE(n.name, 'Mahalle belirtilmemiş') AS ad,
+        c.durum,
+        c."createdAt",
+        c."kapanisTarihi",
+        COALESCE(ct.name, 'Belirsiz') AS tip
+      FROM "Complaint" c
+      LEFT JOIN "Neighborhood" n ON n.id = c."neighborhoodId"
+      LEFT JOIN "ComplaintType" ct ON ct.id = c."complaintTypeId"
+      WHERE c."kayitTarihi" >= ${since}
+        ${deptSql(dept)}
+    ),
+    agg AS (
+      SELECT
+        ad,
+        COUNT(*)::int AS toplam,
+        COUNT(*) FILTER (WHERE durum <> 'KAPATILDI' AND durum <> 'IPTAL')::int AS acik,
+        COUNT(*) FILTER (WHERE durum = 'KAPATILDI')::int AS kapanan,
+        AVG(
+          EXTRACT(EPOCH FROM ("kapanisTarihi" - "createdAt")) / 86400.0
+        ) FILTER (
+          WHERE durum = 'KAPATILDI' AND "kapanisTarihi" IS NOT NULL
+        )::float AS ort_cozum
+      FROM base
+      GROUP BY ad
+    ),
+    tip_sirali AS (
+      SELECT
+        ad,
+        tip,
+        ROW_NUMBER() OVER (PARTITION BY ad ORDER BY COUNT(*) DESC, tip ASC) AS rn
+      FROM base
+      GROUP BY ad, tip
+    )
+    SELECT
+      a.ad,
+      a.toplam,
+      a.acik,
+      a.kapanan,
+      a.ort_cozum,
+      t.tip AS en_sik_tip
+    FROM agg a
+    LEFT JOIN tip_sirali t ON t.ad = a.ad AND t.rn = 1
+    ORDER BY a.ort_cozum DESC NULLS LAST, a.toplam DESC
+  `;
+
+  return rows.map((r) => ({
+    ad: r.ad,
+    toplam: r.toplam,
+    acik: r.acik,
+    kapanan: r.kapanan,
+    ortCozumGun:
+      r.ort_cozum != null ? Math.round(r.ort_cozum * 10) / 10 : null,
+    enSikTip: r.en_sik_tip ?? "—",
+  }));
 }
 
 interface MaliyetSatiri {

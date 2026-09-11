@@ -42,6 +42,11 @@ extension APIClient {
         try await patchOk(path: "/api/v1/islerim/asphalt/\(id)", body: ["durum": durum])
     }
 
+    func fetchWhatsAppMedia(id: String) async throws -> Data {
+        let (data, _) = try await requestData(path: "/api/ops/whatsapp-media/\(id)")
+        return data
+    }
+
     func replyWhatsApp(complaintId: String, text: String) async throws {
         try await postOk(path: "/api/v1/whatsapp/reply", body: ["complaintId": complaintId, "text": text])
     }
@@ -94,17 +99,59 @@ extension APIClient {
         try await postOk(path: "/api/v1/map", body: Body(kind: "road", ad: ad, koordinatlar: coords))
     }
 
-    func saveHazard(lat: Double, lng: Double, aciklama: String, tip: String) async throws {
+    func saveHazard(
+        lat: Double,
+        lng: Double,
+        aciklama: String,
+        tip: String,
+        fotolar: [[String: String]]? = nil
+    ) async throws {
         struct Body: Encodable {
             let kind: String
             let lat: Double
             let lng: Double
             let aciklama: String
             let tip: String
+            let fotolar: [[String: String]]?
         }
         try await postOk(
             path: "/api/v1/map",
-            body: Body(kind: "hazard", lat: lat, lng: lng, aciklama: aciklama, tip: tip)
+            body: Body(kind: "hazard", lat: lat, lng: lng, aciklama: aciklama, tip: tip, fotolar: fotolar)
+        )
+    }
+
+    func updateHazardStatus(id: String, durum: String) async throws {
+        try await updateHazard(id: id, durum: durum)
+    }
+
+    func updateHazard(
+        id: String,
+        durum: String? = nil,
+        tip: String? = nil,
+        aciklama: String? = nil
+    ) async throws {
+        struct Body: Encodable {
+            let kind: String
+            let id: String
+            let durum: String?
+            let tip: String?
+            let aciklama: String?
+        }
+        try await patchOk(
+            path: "/api/v1/map",
+            body: Body(kind: "hazard", id: id, durum: durum, tip: tip, aciklama: aciklama)
+        )
+    }
+
+    func deleteHazard(id: String) async throws {
+        struct Body: Encodable {
+            let kind: String
+            let id: String
+        }
+        let _: OkDTO = try await request(
+            path: "/api/v1/map",
+            method: .delete,
+            body: Body(kind: "hazard", id: id)
         )
     }
 
@@ -268,6 +315,36 @@ extension APIClient {
         try await patchOk(path: "/api/v1/vehicles/\(id)", body: ["action": "hurdaya"])
     }
 
+    func updateVehicle(
+        id: String,
+        plaka: String,
+        marka: String?,
+        operasyonDurumu: String?,
+        departmentId: String?,
+        muayeneTarihi: String?,
+        sigortaBitis: String?
+    ) async throws {
+        struct Body: Encodable {
+            let plaka: String
+            let marka: String?
+            let operasyonDurumu: String?
+            let departmentId: String?
+            let muayeneTarihi: String?
+            let sigortaBitis: String?
+        }
+        try await patchOk(
+            path: "/api/v1/vehicles/\(id)",
+            body: Body(
+                plaka: plaka,
+                marka: marka,
+                operasyonDurumu: operasyonDurumu,
+                departmentId: departmentId,
+                muayeneTarihi: muayeneTarihi,
+                sigortaBitis: sigortaBitis
+            )
+        )
+    }
+
     func createMaintenance(vehicleId: String, notes: String) async throws {
         try await postOk(path: "/api/v1/maintenance", body: ["vehicleId": vehicleId, "yapilanIslemler": notes])
     }
@@ -283,6 +360,19 @@ extension APIClient {
 
     func createMaterial(kod: String, ad: String, birim: String) async throws {
         try await postOk(path: "/api/v1/materials", body: ["kod": kod, "ad": ad, "birim": birim, "kategori": "GENEL"])
+    }
+
+    func createMaterialMovement(materialId: String, tip: String, miktar: Double, aciklama: String?) async throws {
+        struct Body: Encodable {
+            let materialId: String
+            let tip: String
+            let miktar: Double
+            let aciklama: String?
+        }
+        try await postOk(
+            path: "/api/v1/materials/movements",
+            body: Body(materialId: materialId, tip: tip, miktar: miktar, aciklama: aciklama)
+        )
     }
 
     func createPersonnel(adSoyad: String, unvan: String?) async throws {
@@ -334,7 +424,12 @@ extension APIClient {
         try await postOk(path: "/api/v1/tasks/\(id)", body: ["action": "reanalyze"])
     }
 
-    func exportEntity(_ entity: String) async throws -> Data {
+        func exportComplaintRapor(id: String) async throws -> Data {
+        let (data, _) = try await requestData(path: "/api/v1/complaints/\(id)/rapor")
+        return data
+    }
+
+func exportEntity(_ entity: String) async throws -> Data {
         let (data, _) = try await requestData(path: "/api/export/\(entity)")
         return data
     }

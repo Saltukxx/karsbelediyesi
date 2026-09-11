@@ -19,6 +19,87 @@ import type {
 
 export const dynamic = "force-dynamic";
 
+/** Isı haritası take:2000 ile uyumlu; açık/aktif kayıtlar öncelikli doldurulur. */
+const HARITA_SIKAYET_PIN_LIMIT = 2000;
+/** Açık engeller tercih edilir; giderilmişlerle tamamlanır. */
+const HARITA_ENGEL_LIMIT = 1000;
+/** Planlı/devam asfalt rotaları tercih edilir. */
+const HARITA_ASFALT_LIMIT = 500;
+
+async function limitedComplaints(
+  dept: ReturnType<typeof departmentScope>,
+) {
+  const select = {
+    id: true,
+    sikayetNo: true,
+    durum: true,
+    lat: true,
+    lng: true,
+    aciklama: true,
+  } as const;
+  const base = { lat: { not: null }, lng: { not: null }, ...dept };
+  const aktif = await prisma.complaint.findMany({
+    where: { ...base, durum: { in: ["ACIK", "DEVAM_EDIYOR"] } },
+    select,
+    orderBy: { kayitTarihi: "desc" },
+    take: HARITA_SIKAYET_PIN_LIMIT,
+  });
+  if (aktif.length >= HARITA_SIKAYET_PIN_LIMIT) return aktif;
+  const kalan = HARITA_SIKAYET_PIN_LIMIT - aktif.length;
+  const diger = await prisma.complaint.findMany({
+    where: { ...base, durum: { notIn: ["ACIK", "DEVAM_EDIYOR"] } },
+    select,
+    orderBy: { kayitTarihi: "desc" },
+    take: kalan,
+  });
+  return [...aktif, ...diger];
+}
+
+async function limitedHazards(dept: ReturnType<typeof departmentScope>) {
+  const include = {
+    createdBy: { select: { name: true } },
+    photos: { select: { id: true } },
+  } as const;
+  const aktif = await prisma.roadHazard.findMany({
+    where: { ...dept, durum: "ACIK" },
+    orderBy: { createdAt: "desc" },
+    include,
+    take: HARITA_ENGEL_LIMIT,
+  });
+  if (aktif.length >= HARITA_ENGEL_LIMIT) return aktif;
+  const kalan = HARITA_ENGEL_LIMIT - aktif.length;
+  const diger = await prisma.roadHazard.findMany({
+    where: { ...dept, durum: { not: "ACIK" } },
+    orderBy: { createdAt: "desc" },
+    include,
+    take: kalan,
+  });
+  return [...aktif, ...diger];
+}
+
+async function limitedRoads(dept: ReturnType<typeof departmentScope>) {
+  const include = {
+    createdBy: { select: { name: true } },
+    department: { select: { name: true } },
+    personel: { include: { personnel: { select: { id: true, adSoyad: true } } } },
+  } as const;
+  const aktif = await prisma.asphaltRoad.findMany({
+    where: { ...dept, durum: { in: ["PLANLANDI", "DEVAM_EDIYOR"] } },
+    orderBy: { createdAt: "desc" },
+    include,
+    take: HARITA_ASFALT_LIMIT,
+  });
+  if (aktif.length >= HARITA_ASFALT_LIMIT) return aktif;
+  const kalan = HARITA_ASFALT_LIMIT - aktif.length;
+  const diger = await prisma.asphaltRoad.findMany({
+    where: { ...dept, durum: { notIn: ["PLANLANDI", "DEVAM_EDIYOR"] } },
+    orderBy: { createdAt: "desc" },
+    include,
+    take: kalan,
+  });
+  return [...aktif, ...diger];
+}
+
 export default async function HaritaPage() {
   const session = await requirePageAccess("/harita");
   const canEdit = ACTION_ROLES.harita.includes(session.user.role);
@@ -30,34 +111,9 @@ export default async function HaritaPage() {
 
   const [roadRows, hazardRows, complaintRows, missingLocRows, vehicleRows, mudurlukRows, personelRows] =
     await Promise.all([
-    prisma.asphaltRoad.findMany({
-      where: dept,
-      orderBy: { createdAt: "desc" },
-      include: {
-        createdBy: { select: { name: true } },
-        department: { select: { name: true } },
-        personel: { include: { personnel: { select: { id: true, adSoyad: true } } } },
-      },
-    }),
-    prisma.roadHazard.findMany({
-      where: dept,
-      orderBy: { createdAt: "desc" },
-      include: {
-        createdBy: { select: { name: true } },
-        photos: { select: { id: true } },
-      },
-    }),
-    prisma.complaint.findMany({
-      where: { lat: { not: null }, lng: { not: null }, ...dept },
-      select: {
-        id: true,
-        sikayetNo: true,
-        durum: true,
-        lat: true,
-        lng: true,
-        aciklama: true,
-      },
-    }),
+    limitedRoads(dept),
+    limitedHazards(dept),
+    limitedComplaints(dept),
     prisma.complaint.findMany({
       where: {
         OR: [{ lat: null }, { lng: null }],

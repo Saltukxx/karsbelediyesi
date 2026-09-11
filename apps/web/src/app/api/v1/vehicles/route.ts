@@ -36,6 +36,10 @@ export async function GET(req: Request) {
       operasyonDurumu: v.operasyonDurumu,
       sayacDeger: v.sayacDeger,
       atananSoforId: v.atananSoforId,
+      departmentId: v.departmentId,
+      muayeneTarihi: v.muayeneTarihi?.toISOString() ?? null,
+      sigortaBitis: v.sigortaBitis?.toISOString() ?? null,
+      sonrakiBakimTarihi: v.sonrakiBakimTarihi?.toISOString() ?? null,
     })),
   );
 }

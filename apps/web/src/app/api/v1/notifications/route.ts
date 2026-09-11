@@ -1,17 +1,14 @@
 import { prisma } from "@kars/db";
 import { trySessionOrApiUser } from "@/lib/api-session";
-import { slaTaramasiCalistir } from "@/lib/sla-notify";
-import { aracSuresiTaramasiCalistir } from "@/lib/vehicle-expiry-notify";
 import { bildirimOkunduForUser } from "@/lib/domain/notifications";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+/** Salt okuma — SLA / araç süresi / Mobiliz taramaları /api/ops/* cron uçlarında. */
 export async function GET(req: Request) {
   const session = await trySessionOrApiUser(req);
   if (!session) return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
-  await slaTaramasiCalistir();
-  await aracSuresiTaramasiCalistir();
   const [items, unread] = await Promise.all([
     prisma.notification.findMany({
       where: { userId: session.user.id },

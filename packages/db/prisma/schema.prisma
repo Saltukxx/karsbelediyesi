@@ -354,6 +354,14 @@ model Vehicle {
   temizlikOperasyonlari CleaningOperation[]  @relation("TemizlikOperasyonArac")
   locations            VehicleLocation[]
   dispatchJobs         DispatchJob[]         @relation("DispatchArac")
+
+  /// Filtre / süre uyarıları / en yakın araç sorguları
+  @@index([departmentId])
+  @@index([muayeneTarihi])
+  @@index([sigortaBitis])
+  @@index([sonrakiBakimTarihi])
+  @@index([sonKonumZamani])
+  @@index([sonKonumLat, sonKonumLng])
 }
 
 /// Excel: "Bakım Takip" (11 sütun)
@@ -459,6 +467,8 @@ model Complaint {
   @@index([departmentId, kayitTarihi])
   /// Dashboard/SLA: dönemsel "kapatılan şikayet" ve ortalama kapanış süresi
   @@index([kapanisTarihi])
+  /// Görevlendirilen araç üzerinden liste / mobil atama
+  @@index([vehicleId])
 }
 
 model ComplaintPersonnel {
@@ -468,6 +478,7 @@ model ComplaintPersonnel {
   personnel   Personnel @relation(fields: [personnelId], references: [id])
 
   @@id([complaintId, personnelId])
+  @@index([personnelId])
 }
 
 /// Audit log: durum değişimi, atama, not

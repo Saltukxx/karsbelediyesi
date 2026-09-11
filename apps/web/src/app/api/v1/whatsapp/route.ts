@@ -23,6 +23,10 @@ export async function GET(req: Request) {
       icerik: m.icerik,
       onayDurumu: m.onayDurumu,
       guven: m.guven,
+      medyaUrl: m.medyaUrl,
+      medyaTipi: m.medyaTipi,
+      // iOS/web: /api/ops/whatsapp-media/:id (Bearer veya cookie)
+      hasMedia: Boolean(m.medyaUrl),
       createdAt: m.createdAt.toISOString(),
     })),
   );

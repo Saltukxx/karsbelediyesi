@@ -1,14 +1,11 @@
-import IORedis from "ioredis";
+import { getRedis } from "@/lib/redis";
 
 /** Kilit penceresi (saniye). */
 const PENCERE_SN = 15 * 60;
 /** Pencere içinde izin verilen başarısız giriş sayısı. */
 const MAKS_BASARISIZ = 10;
 
-const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
-
 const globalForLimit = globalThis as unknown as {
-  girisLimitRedis?: IORedis | null;
   girisLimitBellek?: Map<string, { sayi: number; sonGecerlilik: number }>;
 };
 
@@ -19,25 +16,8 @@ const globalForLimit = globalThis as unknown as {
  * Redis erişilemezse süreç içi belleğe düşülür. Bu durumda kilit örnek başına
  * çalışır, yani koruma zayıflar ama girişler tamamen engellenmez.
  */
-function redis(): IORedis | null {
-  if (globalForLimit.girisLimitRedis === undefined) {
-    try {
-      const istemci = new IORedis(REDIS_URL, {
-        maxRetriesPerRequest: 1,
-        // Bağlantı yokken komutlar kuyruğa alınmasın, hemen hata versin ki
-        // giriş isteği Redis'i beklerken takılmasın.
-        enableOfflineQueue: false,
-        lazyConnect: true,
-        retryStrategy: (deneme) => Math.min(deneme * 200, 5000),
-      });
-      // Dinleyici olmadan 'error' olayı süreci düşürür.
-      istemci.on("error", () => {});
-      globalForLimit.girisLimitRedis = istemci;
-    } catch {
-      globalForLimit.girisLimitRedis = null;
-    }
-  }
-  return globalForLimit.girisLimitRedis;
+function redis() {
+  return getRedis();
 }
 
 function bellek(): Map<string, { sayi: number; sonGecerlilik: number }> {

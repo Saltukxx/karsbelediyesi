@@ -11,6 +11,11 @@ const ASFALT_DURUMLAR: AsfaltDurum[] = ["PLANLANDI", "DEVAM_EDIYOR", "TAMAMLANDI
 const HAZARD_TIPLER: HazardTip[] = ["CUKUR", "ENGEL", "DIGER"];
 const HAZARD_DURUMLAR: HazardDurum[] = ["ACIK", "GIDERILDI"];
 
+/** iOS /api/v1/map — web harita pin limitleriyle aynı (ısı haritası take:2000). */
+const HARITA_SIKAYET_PIN_LIMIT = 2000;
+const HARITA_ENGEL_LIMIT = 1000;
+const HARITA_ASFALT_LIMIT = 500;
+
 function assertAsfaltDeptWrite(session: AppSession, departmentId: string | null | undefined) {
   if (session.user.role !== "DEPARTMENT_MANAGER") return;
   if (!session.user.departmentId) throw new Error("Yetkisiz");
@@ -20,31 +25,45 @@ function assertAsfaltDeptWrite(session: AppSession, departmentId: string | null 
 export async function mapVerisiForUser(session: AppSession) {
   const canEdit = ACTION_ROLES.harita.includes(session.user.role);
   const dept = departmentScope(session);
-  const [roadRows, hazardRows, complaintRows, vehicleRows] = await Promise.all([
+
+  const complaintSelect = {
+    id: true,
+    sikayetNo: true,
+    durum: true,
+    lat: true,
+    lng: true,
+    aciklama: true,
+  } as const;
+  const complaintBase = { lat: { not: null }, lng: { not: null }, ...dept };
+
+  const roadInclude = {
+    createdBy: { select: { name: true } },
+    department: { select: { name: true } },
+    personel: { include: { personnel: { select: { id: true, adSoyad: true } } } },
+  } as const;
+  const hazardInclude = {
+    createdBy: { select: { name: true } },
+    photos: { select: { id: true } },
+  } as const;
+
+  const [aktifRoads, aktifHazards, aktifComplaints, vehicleRows] = await Promise.all([
     prisma.asphaltRoad.findMany({
-      where: dept,
+      where: { ...dept, durum: { in: ["PLANLANDI", "DEVAM_EDIYOR"] } },
       orderBy: { createdAt: "desc" },
-      include: {
-        createdBy: { select: { name: true } },
-        department: { select: { name: true } },
-        personel: { include: { personnel: { select: { id: true, adSoyad: true } } } },
-      },
+      include: roadInclude,
+      take: HARITA_ASFALT_LIMIT,
     }),
     prisma.roadHazard.findMany({
-      where: dept,
+      where: { ...dept, durum: "ACIK" },
       orderBy: { createdAt: "desc" },
-      include: { createdBy: { select: { name: true } }, photos: { select: { id: true } } },
+      include: hazardInclude,
+      take: HARITA_ENGEL_LIMIT,
     }),
     prisma.complaint.findMany({
-      where: { lat: { not: null }, lng: { not: null }, ...dept },
-      select: {
-        id: true,
-        sikayetNo: true,
-        durum: true,
-        lat: true,
-        lng: true,
-        aciklama: true,
-      },
+      where: { ...complaintBase, durum: { in: ["ACIK", "DEVAM_EDIYOR"] } },
+      select: complaintSelect,
+      orderBy: { kayitTarihi: "desc" },
+      take: HARITA_SIKAYET_PIN_LIMIT,
     }),
     prisma.vehicle.findMany({
       where: {
@@ -63,6 +82,40 @@ export async function mapVerisiForUser(session: AppSession) {
       },
     }),
   ]);
+
+  let roadRows = aktifRoads;
+  if (aktifRoads.length < HARITA_ASFALT_LIMIT) {
+    const kalan = await prisma.asphaltRoad.findMany({
+      where: { ...dept, durum: { notIn: ["PLANLANDI", "DEVAM_EDIYOR"] } },
+      orderBy: { createdAt: "desc" },
+      include: roadInclude,
+      take: HARITA_ASFALT_LIMIT - aktifRoads.length,
+    });
+    roadRows = [...aktifRoads, ...kalan];
+  }
+
+  let hazardRows = aktifHazards;
+  if (aktifHazards.length < HARITA_ENGEL_LIMIT) {
+    const kalan = await prisma.roadHazard.findMany({
+      where: { ...dept, durum: { not: "ACIK" } },
+      orderBy: { createdAt: "desc" },
+      include: hazardInclude,
+      take: HARITA_ENGEL_LIMIT - aktifHazards.length,
+    });
+    hazardRows = [...aktifHazards, ...kalan];
+  }
+
+  let complaintRows = aktifComplaints;
+  if (aktifComplaints.length < HARITA_SIKAYET_PIN_LIMIT) {
+    const kalan = await prisma.complaint.findMany({
+      where: { ...complaintBase, durum: { notIn: ["ACIK", "DEVAM_EDIYOR"] } },
+      select: complaintSelect,
+      orderBy: { kayitTarihi: "desc" },
+      take: HARITA_SIKAYET_PIN_LIMIT - aktifComplaints.length,
+    });
+    complaintRows = [...aktifComplaints, ...kalan];
+  }
+
   return {
     canEdit,
     roads: roadRows.map((r) => ({
@@ -245,15 +298,48 @@ export async function engelDurumGuncelleForUser(
   session: AppSession,
   input: { id: string; durum: HazardDurum },
 ) {
-  if (!HAZARD_DURUMLAR.includes(input.durum)) throw new Error("Geçersiz durum");
+  return engelGuncelleForUser(session, { id: input.id, durum: input.durum });
+}
+
+/** Tip / açıklama / durum — en az bir alan zorunlu. */
+export async function engelGuncelleForUser(
+  session: AppSession,
+  input: {
+    id: string;
+    durum?: HazardDurum;
+    tip?: HazardTip;
+    aciklama?: string | null;
+  },
+) {
+  if (!input.id) throw new Error("Engel id zorunlu");
+  const data: {
+    durum?: HazardDurum;
+    tip?: HazardTip;
+    aciklama?: string | null;
+  } = {};
+  if (input.durum != null) {
+    if (!HAZARD_DURUMLAR.includes(input.durum)) throw new Error("Geçersiz durum");
+    data.durum = input.durum;
+  }
+  if (input.tip != null) {
+    if (!HAZARD_TIPLER.includes(input.tip)) throw new Error("Geçersiz tip");
+    data.tip = input.tip;
+  }
+  if (input.aciklama !== undefined) {
+    const a = input.aciklama?.trim() ?? "";
+    data.aciklama = a === "" ? null : a;
+  }
+  if (Object.keys(data).length === 0) {
+    throw new Error("Güncellenecek alan yok");
+  }
   await prisma.roadHazard.update({
     where: { id: input.id },
-    data: { durum: input.durum },
+    data,
   });
-  await auditKaydet(session, "ENGEL_DURUM", {
+  await auditKaydet(session, "ENGEL_GUNCELLE", {
     varlik: "RoadHazard",
     varlikId: input.id,
-    detay: { durum: input.durum },
+    detay: data,
   });
   return { ok: true };
 }

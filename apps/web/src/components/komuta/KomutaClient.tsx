@@ -18,6 +18,7 @@ import { dispatchAtaAction, dispatchReddetAction } from "@/lib/actions/dispatch"
 import { btnSecondary, cardCls, sectionTitleCls } from "@/lib/ui";
 import { StatCard } from "@/components/ui/StatCard";
 import type { KomutaVeri } from "@/lib/komuta";
+import { startVisibilityPoll } from "@/lib/poll";
 import { tipKisaLabel, type KomutaOdak } from "@/components/komuta/komuta-types";
 
 const KomutaMap = dynamic(() => import("@/components/komuta/KomutaMap"), {
@@ -51,8 +52,7 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
   }, []);
 
   useEffect(() => {
-    const id = window.setInterval(yenile, YENILEME_MS);
-    return () => window.clearInterval(id);
+    return startVisibilityPoll(yenile, YENILEME_MS);
   }, [yenile]);
 
   // Fullscreen'den Esc ile çıkınca TV modunu da kapat

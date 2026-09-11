@@ -77,6 +77,7 @@
 		AFEED934CEA931E899C0EA07 /* KBScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21A66A16153BA802F5C3E862 /* KBScreen.swift */; };
 		B05B8824853BB1D453A70708 /* PersonnelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A86412C0267768FDFDE948D /* PersonnelView.swift */; };
 		B0C69D44BB2B5DC79D7B8BC4 /* DefinitionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F847E94D81E673EF2252901 /* DefinitionsView.swift */; };
+		B571C138EADEF6DE4E652E20 /* P0FlowsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 483C21EFD8D25F2C98306F96 /* P0FlowsUITests.swift */; };
 		B5C36E333EC4122EADF5E86A /* KBPollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A42ECD2F503E56057C9C6B /* KBPollTests.swift */; };
 		B627A6C1E6C87FFE8D055A7A /* SearchPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 101D516091F10A911EB9B1CE /* SearchPaletteView.swift */; };
 		B7D07DEA5CEFC3468C898511 /* IslerimView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333D9EEA2CA7EFFDF5551D4C /* IslerimView.swift */; };
@@ -85,6 +86,7 @@
 		BEF7F90B85D6B11839FB81F3 /* ModuleDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEBAF8E91540B3FA8F0914B /* ModuleDTOs.swift */; };
 		C16A171887C07B77209E5293 /* KBPageHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D24FF3706812013C793F281E /* KBPageHeader.swift */; };
 		C25D53BE5261286C68DB6853 /* KBListStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96667F9B0C8B0D6166EEA87 /* KBListStore.swift */; };
+		C27ADF9737475CA70D9B896B /* KBImageSourcePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D60657F083D38CA4143D3F9 /* KBImageSourcePicker.swift */; };
 		C4960D088B7B10DC56521747 /* KBChartCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 027895D6C40D58885AE729BF /* KBChartCard.swift */; };
 		C4D1EF09E8BD6F6C9ED5EBE2 /* PanelDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47851BFB355D99A14DC6EBF1 /* PanelDTOs.swift */; };
 		C6049780CE4DE94E3FBF3A82 /* MainShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392895116E314B616BF7F3D2 /* MainShellView.swift */; };
@@ -142,6 +144,7 @@
 		181A172A20922AA08B953B8A /* KBListStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBListStoreTests.swift; sourceTree = "<group>"; };
 		19EBF69B67F37F2036E345C9 /* ReportsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportsView.swift; sourceTree = "<group>"; };
 		1D5DD8F3A3300B1FE7753025 /* KBRecordCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBRecordCard.swift; sourceTree = "<group>"; };
+		1D60657F083D38CA4143D3F9 /* KBImageSourcePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBImageSourcePicker.swift; sourceTree = "<group>"; };
 		1DA319828FFFB92FBC029B86 /* KBBrandHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBBrandHeader.swift; sourceTree = "<group>"; };
 		2075B804EA5DC968142DC6C5 /* KBChartPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBChartPalette.swift; sourceTree = "<group>"; };
 		21A66A16153BA802F5C3E862 /* KBScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBScreen.swift; sourceTree = "<group>"; };
@@ -164,6 +167,7 @@
 		40B32DF1CA44A9572F78E9F4 /* KBRankedBarList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBRankedBarList.swift; sourceTree = "<group>"; };
 		457CDBB360C47089D4E481C6 /* KBPhotoUpload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBPhotoUpload.swift; sourceTree = "<group>"; };
 		47851BFB355D99A14DC6EBF1 /* PanelDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelDTOs.swift; sourceTree = "<group>"; };
+		483C21EFD8D25F2C98306F96 /* P0FlowsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P0FlowsUITests.swift; sourceTree = "<group>"; };
 		485531E8C2785CE3844EA267 /* KarsMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KarsMapView.swift; sourceTree = "<group>"; };
 		48BB243E1651BF1473BD832A /* KBTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KBTheme.swift; sourceTree = "<group>"; };
 		4A86412C0267768FDFDE948D /* PersonnelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonnelView.swift; sourceTree = "<group>"; };
@@ -500,6 +504,7 @@
 		CCDF7989E92024B9F9BFCFD0 /* Media */ = {
 			isa = PBXGroup;
 			children = (
+				1D60657F083D38CA4143D3F9 /* KBImageSourcePicker.swift */,
 				457CDBB360C47089D4E481C6 /* KBPhotoUpload.swift */,
 			);
 			path = Media;
@@ -581,6 +586,7 @@
 				407011FF087D09C5F9905FB2 /* DashboardChartsUITests.swift */,
 				8623C7AE63574F7AAD32F63A /* LoadMoreUITests.swift */,
 				6CE507C220BB9E17CD34C8B9 /* ModuleDrawerUITests.swift */,
+				483C21EFD8D25F2C98306F96 /* P0FlowsUITests.swift */,
 			);
 			path = KarsPanelUITests;
 			sourceTree = "<group>";
@@ -651,6 +657,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					379C38FF8A49BA21DEC92D20 = {
+						DevelopmentTeam = KRQ4U9G63K;
+						ProvisioningStyle = Automatic;
+					};
 					5CCB299506368ECFC00F45B8 = {
 						TestTargetID = 379C38FF8A49BA21DEC92D20;
 					};
@@ -737,6 +747,7 @@
 				3CEB775A46E34301F8015D2D /* KBDonutChart.swift in Sources */,
 				9D48D6C01593134436A0521C /* KBFilterBar.swift in Sources */,
 				3FFE92E1757EB354560D7D4B /* KBFormSheet.swift in Sources */,
+				C27ADF9737475CA70D9B896B /* KBImageSourcePicker.swift in Sources */,
 				C25D53BE5261286C68DB6853 /* KBListStore.swift in Sources */,
 				FA0622AE16C9F7D42FE18326 /* KBLoadMoreRow.swift in Sources */,
 				CF43B28F9A4A52EB03EB096E /* KBMapHeader.swift in Sources */,
@@ -794,6 +805,7 @@
 				CF9BDB6A1478C483A60E5389 /* DashboardChartsUITests.swift in Sources */,
 				0AEF061DCACABA4C1C75B930 /* LoadMoreUITests.swift in Sources */,
 				3293829FF391725B7D7121F0 /* ModuleDrawerUITests.swift in Sources */,
+				B571C138EADEF6DE4E652E20 /* P0FlowsUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -910,6 +922,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KRQ4U9G63K;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KarsPanel/Info.plist;
@@ -952,6 +966,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KRQ4U9G63K;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = KarsPanel/Info.plist;

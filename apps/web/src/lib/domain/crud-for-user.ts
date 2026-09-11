@@ -6,6 +6,7 @@ import {
   toplamSaatHesapla,
   yakitTutari,
   betonUretimMalzeme,
+  mevcutStok,
 } from "@kars/shared";
 import { ACTION_ROLES, assertRole, type SessionUser } from "@/lib/authz";
 import { auditKaydet } from "@/lib/audit";
@@ -171,6 +172,26 @@ export async function stokHareketOlusturForUser(
   if (!input.materialId) throw new Error("Malzeme zorunlu");
   if (!(input.miktar > 0)) throw new Error("Miktar zorunlu");
   const tip = input.tip === "CIKIS" ? "CIKIS" : "GIRIS";
+
+  if (tip === "CIKIS") {
+    const toplamlar = await prisma.materialMovement.groupBy({
+      by: ["tip"],
+      where: { materialId: input.materialId },
+      _sum: { miktar: true },
+    });
+    let giris = 0;
+    let cikis = 0;
+    for (const s of toplamlar) {
+      const m = Number(s._sum.miktar ?? 0);
+      if (s.tip === "GIRIS") giris += m;
+      else cikis += m;
+    }
+    const stok = mevcutStok(giris, cikis);
+    if (input.miktar > stok) {
+      throw new Error(`Yetersiz stok (mevcut: ${stok})`);
+    }
+  }
+
   const rec = await prisma.materialMovement.create({
     data: {
       materialId: input.materialId,

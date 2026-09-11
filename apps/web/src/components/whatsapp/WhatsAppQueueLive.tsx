@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { startVisibilityPoll } from "@/lib/poll";
 
 type Props = {
   initialCount: number;
@@ -29,26 +30,20 @@ export function WhatsAppQueueLive({ initialCount }: Props) {
           fetchedAt: string;
         };
         setLastFetch(data.fetchedAt);
-        if (data.pendingCount !== count) {
-          setCount(data.pendingCount);
-          router.refresh();
-        }
+        setCount((prev) => {
+          if (data.pendingCount !== prev) {
+            router.refresh();
+          }
+          return data.pendingCount;
+        });
       } catch {
         /* ignore transient errors */
       }
     }
 
-    const id = window.setInterval(tick, 15_000);
-    const onVis = () => {
-      if (document.visibilityState === "visible") void tick();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => {
-      cancelled = true;
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [count, router]);
+    // ~15 sn jitter'lı poll — count'u dependency yapma (yeniden planlama döngüsü)
+    return startVisibilityPoll(tick, 15_000);
+  }, [router]);
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs text-kb-muted">

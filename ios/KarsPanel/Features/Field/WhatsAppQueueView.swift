@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct WhatsAppQueueView: View {
     @StateObject private var store = KBListStore(pageSize: 100) { limit in
@@ -6,6 +7,7 @@ struct WhatsAppQueueView: View {
     }
     @State private var arama = ""
     @State private var confirm: KBConfirmRequest?
+    @State private var medyaMesaj: WhatsAppMessageDTO?
 
     var body: some View {
         // Filtreleme her gövde değerlendirmesinde tekrarlamasın.
@@ -59,6 +61,9 @@ struct WhatsAppQueueView: View {
         .task { await store.loadIfNeeded() }
         .kbToast($store.toastMessage)
         .kbConfirm($confirm)
+        .sheet(item: $medyaMesaj) { mesaj in
+            WhatsAppMediaSheet(mesaj: mesaj) { medyaMesaj = nil }
+        }
     }
 
     private var bekleyenSayisi: Int {
@@ -90,12 +95,24 @@ struct WhatsAppQueueView: View {
         if let yon = mesaj.yon {
             chips.append(KBMetaChip(icon: yon.uppercased() == "GELEN" ? "arrow.down.left" : "arrow.up.right", text: yon.capitalized))
         }
+        if mesaj.medyaVar {
+            let tip = (mesaj.medyaTipi ?? "medya").lowercased()
+            chips.append(KBMetaChip(icon: tip == "audio" ? "waveform" : "photo", text: tip == "audio" ? "Ses" : "Görsel"))
+        }
         return chips
     }
 
     private func aksiyonlar(_ mesaj: WhatsAppMessageDTO) -> [KBRecordAction] {
-        guard mesaj.onayDurumu?.uppercased() == "ONAY_BEKLIYOR" else { return [] }
-        return [
+        var aksiyonlar: [KBRecordAction] = []
+        if mesaj.medyaVar {
+            aksiyonlar.append(
+                KBRecordAction(id: "\(mesaj.id)-medya", title: "Medya", icon: "photo", kind: .normal) {
+                    medyaMesaj = mesaj
+                }
+            )
+        }
+        guard mesaj.onayDurumu?.uppercased() == "ONAY_BEKLIYOR" else { return aksiyonlar }
+        aksiyonlar += [
             KBRecordAction(id: "\(mesaj.id)-onay", title: "Onayla", icon: "checkmark", kind: .primary) {
                 Task {
                     await store.mutate(success: "Mesaj onaylandı") {
@@ -117,6 +134,7 @@ struct WhatsAppQueueView: View {
                 }
             },
         ]
+        return aksiyonlar
     }
 
     private func vurgu(_ mesaj: WhatsAppMessageDTO) -> Color {
@@ -125,6 +143,66 @@ struct WhatsAppQueueView: View {
         case "ONAYLANDI": return KBTheme.success
         case "REDDEDILDI": return KBTheme.danger
         default: return KBTheme.navy
+        }
+    }
+}
+
+private struct WhatsAppMediaSheet: View {
+    let mesaj: WhatsAppMessageDTO
+    let onClose: () -> Void
+
+    @State private var image: UIImage?
+    @State private var hata: String?
+    @State private var yukleniyor = true
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if yukleniyor {
+                    ProgressView("Medya yükleniyor…")
+                } else if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .padding()
+                } else if let hata {
+                    Text(hata)
+                        .foregroundStyle(KBTheme.danger)
+                        .padding()
+                } else {
+                    Text("Medya önizlemesi yok (ses veya bilinmeyen tür).")
+                        .foregroundStyle(KBTheme.muted)
+                        .padding()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle("WhatsApp Medya")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Kapat", action: onClose)
+                }
+            }
+        }
+        .task { await yukle() }
+    }
+
+    private func yukle() async {
+        yukleniyor = true
+        hata = nil
+        defer { yukleniyor = false }
+        do {
+            let data = try await APIClient.shared.fetchWhatsAppMedia(id: mesaj.id)
+            if let img = UIImage(data: data) {
+                image = img
+            } else if (mesaj.medyaTipi ?? "").lowercased() == "audio" {
+                hata = "Ses dosyası indirildi (\(data.count) bayt). Önizleme desteklenmiyor."
+            } else {
+                hata = "Dosya açılamadı (\(data.count) bayt)."
+            }
+        } catch is CancellationError {
+        } catch {
+            hata = KBErrorText.of(error)
         }
     }
 }

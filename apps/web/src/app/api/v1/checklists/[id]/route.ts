@@ -37,7 +37,10 @@ export async function GET(req: Request, ctx: Ctx) {
       items: row.template.items.map((item) => ({
         id: item.id,
         kontrolKalemi: item.kontrolKalemi,
-        results: row.results.filter((r) => r.templateItemId === item.id),
+        // Mobil hydrate: yalnızca ihtiyaç duyulan alanlar
+        results: row.results
+          .filter((r) => r.templateItemId === item.id)
+          .map((r) => ({ periyot: r.periyot, sonuc: r.sonuc })),
       })),
     };
   });

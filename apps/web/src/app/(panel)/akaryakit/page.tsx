@@ -4,7 +4,6 @@ import {
   tuketimDurumu,
   YAKIT_TIPI_LABELS,
   AY_ADLARI,
-  sayacFarkiMaxMin,
   ortBirimFiyat,
 } from "@kars/shared";
 import { cardCls, inputCls, btnPrimary } from "@/lib/ui";
@@ -35,55 +34,76 @@ export default async function AkaryakitPage({
     ...(mudurlukFilter ? { departmentId: mudurlukFilter } : {}),
   };
 
-  const [araclar, kayitlar, mudurlukler] = await Promise.all([
+  // Aylık rapor: seçilen ay (yıl = bugünün yılı; Excel aylık sayfa ile uyumlu).
+  const yil = new Date().getFullYear();
+  const ayBaslangic = new Date(yil, ayIndex, 1);
+  const ayBitis = new Date(yil, ayIndex + 1, 1);
+  const fuelDeptWhere = mudurlukFilter
+    ? { vehicle: { departmentId: mudurlukFilter } }
+    : {};
+
+  const [araclar, ozetler, aylikOzetler, mudurlukler] = await Promise.all([
     prisma.vehicle.findMany({
       where: vehicleWhere,
       include: { department: true },
       orderBy: { plaka: "asc" },
     }),
-    prisma.fuelRecord.findMany({
-      where: mudurlukFilter
-        ? { vehicle: { departmentId: mudurlukFilter } }
-        : undefined,
-      include: { vehicle: true },
+    // Tüm dönem tüketim analizi — satır satır çekmek yerine araç başına aggregate.
+    prisma.fuelRecord.groupBy({
+      by: ["vehicleId"],
+      where: fuelDeptWhere,
+      _sum: { litre: true, tutar: true },
+      _min: { sayac: true },
+      _max: { sayac: true },
+      _count: { sayac: true },
+    }),
+    prisma.fuelRecord.groupBy({
+      by: ["vehicleId"],
+      where: {
+        ...fuelDeptWhere,
+        tarih: { gte: ayBaslangic, lt: ayBitis },
+      },
+      _sum: { litre: true, tutar: true },
+      _count: { _all: true },
     }),
     prisma.department.findMany({ where: { aktif: true }, orderBy: { name: "asc" } }),
   ]);
 
-  const analiz = araclar
-    .map((a) => {
-      const rows = kayitlar.filter((k) => k.vehicleId === a.id);
-      const toplamLitre = rows.reduce((s, r) => s + Number(r.litre), 0);
-      const toplamTutar = rows.reduce((s, r) => s + Number(r.tutar), 0);
-      const sayaclar = rows.map((r) => r.sayac).filter((s): s is number => s != null);
-      const sayacFarki = sayacFarkiMaxMin(sayaclar);
-      const tip =
-        a.sayacTipi === "SAAT" || a.sayacBirim === "SAAT"
-          ? ("SAAT" as const)
-          : ("KM" as const);
-      const gercek = gercekTuketim(toplamLitre, sayacFarki, tip);
-      const norm = a.normTuketim ?? 0;
-      const durum =
-        gercek != null && norm > 0 ? tuketimDurumu(gercek, norm) : null;
-      return { a, toplamLitre, toplamTutar, sayacFarki, gercek, norm, durum, tip };
-    });
+  const ozetByVehicle = new Map(ozetler.map((o) => [o.vehicleId, o]));
+  const aylikByVehicle = new Map(aylikOzetler.map((o) => [o.vehicleId, o]));
+
+  const analiz = araclar.map((a) => {
+    const ozet = ozetByVehicle.get(a.id);
+    const toplamLitre = Number(ozet?._sum.litre ?? 0);
+    const toplamTutar = Number(ozet?._sum.tutar ?? 0);
+    const sayacFarki =
+      ozet && ozet._count.sayac >= 2 && ozet._max.sayac != null && ozet._min.sayac != null
+        ? ozet._max.sayac - ozet._min.sayac
+        : 0;
+    const tip =
+      a.sayacTipi === "SAAT" || a.sayacBirim === "SAAT"
+        ? ("SAAT" as const)
+        : ("KM" as const);
+    const gercek =
+      sayacFarki > 0 ? gercekTuketim(toplamLitre, sayacFarki, tip) : null;
+    const norm = a.normTuketim ?? 0;
+    const durum =
+      gercek != null && norm > 0 ? tuketimDurumu(gercek, norm) : null;
+    return { a, toplamLitre, toplamTutar, sayacFarki, gercek, norm, durum, tip };
+  });
 
   const aylik = araclar
-    .filter((a) => !mudurlukFilter || a.departmentId === mudurlukFilter)
     .map((a) => {
-      const rows = kayitlar.filter((k) => {
-        if (k.vehicleId !== a.id) return false;
-        if (ayIndex < 0) return true;
-        return k.tarih.getMonth() === ayIndex;
-      });
-      const litre = rows.reduce((s, r) => s + Number(r.litre), 0);
-      const tutar = rows.reduce((s, r) => s + Number(r.tutar), 0);
+      const ozet = aylikByVehicle.get(a.id);
+      const litre = Number(ozet?._sum.litre ?? 0);
+      const tutar = Number(ozet?._sum.tutar ?? 0);
+      const adet = ozet?._count._all ?? 0;
       return {
         plaka: a.plaka,
         yakit: a.yakitTipi ? YAKIT_TIPI_LABELS[a.yakitTipi] ?? a.yakitTipi : "—",
         litre,
         tutar,
-        adet: rows.length,
+        adet,
         ort: ortBirimFiyat(tutar, litre),
       };
     })
@@ -164,7 +184,7 @@ export default async function AkaryakitPage({
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-base font-semibold text-kb-ink">Aylık Rapor — {ayAdi}</h2>
+        <h2 className="text-base font-semibold text-kb-ink">Aylık Rapor — {ayAdi} {yil}</h2>
         <div className={`${cardCls} overflow-x-auto`}>
           <table className="w-full text-sm min-w-[700px]">
             <thead>

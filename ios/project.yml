@@ -19,6 +19,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tr.gov.kars.panel
+        DEVELOPMENT_TEAM: KRQ4U9G63K
+        CODE_SIGN_STYLE: Automatic
         PRODUCT_NAME: KarsPanel
         INFOPLIST_KEY_CFBundleDisplayName: KarsPanel
         INFOPLIST_KEY_UILaunchScreen_Generation: YES

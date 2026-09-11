@@ -15,6 +15,10 @@ import {
   type DashboardRange,
   type Delta,
 } from "@/lib/dashboard-range";
+import { getRedis } from "@/lib/redis";
+
+/** Dashboard yanıtı kısa süre önbellekte tutulur; taze veri ≤60 sn gecikebilir. */
+const DASHBOARD_CACHE_TTL_SN = 45;
 
 export type DashboardData = {
   /** Seçili dönemde oluşan/kapanan hareketler — önceki dönemle karşılaştırmalı */
@@ -86,7 +90,60 @@ function vehicleScope(scope: DeptScope) {
 type DayRow = { gun: Date; adet: number };
 type MonthRow = { ay: Date; toplam: number };
 
+function dashboardCacheKey(session: AppSession, range: DashboardRange): string {
+  const u = session.user;
+  // Rol + müdürlük kapsamı payload'ı değiştirir; aralık bas/bit yeterli (önceki dönem türetilir).
+  return [
+    "dashboard:v1",
+    u.id,
+    u.role,
+    u.departmentId ?? "all",
+    range.preset,
+    range.bas.toISOString(),
+    range.bit.toISOString(),
+  ].join(":");
+}
+
+function reviveDashboardDates(data: DashboardData): DashboardData {
+  return {
+    ...data,
+    sonBakimlar: data.sonBakimlar.map((b) => ({
+      ...b,
+      sonrakiBakimTarihi: b.sonrakiBakimTarihi
+        ? new Date(b.sonrakiBakimTarihi as unknown as string)
+        : null,
+    })),
+  };
+}
+
 export async function computeDashboard(
+  session: AppSession,
+  range: DashboardRange,
+): Promise<DashboardData> {
+  const key = dashboardCacheKey(session, range);
+  const redis = getRedis();
+  if (redis) {
+    try {
+      const hit = await redis.get(key);
+      if (hit) return reviveDashboardDates(JSON.parse(hit) as DashboardData);
+    } catch {
+      // Redis düştü; doğrudan hesapla.
+    }
+  }
+
+  const data = await computeDashboardFresh(session, range);
+
+  if (redis) {
+    try {
+      await redis.set(key, JSON.stringify(data), "EX", DASHBOARD_CACHE_TTL_SN);
+    } catch {
+      // Önbellek yazılamasa da yanıtı döndür.
+    }
+  }
+  return data;
+}
+
+async function computeDashboardFresh(
   session: AppSession,
   range: DashboardRange,
 ): Promise<DashboardData> {

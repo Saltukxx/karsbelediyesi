@@ -248,9 +248,15 @@ struct ChecklistDetailDTO: Decodable {
     let items: [ChecklistItemDTO]?
 }
 
+struct ChecklistItemResultDTO: Codable, Hashable {
+    let periyot: String?
+    let sonuc: String?
+}
+
 struct ChecklistItemDTO: Codable, Identifiable, Hashable {
     let id: String
     let kontrolKalemi: String?
+    let results: [ChecklistItemResultDTO]?
 }
 
 struct NamedItemDTO: Codable, Identifiable, Hashable {

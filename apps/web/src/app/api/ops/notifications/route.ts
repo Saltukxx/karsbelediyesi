@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@kars/db";
 import { trySessionOrApiUser } from "@/lib/api-session";
-import { slaTaramasiCalistir } from "@/lib/sla-notify";
-import { aracSuresiTaramasiCalistir } from "@/lib/vehicle-expiry-notify";
-import { mobilizConfigured } from "@/lib/mobiliz/client";
-import { mobilizSyncCalistir } from "@/lib/mobiliz/sync";
 import { bildirimOkunduForUser } from "@/lib/domain/notifications";
 
 export const dynamic = "force-dynamic";
 
+/** Bildirim poll — yalnızca findMany + count. Taramalar cron uçlarında. */
 export async function GET(req: Request) {
   const session = await trySessionOrApiUser(req);
   if (!session) {
     return NextResponse.json({ error: "Oturum gerekli" }, { status: 401 });
   }
   const userId = session.user.id;
-
-  await slaTaramasiCalistir();
-  await aracSuresiTaramasiCalistir();
-  if (mobilizConfigured()) {
-    void mobilizSyncCalistir();
-  }
 
   const [items, unread] = await Promise.all([
     prisma.notification.findMany({

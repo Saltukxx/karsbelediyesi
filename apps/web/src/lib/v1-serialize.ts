@@ -5,6 +5,7 @@ type ComplaintWithRels = Complaint & {
   complaintType?: Pick<ComplaintType, "id" | "name"> | null;
   department?: Pick<Department, "id" | "name"> | null;
   vehicle?: Pick<Vehicle, "id" | "plaka"> | null;
+  personel?: Array<{ personnelId: string; personnel?: { id: string; adSoyad: string } | null }>;
 };
 
 export function serializeComplaint(c: ComplaintWithRels) {
@@ -35,6 +36,13 @@ export function serializeComplaint(c: ComplaintWithRels) {
     cozumNotu: c.cozumNotu,
     vehicleId: c.vehicleId,
     vehicle: c.vehicle ? { id: c.vehicle.id, plaka: c.vehicle.plaka } : null,
+    personnelIds: c.personel?.map((p) => p.personnelId) ?? [],
+    personnel: (c.personel ?? [])
+      .map((p) =>
+        p.personnel
+          ? { id: p.personnel.id, name: p.personnel.adSoyad }
+          : { id: p.personnelId, name: null },
+      ),
     lat: c.lat,
     lng: c.lng,
   };

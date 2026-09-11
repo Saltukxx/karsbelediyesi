@@ -6,6 +6,7 @@ struct KarsMapView: UIViewRepresentable {
     var pins: [MapPinLayer] = []
     var polygons: [MapPolygonLayer] = []
     var onTap: ((CLLocationCoordinate2D) -> Void)?
+    var onSelectPin: ((String) -> Void)?
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -23,6 +24,7 @@ struct KarsMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onTap = onTap
+        context.coordinator.onSelectPin = onSelectPin
         map.removeOverlays(map.overlays)
         map.removeAnnotations(map.annotations.filter { !($0 is MKUserLocation) })
         for line in polylines where line.coordinates.count >= 2 {
@@ -36,7 +38,7 @@ struct KarsMapView: UIViewRepresentable {
             map.addOverlay(overlay)
         }
         for pin in pins {
-            let ann = MKPointAnnotation()
+            let ann = KBMapAnnotation(id: pin.id)
             ann.coordinate = pin.coordinate
             ann.title = pin.title
             ann.subtitle = pin.subtitle
@@ -48,6 +50,7 @@ struct KarsMapView: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var onTap: ((CLLocationCoordinate2D) -> Void)?
+        var onSelectPin: ((String) -> Void)?
 
         @objc func tapped(_ g: UITapGestureRecognizer) {
             guard let map = g.view as? MKMapView else { return }
@@ -57,6 +60,12 @@ struct KarsMapView: UIViewRepresentable {
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
             !(touch.view is MKAnnotationView)
+        }
+
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            guard let ann = view.annotation as? KBMapAnnotation else { return }
+            onSelectPin?(ann.id)
+            mapView.deselectAnnotation(ann, animated: false)
         }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
@@ -75,6 +84,14 @@ struct KarsMapView: UIViewRepresentable {
             }
             return MKOverlayRenderer(overlay: overlay)
         }
+    }
+}
+
+final class KBMapAnnotation: MKPointAnnotation {
+    let id: String
+    init(id: String) {
+        self.id = id
+        super.init()
     }
 }
 

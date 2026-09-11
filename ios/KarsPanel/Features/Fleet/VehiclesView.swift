@@ -7,10 +7,10 @@ struct VehiclesView: View {
     @State private var arama = ""
     @State private var durumFiltre = VehicleDurumFiltre.tumu
     @State private var showCreate = false
+    @State private var duzenleIcin: VehicleDTO?
     @State private var confirm: KBConfirmRequest?
 
     var body: some View {
-        // Filtreleme her gövde değerlendirmesinde tekrarlamasın.
         let liste = gorunen
 
         KBScreen(
@@ -52,6 +52,9 @@ struct VehiclesView: View {
         .sheet(isPresented: $showCreate) {
             VehicleCreateSheet(store: store) { showCreate = false }
         }
+        .sheet(item: $duzenleIcin) { arac in
+            VehicleEditSheet(store: store, arac: arac) { duzenleIcin = nil }
+        }
     }
 
     @ViewBuilder
@@ -84,7 +87,11 @@ struct VehiclesView: View {
     }
 
     private func rozetler(_ arac: VehicleDTO) -> [KBBadge] {
-        [KBStatus.envanter(arac.envanterDurumu), KBStatus.operasyon(arac.operasyonDurumu)].compactMap { $0 }
+        var badges = [KBStatus.envanter(arac.envanterDurumu), KBStatus.operasyon(arac.operasyonDurumu)].compactMap { $0 }
+        if VehicleDurumFiltre.yaklasan.matches(arac) {
+            badges.append(KBBadge(text: "Yaklaşan", tone: .warning))
+        }
+        return badges
     }
 
     private func altBilgi(_ arac: VehicleDTO) -> String? {
@@ -100,6 +107,12 @@ struct VehiclesView: View {
         if let sayac = KBFormat.sayi(arac.sayacDeger, birim: "km") {
             chips.append(KBMetaChip(icon: "speedometer", text: sayac))
         }
+        if let muayene = KBFormat.tarih(arac.muayeneTarihi) {
+            chips.append(KBMetaChip(icon: "checkmark.shield", text: "Muayene \(muayene)"))
+        }
+        if let sigorta = KBFormat.tarih(arac.sigortaBitis) {
+            chips.append(KBMetaChip(icon: "doc.text", text: "Sigorta \(sigorta)"))
+        }
         if arac.atananSoforId != nil {
             chips.append(KBMetaChip(icon: "person.fill", text: "Şoför atanmış"))
         }
@@ -109,6 +122,9 @@ struct VehiclesView: View {
     private func aksiyonlar(_ arac: VehicleDTO) -> [KBRecordAction] {
         guard arac.envanterDurumu?.uppercased() != "HURDAYA_AYRILDI" else { return [] }
         return [
+            KBRecordAction(id: "\(arac.id)-duzenle", title: "Düzenle", icon: "pencil") {
+                duzenleIcin = arac
+            },
             KBRecordAction(
                 id: "\(arac.id)-hurda",
                 title: "Hurdaya Ayır",
@@ -131,6 +147,7 @@ struct VehiclesView: View {
     }
 
     private func vurgu(_ arac: VehicleDTO) -> Color {
+        if VehicleDurumFiltre.yaklasan.matches(arac) { return KBTheme.warning }
         switch arac.envanterDurumu?.uppercased() {
         case "ARIZALI": return KBTheme.danger
         case "BAKIMDA": return KBTheme.warning
@@ -141,7 +158,7 @@ struct VehiclesView: View {
 }
 
 enum VehicleDurumFiltre: String, CaseIterable, Hashable {
-    case tumu, aktif, bakimda, arizali, hurda
+    case tumu, aktif, bakimda, arizali, yaklasan, hurda
 
     var label: String {
         switch self {
@@ -149,6 +166,7 @@ enum VehicleDurumFiltre: String, CaseIterable, Hashable {
         case .aktif: return "Aktif"
         case .bakimda: return "Bakımda"
         case .arizali: return "Arızalı"
+        case .yaklasan: return "Yaklaşan"
         case .hurda: return "Hurda"
         }
     }
@@ -161,6 +179,10 @@ enum VehicleDurumFiltre: String, CaseIterable, Hashable {
         case .bakimda: return durum == "BAKIMDA"
         case .arizali: return durum == "ARIZALI"
         case .hurda: return durum == "HURDAYA_AYRILDI"
+        case .yaklasan:
+            let limit = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+            let adaylar = [arac.muayeneTarihi, arac.sigortaBitis, arac.sonrakiBakimTarihi].compactMap { $0 }
+            return adaylar.contains { $0 <= limit }
         }
     }
 }
@@ -197,6 +219,98 @@ private struct VehicleCreateSheet: View {
                 )
             }
             if ok { onClose() }
+        }
+    }
+}
+
+private struct VehicleEditSheet: View {
+    @ObservedObject var store: KBListStore<VehicleDTO>
+    let arac: VehicleDTO
+    let onClose: () -> Void
+
+    @State private var plaka = ""
+    @State private var marka = ""
+    @State private var operasyon = "MUSAIT"
+    @State private var departmentId = ""
+    @State private var muayene = Date()
+    @State private var hasMuayene = false
+    @State private var sigorta = Date()
+    @State private var hasSigorta = false
+    @State private var mudurlukler: [NamedRefDTO] = []
+    @State private var secenekHatasi: String?
+
+    private let operasyonlar = [
+        KBPickerOption(value: "MUSAIT", label: "Müsait"),
+        KBPickerOption(value: "GOREVDE", label: "Görevde"),
+        KBPickerOption(value: "BAKIMDA", label: "Bakımda"),
+        KBPickerOption(value: "ARIZALI", label: "Arızalı"),
+        KBPickerOption(value: "PLANLI_BAKIM", label: "Planlı bakım"),
+    ]
+
+    var body: some View {
+        KBFormSheet(
+            title: "Araç Düzenle",
+            subtitle: arac.plaka,
+            submitTitle: "Kaydet",
+            canSubmit: !plaka.trimmingCharacters(in: .whitespaces).isEmpty,
+            isSubmitting: store.isSubmitting,
+            errorMessage: secenekHatasi ?? store.errorMessage,
+            onSubmit: gonder,
+            onCancel: onClose
+        ) {
+            KBFormTextField(title: "Plaka", required: true, text: $plaka)
+            KBFormTextField(title: "Marka", text: $marka)
+            KBFormPicker(title: "Operasyon", selection: $operasyon, options: operasyonlar)
+            KBFormPicker(
+                title: "Zimmet (müdürlük)",
+                selection: $departmentId,
+                options: [KBPickerOption(value: "", label: "— Seçilmedi —")]
+                    + mudurlukler.map { KBPickerOption(value: $0.id, label: $0.name ?? $0.id) }
+            )
+
+            Toggle("Muayene tarihi var", isOn: $hasMuayene)
+            if hasMuayene {
+                KBFormDateField(title: "Muayene tarihi", date: $muayene)
+            }
+            Toggle("Sigorta bitiş var", isOn: $hasSigorta)
+            if hasSigorta {
+                KBFormDateField(title: "Sigorta bitiş", date: $sigorta)
+            }
+        }
+        .task {
+            plaka = arac.plaka ?? ""
+            marka = arac.marka ?? ""
+            operasyon = arac.operasyonDurumu ?? "MUSAIT"
+            departmentId = arac.departmentId ?? ""
+            if let d = arac.muayeneTarihi { muayene = d; hasMuayene = true }
+            if let d = arac.sigortaBitis { sigorta = d; hasSigorta = true }
+            do {
+                mudurlukler = try await KBReferenceCache.shared.lookups().mudurlukler ?? []
+            } catch {
+                secenekHatasi = "Müdürlük listesi yüklenemedi: \(KBErrorText.of(error))"
+            }
+        }
+    }
+
+    private func gonder() {
+        Task {
+            let fmt = ISO8601DateFormatter()
+            fmt.formatOptions = [.withFullDate]
+            let ok = await store.mutate(success: "Araç güncellendi") {
+                try await APIClient.shared.updateVehicle(
+                    id: arac.id,
+                    plaka: plaka.trimmingCharacters(in: .whitespaces),
+                    marka: marka.isEmpty ? nil : marka,
+                    operasyonDurumu: operasyon,
+                    departmentId: departmentId.isEmpty ? nil : departmentId,
+                    muayeneTarihi: hasMuayene ? fmt.string(from: muayene) : nil,
+                    sigortaBitis: hasSigorta ? fmt.string(from: sigorta) : nil
+                )
+            }
+            if ok {
+                KBReferenceCache.shared.temizle()
+                onClose()
+            }
         }
     }
 }

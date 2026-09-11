@@ -10,6 +10,10 @@ struct VehicleDTO: Codable, Identifiable, Hashable {
     let operasyonDurumu: String?
     let sayacDeger: Double?
     let atananSoforId: String?
+    let departmentId: String?
+    let muayeneTarihi: Date?
+    let sigortaBitis: Date?
+    let sonrakiBakimTarihi: Date?
 }
 
 struct VehicleTaskDTO: Codable, Identifiable, Hashable {

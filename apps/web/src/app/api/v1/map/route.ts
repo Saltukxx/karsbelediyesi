@@ -6,7 +6,7 @@ import {
   asfaltYolGuncelleForUser,
   asfaltYolSilForUser,
   engelKaydetForUser,
-  engelDurumGuncelleForUser,
+  engelGuncelleForUser,
   engelSilForUser,
 } from "@/lib/domain/map";
 import type { AsfaltDurum, HazardDurum, HazardTip } from "@kars/db";
@@ -45,9 +45,18 @@ export async function PATCH(req: Request) {
     const kind = str(body, "kind");
     const id = str(body, "id");
     if (kind === "hazard") {
-      return engelDurumGuncelleForUser(session, {
+      const durumRaw = optStr(body, "durum");
+      const tipRaw = optStr(body, "tip");
+      // aciklama anahtarı gönderildiyse (null dahil) güncelle; yoksa dokunma
+      const aciklama =
+        "aciklama" in body
+          ? (body.aciklama == null ? null : String(body.aciklama))
+          : undefined;
+      return engelGuncelleForUser(session, {
         id,
-        durum: str(body, "durum") as HazardDurum,
+        durum: durumRaw as HazardDurum | undefined,
+        tip: tipRaw as HazardTip | undefined,
+        aciklama,
       });
     }
     return asfaltYolGuncelleForUser(session, {

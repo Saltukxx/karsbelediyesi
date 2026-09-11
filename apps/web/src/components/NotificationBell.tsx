@@ -7,6 +7,7 @@ import {
   bildirimOkunduIsaretle,
   tumBildirimleriOkunduSay,
 } from "@/lib/actions/notifications";
+import { startVisibilityPoll } from "@/lib/poll";
 
 type BildirimItem = {
   id: string;
@@ -56,20 +57,10 @@ export function NotificationBell() {
     }
   }, []);
 
-  // 30 sn poll; sekme gizliyken duraklat (WhatsAppQueueLive kalıbı)
+  // ~30 sn jitter'lı poll; sekme gizliyken duraklat (KBPoll ruhu)
   useEffect(() => {
     void yenile();
-    const id = setInterval(() => {
-      if (document.visibilityState === "visible") void yenile();
-    }, 30_000);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void yenile();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    return startVisibilityPoll(yenile, 30_000);
   }, [yenile]);
 
   // Dışarı tıklayınca kapat

@@ -11,7 +11,12 @@ struct WhatsAppMessageDTO: Codable, Identifiable, Hashable {
     let icerik: String?
     let onayDurumu: String?
     let guven: Double?
+    let medyaUrl: String?
+    let medyaTipi: String?
+    let hasMedia: Bool?
     let createdAt: Date?
+
+    var medyaVar: Bool { hasMedia == true || !(medyaUrl ?? "").isEmpty }
 }
 
 struct ChecklistSubmissionDTO: Codable, Identifiable, Hashable {

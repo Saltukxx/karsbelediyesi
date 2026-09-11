@@ -58,6 +58,8 @@ struct ComplaintDTO: Codable, Identifiable, Hashable {
     let cozumNotu: String?
     let vehicleId: String?
     let vehicle: VehicleSummaryDTO?
+    let personnelIds: [String]?
+    let personnel: [NamedRefDTO]?
     let lat: Double?
     let lng: Double?
 }

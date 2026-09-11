@@ -8,10 +8,10 @@ struct TasksView: View {
     @State private var durumFiltre = GorevDurumFiltre.tumu
     @State private var showCreate = false
     @State private var rotaIcin: VehicleTaskDTO?
+    @State private var kmIstek: TaskKmRequest?
     @State private var confirm: KBConfirmRequest?
 
     var body: some View {
-        // Filtreleme her gövde değerlendirmesinde tekrarlamasın.
         let liste = gorunen
 
         KBScreen(
@@ -56,6 +56,9 @@ struct TasksView: View {
         }
         .sheet(item: $rotaIcin) { gorev in
             TaskRouteMapView(task: gorev)
+        }
+        .sheet(item: $kmIstek) { istek in
+            TaskKmSheet(store: store, istek: istek) { kmIstek = nil }
         }
     }
 
@@ -104,11 +107,7 @@ struct TasksView: View {
         if durum == "PLANLANDI" {
             actions.append(
                 KBRecordAction(id: "\(gorev.id)-baslat", title: "Başlat", icon: "play.fill", kind: .primary) {
-                    Task {
-                        await store.mutate(success: "Görev başlatıldı") {
-                            _ = try await APIClient.shared.updateTaskKm(id: gorev.id, action: "start", km: nil)
-                        }
-                    }
+                    kmIstek = TaskKmRequest(gorev: gorev, action: "start")
                 }
             )
         }
@@ -117,14 +116,10 @@ struct TasksView: View {
                 KBRecordAction(id: "\(gorev.id)-kapat", title: "Kapat", icon: "checkmark", kind: .destructive) {
                     confirm = KBConfirmRequest(
                         title: "Görev kapatılsın mı?",
-                        message: "\(gorev.gorevNo ?? "Görev") tamamlandı olarak işaretlenecek.",
-                        confirmTitle: "Kapat"
+                        message: "\(gorev.gorevNo ?? "Görev") tamamlandı olarak işaretlenecek. KM bilgisini bir sonraki adımda girebilirsiniz.",
+                        confirmTitle: "Devam"
                     ) {
-                        Task {
-                            await store.mutate(success: "Görev kapatıldı") {
-                                _ = try await APIClient.shared.updateTaskKm(id: gorev.id, action: "close", km: nil)
-                            }
-                        }
+                        kmIstek = TaskKmRequest(gorev: gorev, action: "close")
                     }
                 }
             )
@@ -140,6 +135,12 @@ struct TasksView: View {
         default: return KBTheme.info
         }
     }
+}
+
+struct TaskKmRequest: Identifiable {
+    var id: String { "\(gorev.id)-\(action)" }
+    let gorev: VehicleTaskDTO
+    let action: String
 }
 
 enum GorevDurumFiltre: String, CaseIterable, Hashable {
@@ -161,6 +162,72 @@ enum GorevDurumFiltre: String, CaseIterable, Hashable {
         case .planlandi: return durum == "PLANLANDI"
         case .devam: return durum == "DEVAM_EDIYOR"
         case .tamamlandi: return durum == "TAMAMLANDI"
+        }
+    }
+}
+
+private struct TaskKmSheet: View {
+    @ObservedObject var store: KBListStore<VehicleTaskDTO>
+    let istek: TaskKmRequest
+    let onClose: () -> Void
+
+    @State private var kmText = ""
+    @State private var lokalHata: String?
+
+    private var baslik: String {
+        istek.action == "start" ? "Görevi Başlat" : "Görevi Kapat"
+    }
+
+    private var kmBaslik: String {
+        istek.action == "start" ? "Çıkış KM (opsiyonel)" : "Giriş KM (opsiyonel)"
+    }
+
+    var body: some View {
+        KBFormSheet(
+            title: baslik,
+            subtitle: istek.gorev.gorevNo ?? istek.gorev.vehicle?.plaka,
+            submitTitle: istek.action == "start" ? "Başlat" : "Kapat",
+            canSubmit: !store.isSubmitting,
+            isSubmitting: store.isSubmitting,
+            errorMessage: lokalHata ?? store.errorMessage,
+            onSubmit: gonder,
+            onCancel: onClose
+        ) {
+            Text("KM sayacı isteğe bağlıdır; girerseniz sıfır veya pozitif olmalıdır.")
+                .font(.caption)
+                .foregroundStyle(KBTheme.muted)
+            KBFormTextField(
+                title: kmBaslik,
+                placeholder: "Örn. 125430",
+                text: $kmText,
+                keyboard: .decimalPad
+            )
+        }
+    }
+
+    private func gonder() {
+        lokalHata = nil
+        let trimmed = kmText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var km: Double? = nil
+        if !trimmed.isEmpty {
+            let normalized = trimmed.replacingOccurrences(of: ",", with: ".")
+            guard let value = Double(normalized), value >= 0 else {
+                lokalHata = "KM değeri geçerli ve negatif olmamalı."
+                return
+            }
+            km = value
+        }
+
+        Task {
+            let mesaj = istek.action == "start" ? "Görev başlatıldı" : "Görev kapatıldı"
+            let ok = await store.mutate(success: mesaj) {
+                _ = try await APIClient.shared.updateTaskKm(
+                    id: istek.gorev.id,
+                    action: istek.action,
+                    km: km
+                )
+            }
+            if ok { onClose() }
         }
     }
 }
