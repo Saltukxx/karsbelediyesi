@@ -18,13 +18,11 @@ export function WhatsAppQueueLive({ initialCount }: Props) {
   }, [initialCount]);
 
   useEffect(() => {
-    let cancelled = false;
-
     async function tick() {
       if (document.visibilityState === "hidden") return;
       try {
         const res = await fetch("/api/ops/whatsapp-queue", { cache: "no-store" });
-        if (!res.ok || cancelled) return;
+        if (!res.ok) return;
         const data = (await res.json()) as {
           pendingCount: number;
           fetchedAt: string;
