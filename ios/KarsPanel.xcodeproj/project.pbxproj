@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E9F7EBF1A8E6BDF66128A076 /* PushRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1506DC32188C890BCD3AF7A8 /* PushRegistration.swift */; };
 		00ABD6D525A9D41CC00A659F /* james.b@example.com in Resources */ = {isa = PBXBuildFile; fileRef = B835680DB8766B6328973788 /* james.b@example.com */; };
 		00B9C4D5B2353B7C2BB3AA77 /* DashboardChartDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F7489FBC91976B7DB7277C /* DashboardChartDataTests.swift */; };
 		01824725EF894A00B3492BBA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6DA347425896CCB35293B2D0 /* Assets.xcassets */; };
@@ -139,6 +140,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1506DC32188C890BCD3AF7A8 /* PushRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistration.swift; sourceTree = "<group>"; };
+		1B15C32404C12487ED4D63E6 /* KarsPanel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KarsPanel.entitlements; sourceTree = "<group>"; };
 		00D1AC0D5D46ED479637F3DF /* laura.c@example.net */ = {isa = PBXFileReference; path = "laura.c@example.net"; sourceTree = "<group>"; };
 		00F7489FBC91976B7DB7277C /* DashboardChartDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardChartDataTests.swift; sourceTree = "<group>"; };
 		025C02FD5548ACF400373EC4 /* ComplaintCreateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComplaintCreateView.swift; sourceTree = "<group>"; };
@@ -580,6 +583,7 @@
 				53B3F6A4411A8E82921D5560 /* AppConfig.swift */,
 				E33D24562E66C138394F6B08 /* AppSession.swift */,
 				B29ABA8F869C2900DC55F40E /* KarsPanelApp.swift */,
+				1B15C32404C12487ED4D63E6 /* KarsPanel.entitlements */,
 				F7D190CAC7825ED4D7C7FC7E /* RootView.swift */,
 			);
 			path = App;
@@ -588,6 +592,7 @@
 		EE3AC232463398029154029D /* Network */ = {
 			isa = PBXGroup;
 			children = (
+				1506DC32188C890BCD3AF7A8 /* PushRegistration.swift */,
 				76EF92C4832C91857E95EB89 /* APIClient.swift */,
 				6CFDCE40B757D6B655BE6C5C /* APIClient+Panel.swift */,
 				8D7A1BFB22B6C94FC6C4103A /* APIError.swift */,
@@ -815,6 +820,7 @@
 				E19DD356988C7409BBF1AC45 /* NavItem.swift in Sources */,
 				E30221039BBF2958B662EE53 /* NotificationBellView.swift in Sources */,
 				C66068AC4AB1461D23C0144D /* OfflineMutationQueue.swift in Sources */,
+				E9F7EBF1A8E6BDF66128A076 /* PushRegistration.swift in Sources */,
 				C4D1EF09E8BD6F6C9ED5EBE2 /* PanelDTOs.swift in Sources */,
 				1084301D8A4857BEB7F9F816 /* ParselView.swift in Sources */,
 				B05B8824853BB1D453A70708 /* PersonnelView.swift in Sources */,
@@ -974,6 +980,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = tr.gov.kars.panel;
+				CODE_SIGN_ENTITLEMENTS = KarsPanel/KarsPanel.entitlements;
 				PRODUCT_NAME = KarsPanel;
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
@@ -1021,6 +1028,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = tr.gov.kars.panel;
+				CODE_SIGN_ENTITLEMENTS = KarsPanel/KarsPanel.entitlements;
 				PRODUCT_NAME = KarsPanel;
 				SDKROOT = iphoneos;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;

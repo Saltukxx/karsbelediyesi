@@ -4,6 +4,8 @@ import { gerekceOzeti, type DispatchGerekce } from "@/lib/dispatch";
 import { gecikenCopRotalari, gecikenKisRotalari } from "@/lib/sla-notify";
 import { rotayaUzaklikM, type LatLng } from "@/lib/geo-track";
 import { analizEsikleri, sapmaTaramasiDene } from "@/lib/route-analysis";
+import { getMobilizSyncStatus } from "@/lib/mobiliz/sync";
+import type { MobilizSyncStatus } from "@/lib/mobiliz/types";
 
 export type KomutaSlaBucket = "lt24" | "d1to3" | "gt3";
 
@@ -99,6 +101,8 @@ export interface KomutaVeri {
   sikayetler: KomutaSikayetPinDto[];
   bekleyenler: KomutaBekleyenDto[];
   gecikenRotalar: KomutaGecikenRotaDto[];
+  /** Mobiliz sync özeti (token yoksa configured=false) */
+  mobiliz: MobilizSyncStatus;
 }
 
 function slaBucket(kayitTarihi: Date, now: number): KomutaSlaBucket {
@@ -355,5 +359,6 @@ export async function komutaVerisiGetir(
     sikayetler: sikayetPinleri,
     bekleyenler,
     gecikenRotalar,
+    mobiliz: getMobilizSyncStatus(),
   };
 }

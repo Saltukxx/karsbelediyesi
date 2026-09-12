@@ -274,6 +274,7 @@ model User {
   temizlikSuruculukleri CleaningOperation[]  @relation("TemizlikOperasyonSofor")
   konumPingleri        VehicleLocation[]     @relation("KonumSofor")
   notifications        Notification[]
+  deviceTokens         DeviceToken[]
   gonderilenWhatsapp   WhatsAppMessage[]     @relation("WhatsAppGonderen")
 }
 
@@ -1401,4 +1402,18 @@ model Notification {
 
   @@index([userId, okundu])
   @@index([createdAt])
+}
+
+/// iOS/Android push cihaz tokenı (APNs / FCM)
+model DeviceToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  /// ios | android
+  platform  String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

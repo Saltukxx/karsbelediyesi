@@ -72,6 +72,14 @@ extension APIClient {
         }
     }
 
+
+    func registerDevice(token: String, platform: String = "ios") async throws {
+        try await postOk(
+            path: "/api/v1/devices",
+            body: ["token": token, "platform": platform]
+        )
+    }
+
     func fetchMap() async throws -> MapPayloadDTO {
         try await firstAvailable([
             { try await self.request(path: "/api/v1/map") },

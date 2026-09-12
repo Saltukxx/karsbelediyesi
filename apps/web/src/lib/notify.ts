@@ -1,5 +1,6 @@
 import { prisma } from "@kars/db";
 import type { Rol } from "@kars/shared";
+import { apnsGonder } from "@/lib/apns";
 
 export type BildirimTip = "ATAMA" | "GOREV" | "ONAY" | "SLA" | "SISTEM" | "UYARI";
 
@@ -33,6 +34,15 @@ export async function bildirimGonder(
       })),
       skipDuplicates: true,
     });
+    // Önemli tiplerde APNs dene (env yoksa no-op). Poll yedek kalır.
+    if (icerik.tip === "SLA" || icerik.tip === "ATAMA" || icerik.tip === "GOREV") {
+      void apnsGonder(benzersiz, {
+        title: icerik.baslik,
+        body: icerik.mesaj,
+        href: icerik.href,
+        tip: icerik.tip,
+      });
+    }
   } catch (e) {
     console.error("Bildirim oluşturulamadı:", {
       tip: icerik.tip,

@@ -33,6 +33,9 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES
         ENABLE_TESTABILITY: YES
+        CODE_SIGN_ENTITLEMENTS: KarsPanel/KarsPanel.entitlements
+    entitlements:
+      path: KarsPanel/KarsPanel.entitlements
     info:
       path: KarsPanel/Info.plist
       properties:
@@ -44,6 +47,7 @@ targets:
         NSPhotoLibraryAddUsageDescription: Rapor ve Excel çıktıları Fotoğraflar’a kaydedilebilir.
         UIBackgroundModes:
           - location
+          - remote-notification
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSExceptionDomains:

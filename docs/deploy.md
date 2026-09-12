@@ -14,6 +14,7 @@ Kısa kontrol listesi. Gerçek sırları repoya koymayın.
 cp .env.example .env.prod
 # Zorunlu: POSTGRES_*, REDIS_PASSWORD, AUTH_SECRET, AUTH_URL, JWT_SECRET, CRON_SECRET
 # İsteğe bağlı: MOBILIZ_TOKEN, GEMINI_API_KEY, DB_CONNECTION_LIMIT
+# İsteğe bağlı APNs: APNS_KEY_PATH, APNS_KEY_ID, APNS_TEAM_ID, APNS_TOPIC=tr.gov.kars.panel
 ```
 
 `docker-compose.prod.yml` varsayılan şifre taşımaz; eksik değişkenlerde compose hata verir (`:?`).
@@ -66,5 +67,5 @@ Sistem cron veya Hetzner cron-job ile çalıştırın.
 
 ## 6. Bilinçli olarak burada olmayanlar
 
-- Mobiliz canlı token, APNs sertifikaları, Baileys→WABA geçişi
+- Mobiliz canlı token (MOBILIZ_TOKEN yoksa sync no-op), APNs .p8 (APNS_* yoksa push no-op), Baileys→WABA geçişi
 - TestFlight / ASC uygulama CREATE

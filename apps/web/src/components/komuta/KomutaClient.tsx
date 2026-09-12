@@ -292,6 +292,27 @@ export default function KomutaClient({ ilkVeri }: { ilkVeri: KomutaVeri }) {
           </section>
 
           <section className={`${cardCls} p-3`}>
+            <p className={`${sectionTitleCls} mb-2`}>Mobiliz</p>
+            <p className="text-xs text-kb-muted">
+              {veri.mobiliz?.configured
+                ? veri.mobiliz.lastSyncAt
+                  ? `Son sync: ${new Date(veri.mobiliz.lastSyncAt).toLocaleString("tr-TR")}${
+                      veri.mobiliz.lastSyncSuccess
+                        ? ` · güncellenen ${veri.mobiliz.updated ?? 0}`
+                        : ` · hata: ${veri.mobiliz.lastSyncError ?? "?"}`
+                    }`
+                  : "Yapılandırıldı — henüz sync yok"
+                : "token yok — no-op"}
+            </p>
+            <Link
+              href="/tanimlar"
+              className="mt-2 block text-xs font-medium text-kb-navy hover:underline"
+            >
+              Tanımlar → Mobiliz
+            </Link>
+          </section>
+
+          <section className={`${cardCls} p-3`}>
             <p className={`${sectionTitleCls} mb-2`}>Filo durumu</p>
             <div className="grid grid-cols-3 gap-2 text-center text-sm">
               <div className="rounded-md bg-kb-surface px-2 py-2">

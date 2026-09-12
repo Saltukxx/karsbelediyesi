@@ -28,6 +28,7 @@ final class AppSession: ObservableObject {
             api.setToken(token)
             user = savedUser
             await refreshMe()
+            PushRegistration.shared.requestAndRegister()
         }
     }
 
@@ -38,7 +39,10 @@ final class AppSession: ObservableObject {
         // Referans listeleri role göre süzülüyor; önceki kullanıcının kopyası kalmasın.
         KBReferenceCache.shared.temizle()
         self.user = user
-        Task { await refreshMe() }
+        Task {
+            await refreshMe()
+            PushRegistration.shared.requestAndRegister()
+        }
     }
 
     func signOut() {

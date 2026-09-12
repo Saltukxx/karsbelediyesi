@@ -55,13 +55,14 @@ export function MobilizAdminCard({
       <p className="text-sm text-kb-ink">
         Durum:{" "}
         <span className="font-semibold">
-          {configured ? "Yapılandırıldı" : "Yapılandırılmadı"}
+          {configured ? "Yapılandırıldı" : "token yok — no-op"}
         </span>
         {!configured && (
           <span className="block text-xs text-kb-muted mt-1">
-            Token gelince <code className="text-[11px]">MOBILIZ_TOKEN</code> ve
-            isteğe bağlı <code className="text-[11px]">MOBILIZ_BASE_URL</code>{" "}
-            ekleyin. Sync plaka eşlemesiyle mevcut araçlara{" "}
+            <code className="text-[11px]">MOBILIZ_TOKEN</code> tanımlı değil;
+            sync ve cron no-op. Token gelince env&apos;e ekleyin (isteğe bağlı{" "}
+            <code className="text-[11px]">MOBILIZ_BASE_URL</code>). Plaka
+            eşlemesiyle mevcut araçlara{" "}
             <code className="text-[11px]">TAKIP_CIHAZI</code> konum yazar;
             otomatik araç yaratmaz.
           </span>
